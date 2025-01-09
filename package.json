@@ -1,5 +1,6 @@
 {
-  "name": "my-nextjs-movie-app",
+  "name": "cinemafred",
+  "type": "module",
   "version": "0.1.0",
   "private": true,
   "scripts": {
@@ -7,15 +8,21 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "migrate": "ts-node scripts/migrate.ts",
-    "create-admin": "ts-node scripts/create-admin.ts",
-    "update-admin-password": "ts-node scripts/update-admin-password.ts"
+    "migrate": "ts-node --esm scripts/migrate.ts",
+    "create-admin": "tsx scripts/create-admin.ts",
+    "update-admin-password": "ts-node --esm scripts/update-admin-password.ts"
   },
   "dependencies": {
+    "@prisma/client": "^6.2.1",
+    "@vercel/postgres": "^0.10.0",
+    "bcrypt": "^5.1.1",
     "bcryptjs": "^2.4.3",
     "jsonwebtoken": "^9.0.2",
     "lucide-react": "^0.469.0",
+    "neonctl": "^2.6.0",
     "next": "15.1.4",
+    "pg": "^8.13.1",
+    "prisma": "^6.2.1",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "uuid": "^11.0.4"

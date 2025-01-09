@@ -52,3 +52,12 @@ scripts/
 ├── create-admin.ts
 ├── migrate.ts
 └── update-admin-password.ts
+
+
+## Updating PostgreSQL on Vercel
+If you update your neon database on vercel, simply run "vercel env pull .env" in the project terminal to update the .env variables.
+
+Migration:
+npx prisma migrate dev --name init
+
+I'm going to run the same database for production and development, which isn't best practice but I don't care, it's simpler.

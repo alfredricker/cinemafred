@@ -5,27 +5,26 @@ import { Header } from '@/components/Header';
 import { useAuth } from '@/context/AuthContext';
 import { redirect } from 'next/navigation';
 
-interface MovieDetailsProps {
-    id: string;
-  }
-
-export default function MoviePage({ params }: { params: { id: string } }) {
+function AuthWrapper({ children }: { children: React.ReactNode }) {
   const { user, isLoading } = useAuth();
 
-  if (isLoading) {
-    return <div className="text-gray-400">Loading...</div>;
-  }
+  if (isLoading) return <div className="text-gray-400">Loading...</div>;
+  if (!user) redirect('/login');
 
-  if (!user) {
-    redirect('/login');
-  }
+  return children;
+}
 
+export default async function MoviePage({ params }: { params: Promise<{ id: string }> }) {
+  const resolvedParams = await params;
+  
   return (
-    <div className="min-h-screen bg-black text-gray-100">
-      <Header />
-      <main className="max-w-7xl mx-auto py-8">
-        <MovieDetails id={params.id} />
-      </main>
-    </div>
+    <AuthWrapper>
+      <div className="min-h-screen bg-black text-gray-100">
+        <Header />
+        <main className="max-w-7xl mx-auto py-8">
+          <MovieDetails id={resolvedParams.id} />
+        </main>
+      </div>
+    </AuthWrapper>
   );
 }

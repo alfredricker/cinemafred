@@ -1,14 +1,15 @@
-// src/app/api/users/[id]/toggle-status/route.ts
-import { NextResponse } from 'next/server';
+//src/app/api/users/[id]/toggle-status/route.ts
+import { NextResponse, NextRequest } from 'next/server';
 import { validateAdmin } from '@/lib/middleware';
-import { getDB } from '@/lib/db';
+import prisma from '@/lib/db';
 
-export async function POST(
-  request: Request,
-  { params }: { params: { id: string } }
-) {
+export async function POST(request: NextRequest): Promise<NextResponse> {
   try {
-    // Validate admin access
+    const userId = request.url.split('/').pop();
+    if (!userId) {
+      return NextResponse.json({ error: 'Invalid ID' }, { status: 400 });
+    }
+
     const validation = await validateAdmin(request);
     if ('error' in validation) {
       return NextResponse.json(
@@ -17,14 +18,10 @@ export async function POST(
       );
     }
 
-    const userId = params.id;
-    const db = getDB();
-
-    // Check if user exists and is not an admin
-    const targetUser = await db
-      .prepare('SELECT is_admin FROM users WHERE id = ?')
-      .bind(userId)
-      .first();
+    const targetUser = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { is_admin: true, is_active: true }
+    });
 
     if (!targetUser) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
@@ -37,25 +34,15 @@ export async function POST(
       );
     }
 
-    // Toggle user status
-    const result = await db
-      .prepare('UPDATE users SET is_active = NOT is_active WHERE id = ?')
-      .bind(userId)
-      .run();
-
-    if (!result.success) {
-      throw new Error('Failed to update user status');
-    }
-
-    // Get updated user status
-    const updatedUser = await db
-      .prepare('SELECT is_active FROM users WHERE id = ?')
-      .bind(userId)
-      .first();
+    const updatedUser = await prisma.user.update({
+      where: { id: userId },
+      data: { is_active: !targetUser.is_active },
+      select: { is_active: true }
+    });
 
     return NextResponse.json({
       message: 'User status updated successfully',
-      isActive: updatedUser.isActive
+      isActive: updatedUser.is_active
     });
   } catch (error) {
     console.error('Error toggling user status:', error);
