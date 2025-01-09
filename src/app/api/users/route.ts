@@ -19,15 +19,15 @@ export async function GET(request: Request) {
     }
 
     const users = await prisma.user.findMany({
-      orderBy: { created_at: 'desc' },
+      orderBy: { createdAt: 'desc' },
       select: {
         id: true,
         email: true,
         username: true,
-        is_active: true,
-        is_admin: true,
-        must_reset_password: true,
-        created_at: true
+        isActive: true,
+        isAdmin: true,
+        mustResetPassword: true,
+        createdAt: true
       }
     });
 
@@ -89,9 +89,9 @@ export async function POST(request: Request) {
         email,
         username,
         password_hash: hashedPassword,
-        is_active: true,
-        is_admin: false,
-        must_reset_password: true
+        isActive: true,
+        isAdmin: false,
+        mustResetPassword: true
       }
     });
 

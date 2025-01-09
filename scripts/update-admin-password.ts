@@ -17,7 +17,7 @@ const updatePassword = async () => {
       where: { username },
       data: {
         password_hash: hashedPassword,
-        must_reset_password: false
+        mustResetPassword: false
       }
     });
 

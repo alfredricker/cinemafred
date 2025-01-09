@@ -20,14 +20,14 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     const targetUser = await prisma.user.findUnique({
       where: { id: userId },
-      select: { is_admin: true, is_active: true }
+      select: { isAdmin: true, isActive: true }
     });
 
     if (!targetUser) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
 
-    if (targetUser.is_admin) {
+    if (targetUser.isAdmin) {
       return NextResponse.json(
         { error: 'Cannot toggle admin user status' },
         { status: 403 }
@@ -36,13 +36,13 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     const updatedUser = await prisma.user.update({
       where: { id: userId },
-      data: { is_active: !targetUser.is_active },
-      select: { is_active: true }
+      data: { isActive: !targetUser.isActive },
+      select: { isActive: true }
     });
 
     return NextResponse.json({
       message: 'User status updated successfully',
-      isActive: updatedUser.is_active
+      isActive: updatedUser.isActive
     });
   } catch (error) {
     console.error('Error toggling user status:', error);

@@ -23,7 +23,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Invalid credentials' }, { status: 401 });
     }
 
-    if (!user.is_active) {
+    if (!user.isActive) {
       return NextResponse.json({ error: 'Account is inactive' }, { status: 403 });
     }
 
@@ -32,9 +32,9 @@ export async function POST(req: Request) {
         id: user.id,
         email: user.email,
         username: user.username,
-        isAdmin: user.is_admin,
-        isActive: user.is_active,
-        mustResetPassword: user.must_reset_password
+        isAdmin: user.isAdmin,
+        isActive: user.isActive,
+        mustResetPassword: user.mustResetPassword
       },
       JWT_SECRET,
       { expiresIn: '24h' }

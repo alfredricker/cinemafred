@@ -16,7 +16,7 @@ const createAdmin = async () => {
       where: {
         OR: [
           { username },
-          { is_admin: true }
+          { isAdmin: true }
         ]
       }
     });
@@ -32,9 +32,9 @@ const createAdmin = async () => {
         username,
         email: `${username}@admin.local`,
         password_hash: hashedPassword,
-        is_active: true,
-        is_admin: true,
-        must_reset_password: false
+        isActive: true,
+        isAdmin: true,
+        mustResetPassword: false
       }
     });
 

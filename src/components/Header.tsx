@@ -1,6 +1,7 @@
 'use client';
 import { LogOut } from 'lucide-react';
 import { SortSelect } from './SortSelect';
+import { Navigation } from './Navigation';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 
@@ -12,10 +13,14 @@ export const Header: React.FC = () => {
     await logout();
     router.push('/login');
   };
+
   return (
     <header className="bg-black/20 text-white py-4 px-8">
       <div className="max-w-7xl mx-auto flex items-center justify-between">
-        <SortSelect />
+        <div className="flex items-center gap-8">
+          <SortSelect />
+          <Navigation />
+        </div>
         <button
           onClick={handleLogout}
           className="flex items-center gap-2 px-3 py-1.5 rounded-lg hover:bg-gray-800 transition-colors"

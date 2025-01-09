@@ -18,11 +18,11 @@ model User {
   email             String    @unique
   username          String    @unique
   password_hash     String
-  is_active         Boolean   @default(true)
-  is_admin          Boolean   @default(false)
-  must_reset_password Boolean  @default(false)
-  created_at        DateTime  @default(now())
-  updated_at        DateTime  @updatedAt
+  isActive         Boolean   @default(true)
+  isAdmin          Boolean   @default(false)
+  mustResetPassword Boolean  @default(false)
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
   reviews           Review[]
 }
 
@@ -30,24 +30,24 @@ model Movie {
   id            String    @id @default(uuid())
   title         String
   description   String?
-  release_year  Int?
-  r2_bucket_path String
-  created_at    DateTime  @default(now())
-  updated_at    DateTime  @updatedAt
+  releaseYear  Int?
+  r2BucketPath String
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
   reviews       Review[]
 }
 
 model Review {
   id          String    @id @default(uuid())
-  user        User      @relation(fields: [user_id], references: [id])
-  user_id     String
-  movie       Movie     @relation(fields: [movie_id], references: [id])
-  movie_id    String
+  user        User      @relation(fields: [userId], references: [id])
+  userId     String
+  movie       Movie     @relation(fields: [movieId], references: [id])
+  movieId    String
   rating      Int
-  review_text String?
-  created_at  DateTime  @default(now())
-  updated_at  DateTime  @updatedAt
+  reviewText String?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
 
-  @@index([user_id])
-  @@index([movie_id])
+  @@index([userId])
+  @@index([movieId])
 }
