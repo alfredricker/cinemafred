@@ -1,19 +1,19 @@
+//src/app/movie/[id]/page.tsx
 'use client';
+import { MovieDetails } from '@/components/MovieDetails';
 import { Header } from '@/components/Header';
-import { MovieGrid } from '@/components/MovieGrid';
-import { movies } from '@/data/movies';
 import { useAuth } from '@/context/AuthContext';
 import { redirect } from 'next/navigation';
 
-export default function Home() {
+interface MovieDetailsProps {
+    id: string;
+  }
+
+export default function MoviePage({ params }: { params: { id: string } }) {
   const { user, isLoading } = useAuth();
 
   if (isLoading) {
-    return (
-      <div className="min-h-screen bg-black flex items-center justify-center">
-        <div className="text-gray-400">Loading...</div>
-      </div>
-    );
+    return <div className="text-gray-400">Loading...</div>;
   }
 
   if (!user) {
@@ -24,7 +24,7 @@ export default function Home() {
     <div className="min-h-screen bg-black text-gray-100">
       <Header />
       <main className="max-w-7xl mx-auto py-8">
-        <MovieGrid movies={movies} />
+        <MovieDetails id={params.id} />
       </main>
     </div>
   );

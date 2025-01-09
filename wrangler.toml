@@ -1,0 +1,5 @@
+name = "cinemafred"
+compatibility_date = "2024-01-08"
+
+[build]
+command = "npm run build"
