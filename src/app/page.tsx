@@ -10,7 +10,7 @@ export default function Home() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-black flex items-center justify-center">
+      <div className="min-h-screen bg-gradient-to-br from-gray-900 via-black to-gray-900 flex items-center justify-center">
         <div className="text-gray-400">Loading...</div>
       </div>
     );
@@ -21,10 +21,12 @@ export default function Home() {
   }
 
   return (
-    <div className="min-h-screen bg-black text-gray-100">
+    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-black to-gray-900">
       <Header />
-      <main className="max-w-7xl mx-auto py-8">
-        <MovieGrid movies={movies} />
+      <main className="px-4">
+        <div className="max-w-7xl mx-auto space-y-8">
+          <MovieGrid movies={movies} />
+        </div>
       </main>
     </div>
   );

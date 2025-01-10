@@ -3,17 +3,19 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { Film, Lock, User } from 'lucide-react';
 import { redirect, useRouter } from 'next/navigation';
+import { PasswordResetDialog } from '@/components/PasswordResetDialog';
 
 export default function LoginPage() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const { login, user } = useAuth();
+  const [showResetDialog, setShowResetDialog] = useState(false);
+  const { login, updatePassword, user } = useAuth();
   const router = useRouter();
 
   useEffect(() => {
-    if (user) {
+    if (user && !user.mustResetPassword) {
       router.push('/');
     }
   }, [user, router]);
@@ -26,7 +28,7 @@ export default function LoginPage() {
     try {
       const success = await login(username, password);
       if (success) {
-        router.push('/');
+        // The useEffect will handle the redirect if needed
       } else {
         setError('Invalid credentials');
       }
@@ -36,6 +38,22 @@ export default function LoginPage() {
       setIsLoading(false);
     }
   };
+
+  const handlePasswordReset = async (newPassword: string) => {
+    try {
+      await updatePassword(newPassword);
+      router.push('/');
+    } catch (error) {
+      throw error; // Let the dialog handle the error
+    }
+  };
+
+  // Show password reset dialog if user needs to reset password
+  useEffect(() => {
+    if (user?.mustResetPassword) {
+      setShowResetDialog(true);
+    }
+  }, [user]);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-900 via-black to-gray-900 flex items-center justify-center px-4">
@@ -97,6 +115,13 @@ export default function LoginPage() {
           </button>
         </form>
       </div>
+
+      {showResetDialog && (
+        <PasswordResetDialog
+          onUpdatePassword={handlePasswordReset}
+          onClose={() => setShowResetDialog(false)}
+        />
+      )}
     </div>
   );
 };
