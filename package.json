@@ -10,7 +10,8 @@
     "migrate": "prisma migrate deploy",
     "create-admin": "tsx scripts/create-admin.ts",
     "check-db": "tsx scripts/check-db.ts",
-    "update-admin-password": "tsx scripts/update-admin-password.ts"
+    "update-admin-password": "tsx scripts/update-admin-password.ts",
+    "migrate-movies": "tsx scripts/migrate-movies.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.726.1",

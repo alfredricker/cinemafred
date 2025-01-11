@@ -1,9 +1,9 @@
 'use client';
 import { Header } from '@/components/Header';
 import { MovieGrid } from '@/components/MovieGrid';
-import { movies } from '@/data/movies';
 import { useAuth } from '@/context/AuthContext';
 import { redirect } from 'next/navigation';
+import { Loader2 } from 'lucide-react';
 
 export default function Home() {
   const { user, isLoading } = useAuth();
@@ -11,7 +11,7 @@ export default function Home() {
   if (isLoading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-gray-900 via-black to-gray-900 flex items-center justify-center">
-        <div className="text-gray-400">Loading...</div>
+        <Loader2 className="w-8 h-8 animate-spin text-gray-400" />
       </div>
     );
   }
@@ -24,8 +24,9 @@ export default function Home() {
     <div className="min-h-screen bg-gradient-to-br from-gray-900 via-black to-gray-900">
       <Header />
       <main className="px-4">
-        <div className="max-w-7xl mx-auto space-y-8">
-          <MovieGrid movies={movies} />
+        <div className="max-w-7xl mx-auto pt-8 pb-16">
+          {/* MovieGrid now handles its own data fetching */}
+          <MovieGrid />
         </div>
       </main>
     </div>
