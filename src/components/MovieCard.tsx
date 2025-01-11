@@ -3,7 +3,6 @@ import React, { useState } from 'react';
 import Image from 'next/image';
 import { Movie } from '../types/movie';
 import { useRouter } from 'next/navigation';
-import { r2ImageLoader } from '@/lib/imageLoader';
 
 interface MovieCardProps {
   movie: Movie;
@@ -13,21 +12,33 @@ export const MovieCard: React.FC<MovieCardProps> = ({ movie }) => {
   const router = useRouter();
   const [imageError, setImageError] = useState(false);
 
+  // Function to handle navigation
+  const handleCardClick = () => {
+    if (movie.id) {
+      router.push(`/movie/${movie.id}`);
+    } else {
+      console.error('Movie ID is missing. Cannot navigate.');
+    }
+  };
+
   return (
-    <div 
+    <div
       className="cursor-pointer group"
-      onClick={() => router.push(`/movie/${movie.id}`)}
+      onClick={handleCardClick}
     >
+      {/* Image Container */}
       <div className="relative aspect-[27/40] overflow-hidden rounded-lg bg-gray-900">
         {movie.r2_image_path && !imageError ? (
-          <Image 
+          <Image
             src={movie.r2_image_path}
             alt={movie.title}
             fill
-            loader={r2ImageLoader}
             unoptimized
             className="object-cover transition-transform group-hover:scale-105"
-            onError={() => setImageError(true)}
+            onError={() => {
+              console.error(`Failed to load image for ${movie.title}`);
+              setImageError(true);
+            }}
           />
         ) : (
           <div className="w-full h-full flex items-center justify-center bg-gray-800">
@@ -35,8 +46,10 @@ export const MovieCard: React.FC<MovieCardProps> = ({ movie }) => {
           </div>
         )}
       </div>
+
+      {/* Movie Details */}
       <div className="mt-2">
-        <h3 className="text-gray-100 font-medium line-clamp-1">{movie.title}</h3>
+        <h3 className="text-gray-100 font-medium line-clamp-1">{movie.title || 'Untitled Movie'}</h3>
         {movie.year && (
           <p className="text-sm text-gray-400">{movie.year}</p>
         )}

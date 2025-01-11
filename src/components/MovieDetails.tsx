@@ -1,21 +1,41 @@
+// Updated MovieDetails component
 'use client';
 import { useState } from 'react';
 import { useMovie } from '@/hooks/useMovie';
 import { Star } from 'lucide-react';
 import { RatingStars } from './RatingStars';
 import Image from 'next/image';
+import { VideoPlayer } from './VideoPlayer';
 
 interface MovieDetailsProps {
   id: string;
 }
 
-// Add 'export' keyword here
 export const MovieDetails: React.FC<MovieDetailsProps> = ({ id }) => {
   const { movie, updateRating } = useMovie(id);
   const [showReviews, setShowReviews] = useState(false);
+  const [isWatching, setIsWatching] = useState(false);
   const [imageError, setImageError] = useState(false);
 
   if (!movie) return null;
+
+  const handleWatchNow = () => {
+    setIsWatching(true);
+  };
+
+  if (isWatching) {
+    return (
+      <div className="container mx-auto px-4 py-8">
+        <VideoPlayer
+          streamUrl={`/api/stream/${movie.id}`}
+          poster={movie.r2_image_path}
+          title={movie.title}
+          movieId={movie.id.toString()}
+          subtitlesUrl={movie.r2_subtitles_path ? `/api/movie/${movie.r2_subtitles_path}` : null}
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="container mx-auto px-4 py-8">
@@ -26,9 +46,12 @@ export const MovieDetails: React.FC<MovieDetailsProps> = ({ id }) => {
               src={movie.r2_image_path} 
               alt={movie.title}
               fill
-              sizes="(max-width: 768px) 100vw, 300px"
+              unoptimized
               className="rounded-lg shadow-lg object-cover"
-              onError={() => setImageError(true)}
+              onError={() => {
+                console.error(`Failed to load image for ${movie.title}`);
+                setImageError(true);
+              }}
             />
           ) : (
             <div className="w-full h-full flex items-center justify-center bg-gray-800 rounded-lg">
@@ -62,7 +85,7 @@ export const MovieDetails: React.FC<MovieDetailsProps> = ({ id }) => {
 
           <button 
             className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition-colors mb-8"
-            onClick={() => window.open(movie.streamingUrl, '_blank')}
+            onClick={handleWatchNow}
           >
             Watch Now
           </button>

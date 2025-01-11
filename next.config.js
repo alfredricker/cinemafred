@@ -8,11 +8,13 @@ const nextConfig = {
         pathname: '/cinemafred/**',
       },
     ],
+    minimumCacheTTL: 60,
+    formats: ['image/webp'],
   },
   typescript: {
     ignoreBuildErrors: false
   },
-  reactStrictMode: true
+  reactStrictMode: true,
 }
 
 module.exports = nextConfig
