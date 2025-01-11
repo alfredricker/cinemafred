@@ -19,7 +19,7 @@ export const MovieDetails: React.FC<MovieDetailsProps> = ({ id }) => {
       <div className="grid md:grid-cols-[300px,1fr] gap-8">
         <div>
           <img 
-            src={movie.poster} 
+            src={movie.r2_image_path} 
             alt={movie.title}
             className="w-full rounded-lg shadow-lg"
           />

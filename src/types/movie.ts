@@ -5,8 +5,9 @@ export interface Movie {
   director: string;
   genre: string[];
   rating: number;
-  poster: string;
+  r2_image_path: string;
+  r2_video_path: string;   // New field for R2 storage
   description: string;
   streamingUrl: string;
-  cloudflareVideoId?: string; // For Cloudflare Stream integration
+  cloudflareVideoId?: string;
 }
