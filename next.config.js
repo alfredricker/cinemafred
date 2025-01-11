@@ -4,7 +4,7 @@ const nextConfig = {
     remotePatterns: [
       {
         protocol: 'https',
-        hostname: '17eb349fd2bf73bcaa03d603e8152f91.r2.cloudflarestorage.com',  // Adjust this based on your actual S3 API URL
+        hostname: 'pub-f58c527a326541cc87548f3216502f10.r2.dev',
         pathname: '/cinemafred/**',
       },
     ],

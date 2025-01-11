@@ -1,8 +1,9 @@
 'use client';
-import React from 'react';
+import React, { useState } from 'react';
 import Image from 'next/image';
 import { Movie } from '../types/movie';
 import { useRouter } from 'next/navigation';
+import { r2ImageLoader } from '@/lib/imageLoader';
 
 interface MovieCardProps {
   movie: Movie;
@@ -10,6 +11,7 @@ interface MovieCardProps {
 
 export const MovieCard: React.FC<MovieCardProps> = ({ movie }) => {
   const router = useRouter();
+  const [imageError, setImageError] = useState(false);
 
   return (
     <div 
@@ -17,13 +19,15 @@ export const MovieCard: React.FC<MovieCardProps> = ({ movie }) => {
       onClick={() => router.push(`/movie/${movie.id}`)}
     >
       <div className="relative aspect-[27/40] overflow-hidden rounded-lg bg-gray-900">
-        {movie.r2_image_path ? (
+        {movie.r2_image_path && !imageError ? (
           <Image 
             src={movie.r2_image_path}
             alt={movie.title}
             fill
-            className="object-cover transition-transform group-hover:scale-105"
+            loader={r2ImageLoader}
             unoptimized
+            className="object-cover transition-transform group-hover:scale-105"
+            onError={() => setImageError(true)}
           />
         ) : (
           <div className="w-full h-full flex items-center justify-center bg-gray-800">

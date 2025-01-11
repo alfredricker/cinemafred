@@ -3,26 +3,38 @@ import { useState } from 'react';
 import { useMovie } from '@/hooks/useMovie';
 import { Star } from 'lucide-react';
 import { RatingStars } from './RatingStars';
+import Image from 'next/image';
 
 interface MovieDetailsProps {
   id: string;
 }
 
+// Add 'export' keyword here
 export const MovieDetails: React.FC<MovieDetailsProps> = ({ id }) => {
   const { movie, updateRating } = useMovie(id);
   const [showReviews, setShowReviews] = useState(false);
+  const [imageError, setImageError] = useState(false);
 
   if (!movie) return null;
 
   return (
     <div className="container mx-auto px-4 py-8">
       <div className="grid md:grid-cols-[300px,1fr] gap-8">
-        <div>
-          <img 
-            src={movie.r2_image_path} 
-            alt={movie.title}
-            className="w-full rounded-lg shadow-lg"
-          />
+        <div className="relative aspect-[2/3] w-full">
+          {movie.r2_image_path && !imageError ? (
+            <Image 
+              src={movie.r2_image_path} 
+              alt={movie.title}
+              fill
+              sizes="(max-width: 768px) 100vw, 300px"
+              className="rounded-lg shadow-lg object-cover"
+              onError={() => setImageError(true)}
+            />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center bg-gray-800 rounded-lg">
+              <span className="text-gray-500">No image</span>
+            </div>
+          )}
         </div>
 
         <div>
@@ -65,7 +77,6 @@ export const MovieDetails: React.FC<MovieDetailsProps> = ({ id }) => {
 
             {showReviews && (
               <div className="mt-4 space-y-4">
-                {/* Reviews would be fetched and displayed here */}
                 <p className="text-gray-400">No reviews yet. Be the first to rate this movie!</p>
               </div>
             )}
