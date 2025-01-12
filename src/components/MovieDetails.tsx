@@ -38,6 +38,16 @@ export const MovieDetails: React.FC<MovieDetailsProps> = ({ id }) => {
   const [isWatching, setIsWatching] = useState(false);
   const [imageError, setImageError] = useState(false);
 
+  const formatDuration = (seconds: number): string => {
+    const hours = Math.floor(seconds / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
+    
+    if (hours > 0) {
+      return `${hours}h ${minutes}m`;
+    }
+    return `${minutes}m`;
+  };
+
   useEffect(() => {
     fetchMovieDetails();
   }, [id]);
@@ -130,7 +140,14 @@ export const MovieDetails: React.FC<MovieDetailsProps> = ({ id }) => {
 
         <div>
           <h1 className="text-4xl font-bold text-gray-100 mb-2">{movie.title}</h1>
-          <p className="text-xl text-gray-400 mb-4">{movie.year}</p>
+          <p className="text-xl text-gray-400 mb-4">
+            {movie.year}
+            {movie.duration && (
+            <span className="text-gray-400 ml-2">
+              • {formatDuration(movie.duration)}
+            </span>
+          )}
+          </p>
 
           <div className="flex items-center gap-4 mb-6">
             <div className="flex items-center">

@@ -25,6 +25,7 @@ model Movie {
   id                String    @id @default(uuid())
   title             String
   year              Int
+  duration          Int?      // Duration in seconds
   director          String
   genre             String[]  // Prisma supports array types
   rating            Float     @default(0)

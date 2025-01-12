@@ -46,6 +46,22 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
 
       video.addEventListener('pause', handlePause);
 
+      // Add the new metadata handler here
+      const handleLoadedMetadata = () => {
+        if (video && video.duration) {
+          fetch(`/api/movies/${movieId}/update-duration`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${localStorage.getItem('token')}`
+            },
+            body: JSON.stringify({ duration: Math.floor(video.duration) })
+          }).catch(console.error);
+        }
+      };
+
+      video.addEventListener('loadedmetadata', handleLoadedMetadata);
+
       // Handle subtitle setup
       video.addEventListener('loadedmetadata', () => {
         const tracks = video.textTracks;
@@ -59,6 +75,7 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
       return () => {
         clearInterval(saveInterval);
         video.removeEventListener('pause', handlePause);
+        video.removeEventListener('loadedmetadata', handleLoadedMetadata);
         // Save position one final time when component unmounts
         if (video.currentTime > 0) {
           localStorage.setItem(`video-position-${movieId}`, video.currentTime.toString());
@@ -68,7 +85,6 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
   }, [movieId]);
 
   const handleBack = () => {
-    // Force a hard navigation to ensure proper routing
     window.location.href = `/movie/${movieId}`;
   };
 
