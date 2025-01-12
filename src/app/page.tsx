@@ -24,7 +24,7 @@ export default function Home() {
     <div className="min-h-screen bg-gradient-to-br from-gray-900 via-black to-gray-900">
       <Header />
       <main className="px-4">
-        <div className="max-w-7xl mx-auto pt-8 pb-16">
+        <div className="max-w-[84rem] mx-auto pt-8 pb-16">
           {/* MovieGrid now handles its own data fetching */}
           <MovieGrid />
         </div>

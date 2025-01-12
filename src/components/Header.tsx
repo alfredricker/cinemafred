@@ -1,9 +1,11 @@
+// src/components/Header.tsx
 'use client';
 import { useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { CreateUserDialog } from './CreateUserDialog';
 import { CreateMovieForm } from './CreateMovieForm';
-import { UserPlus, LogOut, Film } from 'lucide-react';
+import { AccountDialog } from './AccountDialog';
+import { UserPlus, LogOut, Film, User } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { SortSelect } from './SortSelect';
 import Link from 'next/link';
@@ -12,6 +14,7 @@ export const Header = () => {
   const { user, logout } = useAuth();
   const [isCreateUserOpen, setIsCreateUserOpen] = useState(false);
   const [isCreateMovieOpen, setIsCreateMovieOpen] = useState(false);
+  const [isAccountOpen, setIsAccountOpen] = useState(false);
   const router = useRouter();
 
   const handleLogout = async () => {
@@ -25,7 +28,7 @@ export const Header = () => {
 
   return (
     <header className="py-4 px-6">
-      <div className="max-w-7xl mx-auto flex items-center justify-between">
+      <div className="max-w-[84rem] mx-auto flex items-center justify-between">
         <div className="flex items-center gap-8">
           <Link 
             href="/" 
@@ -37,7 +40,7 @@ export const Header = () => {
         </div>
         
         <div className="flex items-center gap-4">
-          {user?.isAdmin && (
+          {user?.isAdmin ? (
             <>
               <button
                 onClick={() => setIsCreateMovieOpen(true)}
@@ -54,6 +57,14 @@ export const Header = () => {
                 <span className="text-sm">Create User</span>
               </button>
             </>
+          ) : (
+            <button
+              onClick={() => setIsAccountOpen(true)}
+              className="flex items-center gap-2 px-3 py-1.5 rounded-lg hover:bg-black/30 transition-colors"
+            >
+              <User className="w-4 h-4" />
+              <span className="text-sm">Account</span>
+            </button>
           )}
           <button
             onClick={handleLogout}
@@ -72,6 +83,10 @@ export const Header = () => {
         <CreateMovieForm
           isOpen={isCreateMovieOpen}
           onClose={() => setIsCreateMovieOpen(false)}
+        />
+        <AccountDialog
+          isOpen={isAccountOpen}
+          onClose={() => setIsAccountOpen(false)}
         />
       </div>
     </header>

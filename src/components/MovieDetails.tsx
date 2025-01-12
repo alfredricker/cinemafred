@@ -103,7 +103,7 @@ export const MovieDetails: React.FC<MovieDetailsProps> = ({ id }) => {
 
   if (isWatching) {
     return (
-      <div className="container mx-auto px-3 py-8">
+      <div className="container mx-auto px-4 py-8">
         <VideoPlayer
           streamUrl={`/api/stream/${movie.id}`}
           poster={movie.r2_image_path}
@@ -149,15 +149,21 @@ export const MovieDetails: React.FC<MovieDetailsProps> = ({ id }) => {
           )}
           </p>
 
-          <div className="flex items-center gap-4 mb-6">
+          <div className="flex flex-col gap-4 mb-6">
+            {/* Large average rating display */}
             <div className="flex items-center">
-              <Star className="w-6 h-6 text-yellow-400 fill-yellow-400 mr-2" />
+              <Star className="w-8 h-8 text-yellow-400 fill-yellow-400 mr-2" />
               <span className="text-2xl font-bold text-gray-100">
                 {movie.averageRating ? movie.averageRating.toFixed(1) : 'N/A'}
               </span>
               <span className="text-gray-400 ml-1">/10</span>
             </div>
-            <RatingStars movieId={movie.id} initialRating={movie.averageRating} />
+            
+            {/* User rating section - now on its own line but stars stay inline */}
+            <div className="flex flex-col gap-2"> {/* you could also do flex items-center gap-2 if you want this to be on the same line */}
+              <span className="text-gray-300">Rate this movie:</span>
+              <RatingStars movieId={movie.id} initialRating={movie.averageRating} />
+            </div>
           </div>
 
           <div className="flex gap-2 mb-4">

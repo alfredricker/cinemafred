@@ -1,9 +1,7 @@
-// src/app/api/upload/route.ts
 import { NextResponse } from 'next/server';
-import { PutObjectCommand } from '@aws-sdk/client-s3';
+import { PutObjectCommand, HeadObjectCommand } from '@aws-sdk/client-s3';
 import { r2Client, BUCKET_NAME } from '@/lib/r2';
 import { validateAdmin } from '@/lib/middleware';
-import { v4 as uuidv4 } from 'uuid';
 
 export async function POST(request: Request) {
   try {
@@ -35,10 +33,30 @@ export async function POST(request: Request) {
       );
     }
 
-    // Generate unique filename at root level
-    const extension = file.name.split('.').pop();
-    // Include the type in the filename for easier identification
-    const filename = `${type}_${uuidv4()}.${extension}`;
+    const sanitizedFilename = file.name.replace(/[^a-zA-Z0-9.-]/g, '_');
+    let filename = sanitizedFilename;
+    
+    // Check if file exists by attempting to get its metadata
+    try {
+      await r2Client.send(
+        new HeadObjectCommand({
+          Bucket: BUCKET_NAME,
+          Key: filename,
+        })
+      );
+      
+      // File exists, create a unique name by appending a timestamp
+      const extension = sanitizedFilename.split('.').pop();
+      const baseName = sanitizedFilename.slice(0, -(extension?.length ?? 0) - 1);
+      const timestamp = new Date().getTime();
+      filename = `${baseName}_${timestamp}.${extension}`;
+    } catch (err: any) {
+      // If error code is 404, file doesn't exist and we can use original name
+      // Otherwise, rethrow the error
+      if (!err.name || err.name !== 'NotFound') {
+        throw err;
+      }
+    }
 
     // Convert File to Uint8Array
     const arrayBuffer = await file.arrayBuffer();

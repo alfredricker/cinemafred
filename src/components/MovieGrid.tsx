@@ -21,7 +21,7 @@ interface MovieResponse {
 
 export const MovieGrid: React.FC<MovieGridProps> = ({ 
   initialPage = 1,
-  limit = 20 
+  limit = 24
 }) => {
   const [movies, setMovies] = useState<Movie[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -31,15 +31,15 @@ export const MovieGrid: React.FC<MovieGridProps> = ({
 
   useEffect(() => {
     fetchMovies();
-  }, [currentPage]);
+  }, []); // Only fetch on initial mount
 
-  const fetchMovies = async () => {
+  const fetchMovies = async (page = currentPage) => {
     try {
       setIsLoading(true);
       setError(null);
       
       const response = await fetch(
-        `/api/movies?page=${currentPage}&limit=${limit}`
+        `/api/movies?page=${page}&limit=${limit}`
       );
 
       if (!response.ok) {
@@ -47,7 +47,17 @@ export const MovieGrid: React.FC<MovieGridProps> = ({
       }
 
       const data: MovieResponse = await response.json();
-      setMovies(data.movies);
+      
+      // Append new movies instead of replacing them
+      setMovies(prevMovies => {
+        // If it's the first page, replace everything
+        if (page === 1) {
+          return data.movies;
+        }
+        // Otherwise, append new movies
+        return [...prevMovies, ...data.movies];
+      });
+      
       setTotalPages(data.pagination.pages);
     } catch (err) {
       setError('Error loading movies. Please try again.');
@@ -57,9 +67,11 @@ export const MovieGrid: React.FC<MovieGridProps> = ({
     }
   };
 
-  const handleLoadMore = () => {
-    if (currentPage < totalPages) {
-      setCurrentPage(prev => prev + 1);
+  const handleLoadMore = async () => {
+    if (currentPage < totalPages && !isLoading) {
+      const nextPage = currentPage + 1;
+      setCurrentPage(nextPage);
+      await fetchMovies(nextPage);
     }
   };
 
@@ -68,7 +80,7 @@ export const MovieGrid: React.FC<MovieGridProps> = ({
       <div className="text-center py-12">
         <div className="text-red-500 mb-4">{error}</div>
         <button
-          onClick={fetchMovies}
+          onClick={() => fetchMovies(1)}
           className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
         >
           Try Again
@@ -79,7 +91,7 @@ export const MovieGrid: React.FC<MovieGridProps> = ({
 
   return (
     <div className="space-y-8">
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 md:gap-6">
+      <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-3 md:gap-5">
         {movies.map((movie) => (
           <MovieCard key={movie.id} movie={movie} />
         ))}
