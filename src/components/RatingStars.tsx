@@ -1,4 +1,3 @@
-'use client';
 import React, { useState, useEffect } from 'react';
 import { Star, Loader2 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
@@ -13,6 +12,7 @@ export const RatingStars: React.FC<RatingStarsProps> = ({ movieId, initialRating
   const [userRating, setUserRating] = useState<number | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [hoverRating, setHoverRating] = useState<number | null>(null);
   const { user } = useAuth();
 
   useEffect(() => {
@@ -23,15 +23,15 @@ export const RatingStars: React.FC<RatingStarsProps> = ({ movieId, initialRating
     if (!user) return;
 
     try {
-      const response = await fetch(`/api/movies/${movieId}/rating`, {
+      const response = await fetch(`/api/movies/${movieId}/rate`, {
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        }
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+        },
       });
 
       if (response.ok) {
         const data = await response.json();
-        if (data.rating) {
+        if (data.rating !== null) {
           setUserRating(data.rating);
           setRating(data.rating);
         } else {
@@ -58,9 +58,9 @@ export const RatingStars: React.FC<RatingStarsProps> = ({ movieId, initialRating
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
         },
-        body: JSON.stringify({ value: newRating })
+        body: JSON.stringify({ value: newRating }),
       });
 
       if (!response.ok) {
@@ -70,10 +70,9 @@ export const RatingStars: React.FC<RatingStarsProps> = ({ movieId, initialRating
       setUserRating(newRating);
       setRating(newRating);
 
-      // Optional: Trigger a callback to refresh the movie's average rating
       const data = await response.json();
       if (data.averageRating) {
-        // You could emit this to the parent if needed
+        // Available for parent component if needed
       }
     } catch (err) {
       setError('Failed to update rating');
@@ -83,28 +82,47 @@ export const RatingStars: React.FC<RatingStarsProps> = ({ movieId, initialRating
     }
   };
 
+  const calculateRating = (index: number, clientX: number, target: HTMLElement) => {
+    const { left, width } = target.getBoundingClientRect();
+    const offsetX = clientX - left;
+    const fraction = offsetX / width;
+    return index + (fraction > 0.5 ? 1 : 0.5);
+  };
+
   return (
-    <div className="flex items-center gap-1">
-      {[1, 2, 3, 4, 5].map((star) => (
-        <button
-          key={star}
-          onClick={() => handleRatingChange(star * 2)}
-          disabled={isLoading || !user}
-          className={`focus:outline-none ${!user ? 'cursor-not-allowed opacity-50' : ''}`}
-          title={!user ? 'Please log in to rate movies' : `Rate ${star * 2} stars`}
-        >
-          <Star
-            className={`w-5 h-5 ${
-              star * 2 <= (userRating || rating) 
-                ? 'text-yellow-400 fill-yellow-400' 
-                : 'text-gray-600'
-            } ${
-              user ? 'hover:text-yellow-400 hover:fill-yellow-400' : ''
-            } transition-colors`}
-          />
-        </button>
-      ))}
-      
+    <div className="flex items-center gap-2">
+      <div
+        className="flex gap-1"
+        onMouseLeave={() => setHoverRating(null)}
+      >
+        {Array.from({ length: 10 }).map((_, i) => (
+          <button
+            key={i}
+            onClick={(e) => {
+              const newRating = calculateRating(i, e.clientX, e.currentTarget);
+              handleRatingChange(newRating);
+            }}
+            onMouseMove={(e) => {
+              const hoverValue = calculateRating(i, e.clientX, e.currentTarget);
+              setHoverRating(hoverValue);
+            }}
+            className="focus:outline-none"
+            disabled={isLoading || !user}
+            title={!user ? 'Please log in to rate movies' : `Rate ${(i + 1)}`}
+          >
+            <Star
+              className={`w-6 h-6 ${
+                (hoverRating || userRating || rating) >= i + 1
+                  ? 'text-yellow-400 fill-yellow-400'
+                  : (hoverRating || userRating || rating) >= i + 0.5
+                  ? 'text-yellow-400 half-filled'
+                  : 'text-gray-600'
+              } ${user ? 'hover:text-yellow-400 hover:fill-yellow-400' : ''} transition-colors`}
+            />
+          </button>
+        ))}
+      </div>
+
       {isLoading ? (
         <Loader2 className="w-4 h-4 ml-2 animate-spin text-blue-500" />
       ) : (
@@ -123,3 +141,5 @@ export const RatingStars: React.FC<RatingStarsProps> = ({ movieId, initialRating
     </div>
   );
 };
+
+export default RatingStars;

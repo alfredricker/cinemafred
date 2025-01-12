@@ -5,6 +5,7 @@ import { CreateUserDialog } from './CreateUserDialog';
 import { UserPlus, LogOut } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { SortSelect } from './SortSelect';
+import Link from 'next/link';  // Add this import
 
 export const Header = () => {
   const { user, logout } = useAuth();
@@ -14,7 +15,6 @@ export const Header = () => {
   const handleLogout = async () => {
     try {
       await logout();
-      // Use replace instead of push to prevent back navigation
       window.location.href = '/login';
     } catch (error) {
       console.error('Logout error:', error);
@@ -25,10 +25,16 @@ export const Header = () => {
     <header className="py-4 px-6">
       <div className="max-w-7xl mx-auto flex items-center justify-between">
         <div className="flex items-center gap-8">
-          <h1 className="text-xl font-bold">CinemaFred</h1>
+          <Link 
+            href="/" 
+            className="text-xl font-bold hover:text-blue-400 transition-colors"
+          >
+            CinemaFred
+          </Link>
           <SortSelect />
         </div>
         
+        {/* Rest of the header component remains the same */}
         <div className="flex items-center gap-4">
           {user?.isAdmin && (
             <button
