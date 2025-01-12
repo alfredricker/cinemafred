@@ -111,7 +111,7 @@ export const MovieDetails: React.FC<MovieDetailsProps> = ({ id }) => {
         <div className="relative aspect-[2/3] w-full">
           {movie.r2_image_path && !imageError ? (
             <Image
-              src={movie.r2_image_path}
+              src={movie.r2_image_path.startsWith('/') ? movie.r2_image_path : `/${movie.r2_image_path}`}
               alt={movie.title}
               fill
               unoptimized

@@ -2,9 +2,63 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/db';
 import { Prisma } from '@prisma/client';
+import { validateAdmin } from '@/lib/middleware'
 
 // Mark this route as dynamic
 export const dynamic = 'force-dynamic';
+
+
+export async function POST(request: Request) {
+  try {
+    // Validate admin access
+    const validation = await validateAdmin(request);
+    if ('error' in validation) {
+      return NextResponse.json(
+        { error: validation.error },
+        { status: validation.status }
+      );
+    }
+
+    const data = await request.json();
+    
+    // Validate required fields
+    const requiredFields = ['title', 'year', 'director', 'genre', 'description', 'r2_video_path', 'r2_image_path'];
+    const missingFields = requiredFields.filter(field => !data[field]);
+    
+    if (missingFields.length > 0) {
+      return NextResponse.json(
+        { error: `Missing required fields: ${missingFields.join(', ')}` },
+        { status: 400 }
+      );
+    }
+
+    // Create movie in database
+    const movie = await prisma.movie.create({
+      data: {
+        title: data.title,
+        year: data.year,
+        director: data.director,
+        genre: data.genre,
+        description: data.description,
+        r2_video_path: data.r2_video_path,
+        r2_image_path: data.r2_image_path,
+        r2_subtitles_path: data.r2_subtitles_path || null,
+        rating: 0, // Initial rating
+      }
+    });
+
+    return NextResponse.json({
+      message: 'Movie created successfully',
+      movie
+    });
+  } catch (error) {
+    console.error('Error creating movie:', error);
+    return NextResponse.json(
+      { error: 'Failed to create movie' },
+      { status: 500 }
+    );
+  }
+}
 
 export async function GET(request: Request) {
   try {
