@@ -93,7 +93,7 @@ export const MovieDetails: React.FC<MovieDetailsProps> = ({ id }) => {
 
   if (isWatching) {
     return (
-      <div className="container mx-auto px-4 py-8">
+      <div className="container mx-auto px-3 py-8">
         <VideoPlayer
           streamUrl={`/api/stream/${movie.id}`}
           poster={movie.r2_image_path}
@@ -106,8 +106,8 @@ export const MovieDetails: React.FC<MovieDetailsProps> = ({ id }) => {
   }
 
   return (
-    <div className="container mx-auto px-4 py-8">
-      <div className="grid md:grid-cols-[300px,1fr] gap-8">
+    <div className="container mx-auto px-3 py-8">
+      <div className="grid md:grid-cols-[350px,1fr] gap-8">
         <div className="relative aspect-[2/3] w-full">
           {movie.r2_image_path && !imageError ? (
             <Image
@@ -129,7 +129,7 @@ export const MovieDetails: React.FC<MovieDetailsProps> = ({ id }) => {
         </div>
 
         <div>
-          <h1 className="text-3xl font-bold text-gray-100 mb-2">{movie.title}</h1>
+          <h1 className="text-4xl font-bold text-gray-100 mb-2">{movie.title}</h1>
           <p className="text-xl text-gray-400 mb-4">{movie.year}</p>
 
           <div className="flex items-center gap-4 mb-6">

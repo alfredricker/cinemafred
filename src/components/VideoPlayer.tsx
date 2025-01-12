@@ -1,5 +1,5 @@
-import React, { useEffect, useRef, useState } from 'react';
-import { ArrowLeft, Subtitles } from 'lucide-react';
+import React, { useEffect, useRef } from 'react';
+import { ArrowLeft } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 
 interface VideoPlayerProps {
@@ -19,61 +19,62 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
 }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const router = useRouter();
-  const [captionsOn, setCaptionsOn] = useState(false);
-  const [tracksLoaded, setTracksLoaded] = useState(false);
 
+  // Load saved position when component mounts
   useEffect(() => {
     const video = videoRef.current;
-    if (!video) return;
+    if (video) {
+      const savedPosition = localStorage.getItem(`video-position-${movieId}`);
+      if (savedPosition) {
+        video.currentTime = parseFloat(savedPosition);
+      }
 
-    const handleTrackLoad = () => {
-      const tracks = video.textTracks;
-      if (tracks.length > 0) {
-        setTracksLoaded(true);
-        // Initially set tracks based on captionsOn state
-        for (let i = 0; i < tracks.length; i++) {
-          tracks[i].mode = captionsOn ? 'showing' : 'hidden';
+      // Remove download button from controls
+      video.setAttribute('controlsList', 'nodownload');
+      
+      // Save position periodically
+      const saveInterval = setInterval(() => {
+        if (video.currentTime > 0) {
+          localStorage.setItem(`video-position-${movieId}`, video.currentTime.toString());
         }
-      }
-    };
+      }, 5000); // Save every 5 seconds
 
-    // Set up track loading event listener
-    video.addEventListener('loadedmetadata', handleTrackLoad);
+      // Save position on pause
+      const handlePause = () => {
+        localStorage.setItem(`video-position-${movieId}`, video.currentTime.toString());
+      };
 
-    // Remove download button from controls
-    video.setAttribute('controlsList', 'nodownload');
+      video.addEventListener('pause', handlePause);
 
-    return () => {
-      video.removeEventListener('loadedmetadata', handleTrackLoad);
-      const tracks = video.textTracks;
-      for (let i = 0; i < tracks.length; i++) {
-        tracks[i].mode = 'disabled';
-      }
-    };
-  }, [captionsOn]);
+      // Handle subtitle setup
+      video.addEventListener('loadedmetadata', () => {
+        const tracks = video.textTracks;
+        for (let i = 0; i < tracks.length; i++) {
+          const track = tracks[i];
+          track.mode = 'showing';
+        }
+      });
 
-  // Effect to handle caption toggle after tracks are loaded
-  useEffect(() => {
-    const video = videoRef.current;
-    if (video && tracksLoaded) {
-      const tracks = video.textTracks;
-      for (let i = 0; i < tracks.length; i++) {
-        tracks[i].mode = captionsOn ? 'showing' : 'hidden';
-      }
+      // Cleanup
+      return () => {
+        clearInterval(saveInterval);
+        video.removeEventListener('pause', handlePause);
+        // Save position one final time when component unmounts
+        if (video.currentTime > 0) {
+          localStorage.setItem(`video-position-${movieId}`, video.currentTime.toString());
+        }
+      };
     }
-  }, [captionsOn, tracksLoaded]);
+  }, [movieId]);
 
   const handleBack = () => {
-    router.push(`/movie/${movieId}`);
-  };
-
-  const toggleCaptions = () => {
-    setCaptionsOn(prev => !prev);
+    // Force a hard navigation to ensure proper routing
+    window.location.href = `/movie/${movieId}`;
   };
 
   return (
     <div className="relative w-full">
-      <div className="absolute top-4 left-4 z-10 flex gap-4">
+      <div className="absolute top-4 left-4 z-10">
         <button
           onClick={handleBack}
           className="flex items-center gap-2 px-4 py-2 bg-black/50 hover:bg-black/70 
@@ -82,17 +83,6 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
           <ArrowLeft className="w-5 h-5" />
           <span>Back to Details</span>
         </button>
-
-        {subtitlesUrl && (
-          <button
-            onClick={toggleCaptions}
-            className="flex items-center gap-2 px-4 py-2 bg-black/50 hover:bg-black/70 
-                     text-white rounded-lg transition-colors backdrop-blur-sm"
-          >
-            <Subtitles className="w-5 h-5" />
-            <span>{captionsOn ? "On" : "Off"}</span>
-          </button>
-        )}
       </div>
 
       <video
