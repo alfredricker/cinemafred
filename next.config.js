@@ -14,7 +14,7 @@ const nextConfig = {
   typescript: {
     ignoreBuildErrors: false
   },
-  reactStrictMode: true,
+  reactStrictMode: true
 }
 
 module.exports = nextConfig

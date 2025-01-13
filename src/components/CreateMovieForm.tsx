@@ -35,7 +35,7 @@ export const CreateMovieForm: React.FC<CreateMovieFormProps> = ({ isOpen, onClos
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [progress, setProgress] = useState<{[key: string]: number}>({});
+  const [uploadProgress, setUploadProgress] = useState<{[key: string]: number}>({});
 
   const handleFileChange = (type: 'video' | 'image' | 'subtitles') => (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -49,25 +49,46 @@ export const CreateMovieForm: React.FC<CreateMovieFormProps> = ({ isOpen, onClos
     setFormData(prev => ({ ...prev, genre: genres }));
   };
 
-  const uploadToR2 = async (file: File, type: string) => {
-    const formData = new FormData();
-    formData.append('file', file);
-    formData.append('type', type);
-
+  const uploadFile = async (file: File, type: string): Promise<string> => {
     try {
-      const response = await fetch('/api/upload', {
+      // First, get a presigned URL
+      const presignedResponse = await fetch('/api/upload', {
         method: 'POST',
         headers: {
+          'Content-Type': 'application/json',
           'Authorization': `Bearer ${localStorage.getItem('token')}`
         },
-        body: formData
+        body: JSON.stringify({
+          filename: file.name,
+          type,
+          contentType: file.type
+        })
       });
 
-      if (!response.ok) throw new Error(`Failed to upload ${type}`);
-      const data = await response.json();
-      return data.path;
+      if (!presignedResponse.ok) {
+        const data = await presignedResponse.json();
+        throw new Error(data.error || `Failed to get upload URL for ${type}`);
+      }
+
+      const { presignedUrl, filename } = await presignedResponse.json();
+
+      // Then upload the file directly to R2 using the presigned URL
+      const uploadResponse = await fetch(presignedUrl, {
+        method: 'PUT',
+        body: file,
+        headers: {
+          'Content-Type': file.type
+        }
+      });
+
+      if (!uploadResponse.ok) {
+        throw new Error(`Failed to upload ${type}`);
+      }
+
+      return filename;
     } catch (error) {
-      throw new Error(`Error uploading ${type}: ${error}`);
+      console.error(`Upload error for ${type}:`, error);
+      throw error;
     }
   };
 
@@ -81,14 +102,14 @@ export const CreateMovieForm: React.FC<CreateMovieFormProps> = ({ isOpen, onClos
         throw new Error('Video and image files are required');
       }
 
-      // Upload files to R2
-      const [videoPath, imagePath, subtitlesPath] = await Promise.all([
-        uploadToR2(files.video, 'video'),
-        uploadToR2(files.image, 'image'),
-        files.subtitles ? uploadToR2(files.subtitles, 'subtitles') : null
+      // Upload files and get filenames
+      const [videoFilename, imageFilename, subtitlesFilename] = await Promise.all([
+        uploadFile(files.video, 'video'),
+        uploadFile(files.image, 'image'),
+        files.subtitles ? uploadFile(files.subtitles, 'subtitles') : Promise.resolve(null)
       ]);
 
-      // Create movie in database
+      // Create movie in database with proper path prefixes
       const response = await fetch('/api/movies', {
         method: 'POST',
         headers: {
@@ -97,9 +118,9 @@ export const CreateMovieForm: React.FC<CreateMovieFormProps> = ({ isOpen, onClos
         },
         body: JSON.stringify({
           ...formData,
-          r2_video_path: videoPath,
-          r2_image_path: imagePath,
-          r2_subtitles_path: subtitlesPath,
+          r2_video_path: `api/movie/${videoFilename}`,
+          r2_image_path: `api/movie/${imageFilename}`,
+          r2_subtitles_path: subtitlesFilename,
         })
       });
 

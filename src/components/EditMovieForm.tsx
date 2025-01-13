@@ -75,21 +75,47 @@ export const EditMovieForm: React.FC<EditMovieFormProps> = ({ isOpen, onClose, m
   };
 
   const uploadToR2 = async (file: File, type: string) => {
-    const formData = new FormData();
-    formData.append('file', file);
-    formData.append('type', type);
-
-    const response = await fetch('/api/upload', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${localStorage.getItem('token')}`
-      },
-      body: formData
-    });
-
-    if (!response.ok) throw new Error(`Failed to upload ${type}`);
-    const data = await response.json();
-    return data.path;
+    try {
+      // First, get a presigned URL
+      const presignedResponse = await fetch('/api/upload', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        },
+        body: JSON.stringify({
+          filename: file.name,
+          type,
+          contentType: file.type
+        })
+      });
+  
+      if (!presignedResponse.ok) {
+        const data = await presignedResponse.json();
+        throw new Error(data.error || `Failed to get upload URL for ${type}`);
+      }
+  
+      const { presignedUrl, filename } = await presignedResponse.json();
+  
+      // Upload the file directly to R2 using the presigned URL
+      const uploadResponse = await fetch(presignedUrl, {
+        method: 'PUT',
+        body: file,
+        headers: {
+          'Content-Type': file.type
+        }
+      });
+  
+      if (!uploadResponse.ok) {
+        throw new Error(`Failed to upload ${type}`);
+      }
+  
+      // Return the filename to be used in the movie update
+      return type === 'subtitles' ? filename : `api/movie/${filename}`;
+    } catch (error) {
+      console.error(`Upload error for ${type}:`, error);
+      throw error;
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {

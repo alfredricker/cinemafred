@@ -116,7 +116,7 @@ export const MovieDetails: React.FC<MovieDetailsProps> = ({ id }) => {
   }
 
   return (
-    <div className="max-w-[98rem] mx-auto px-4 sm:px-8 py-6">
+    <div className="max-w-[120rem] mx-auto px-4 sm:px-8 py-6">
       <div className="grid grid-cols-[250px,1fr] sm:grid-cols-[300px,1fr] md:grid-cols-[350px,1fr] lg:grid-cols-[375px,1fr] xl:grid-cols-[450px,1fr] 2xl:grid-cols-[500px,1fr] gap-6 lg:gap-8">
         {/* Poster/Image section */}
         <div className="relative aspect-[2/3] w-full">

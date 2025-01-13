@@ -12,10 +12,12 @@
     "check-db": "tsx scripts/check-db.ts",
     "update-admin-password": "tsx scripts/update-admin-password.ts",
     "migrate-movies": "tsx scripts/migrate-movies.ts",
-    "add-movie": "tsx scripts/add-movie.ts"
+    "add-movie": "tsx scripts/add-movie.ts",
+    "cleanup-blobs": "tsx scripts/cleanup-blobs.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.726.1",
+    "@aws-sdk/s3-request-presigner": "^3.726.1",
     "@prisma/client": "^5.9.1",
     "@vercel/postgres": "^0.10.0",
     "bcrypt": "^5.1.1",
@@ -37,6 +39,7 @@
     "@types/react-dom": "^18.2.18",
     "@types/uuid": "^9.0.8",
     "autoprefixer": "^10.4.17",
+    "dotenv": "^16.4.7",
     "eslint": "^8.56.0",
     "eslint-config-next": "14.1.0",
     "postcss": "^8.4.33",

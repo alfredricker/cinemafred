@@ -1,83 +1,75 @@
+// src/app/api/upload/route.ts
 import { NextResponse } from 'next/server';
-import { PutObjectCommand, HeadObjectCommand } from '@aws-sdk/client-s3';
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
+import { PutObjectCommand } from "@aws-sdk/client-s3";
 import { r2Client, BUCKET_NAME } from '@/lib/r2';
 import { validateAdmin } from '@/lib/middleware';
+
+// Define valid file types
+type FileType = 'video' | 'image' | 'subtitles';
+
+// Define allowed extensions for each type
+const allowedTypes: Record<FileType, string[]> = {
+  video: ['mp4'],
+  image: ['jpg', 'jpeg', 'png'],
+  subtitles: ['srt', 'vtt']
+};
 
 export async function POST(request: Request) {
   try {
     // Validate admin access
     const validation = await validateAdmin(request);
     if ('error' in validation) {
-      return NextResponse.json(
-        { error: validation.error },
-        { status: validation.status }
-      );
+      return NextResponse.json({ error: validation.error }, { status: validation.status });
     }
 
-    const formData = await request.formData();
-    const file = formData.get('file') as File;
-    const type = formData.get('type') as string;
+    const { filename, type, contentType } = await request.json();
 
-    if (!file || !type) {
-      return NextResponse.json(
-        { error: 'File and type are required' },
-        { status: 400 }
-      );
+    if (!filename || !type || !contentType) {
+      return NextResponse.json({ 
+        error: 'Filename, type, and contentType are required' 
+      }, { status: 400 });
     }
 
     // Validate file type
     if (!['video', 'image', 'subtitles'].includes(type)) {
-      return NextResponse.json(
-        { error: 'Invalid file type' },
-        { status: 400 }
-      );
+      return NextResponse.json({ 
+        error: 'Invalid file type. Must be video, image, or subtitles' 
+      }, { status: 400 });
     }
 
-    const sanitizedFilename = file.name.replace(/[^a-zA-Z0-9.-]/g, '_');
-    let filename = sanitizedFilename;
+    // Get the file extension
+    const extension = filename.split('.').pop()?.toLowerCase();
     
-    // Check if file exists by attempting to get its metadata
-    try {
-      await r2Client.send(
-        new HeadObjectCommand({
-          Bucket: BUCKET_NAME,
-          Key: filename,
-        })
-      );
-      
-      // File exists, create a unique name by appending a timestamp
-      const extension = sanitizedFilename.split('.').pop();
-      const baseName = sanitizedFilename.slice(0, -(extension?.length ?? 0) - 1);
-      const timestamp = new Date().getTime();
-      filename = `${baseName}_${timestamp}.${extension}`;
-    } catch (err: any) {
-      // If error code is 404, file doesn't exist and we can use original name
-      // Otherwise, rethrow the error
-      if (!err.name || err.name !== 'NotFound') {
-        throw err;
-      }
+    // Type assertion to ensure type is valid
+    const validFileType = type as FileType;
+    
+    if (!extension || !allowedTypes[validFileType].includes(extension)) {
+      return NextResponse.json({ 
+        error: `Invalid file type for ${type}. Allowed: ${allowedTypes[validFileType].join(', ')}` 
+      }, { status: 400 });
     }
 
-    // Convert File to Uint8Array
-    const arrayBuffer = await file.arrayBuffer();
-    const uint8Array = new Uint8Array(arrayBuffer);
+    // Create command for presigned URL
+    const command = new PutObjectCommand({
+      Bucket: BUCKET_NAME,
+      Key: filename,
+      ContentType: contentType
+    });
 
-    // Upload to R2
-    await r2Client.send(
-      new PutObjectCommand({
-        Bucket: BUCKET_NAME,
-        Key: filename,
-        Body: uint8Array,
-        ContentType: file.type,
-      })
-    );
+    // Generate presigned URL (valid for 30 minutes)
+    const presignedUrl = await getSignedUrl(r2Client, command, { expiresIn: 1800 });
 
-    return NextResponse.json({ path: filename });
+    return NextResponse.json({
+      presignedUrl,
+      filename
+    });
+
   } catch (error) {
-    console.error('Upload error:', error);
-    return NextResponse.json(
-      { error: 'Failed to upload file' },
-      { status: 500 }
-    );
+    console.error('Presigned URL generation error:', error);
+    return NextResponse.json({ error: 'Failed to generate upload URL' }, { status: 500 });
   }
 }
+
+export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';

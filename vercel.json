@@ -3,5 +3,11 @@
       "env": {
         "PRISMA_SKIP_GENERATE": "true"
       }
+    },
+    "functions": {
+      "api/upload/*.ts": {
+        "memory": 3008,
+        "maxDuration": 60
+      }
     }
   }
