@@ -27,8 +27,8 @@ export const Header = () => {
   };
 
   return (
-    <header className="py-4 px-6">
-      <div className="max-w-[84rem] mx-auto flex items-center justify-between">
+    <header className="py-4 px-16">
+      <div className="max-w-[98rem] mx-auto flex items-center justify-between">
         <div className="flex items-center gap-8">
           <Link 
             href="/" 

@@ -1,5 +1,5 @@
-import React, { useEffect, useRef } from 'react';
-import { ArrowLeft } from 'lucide-react';
+import React, { useEffect, useRef, useState } from 'react';
+import { ArrowLeft, Subtitles } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 
 interface VideoPlayerProps {
@@ -19,8 +19,9 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
 }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const router = useRouter();
+  const [captionsOn, setCaptionsOn] = useState(false);
 
-  // Load saved position when component mounts
+  // Load saved position and handle subtitles when component mounts
   useEffect(() => {
     const video = videoRef.current;
     if (video) {
@@ -46,7 +47,7 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
 
       video.addEventListener('pause', handlePause);
 
-      // Add the new metadata handler here
+      // Add the duration metadata handler
       const handleLoadedMetadata = () => {
         if (video && video.duration) {
           fetch(`/api/movies/${movieId}/update-duration`, {
@@ -58,39 +59,71 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
             body: JSON.stringify({ duration: Math.floor(video.duration) })
           }).catch(console.error);
         }
+
+        // Initialize subtitle tracks
+        const tracks = video.textTracks;
+        for (let i = 0; i < tracks.length; i++) {
+          tracks[i].mode = captionsOn ? 'showing' : 'hidden';
+        }
       };
 
       video.addEventListener('loadedmetadata', handleLoadedMetadata);
-
-      // Handle subtitle setup
-      video.addEventListener('loadedmetadata', () => {
-        const tracks = video.textTracks;
-        for (let i = 0; i < tracks.length; i++) {
-          const track = tracks[i];
-          track.mode = 'showing';
-        }
-      });
 
       // Cleanup
       return () => {
         clearInterval(saveInterval);
         video.removeEventListener('pause', handlePause);
         video.removeEventListener('loadedmetadata', handleLoadedMetadata);
-        // Save position one final time when component unmounts
         if (video.currentTime > 0) {
           localStorage.setItem(`video-position-${movieId}`, video.currentTime.toString());
         }
       };
     }
-  }, [movieId]);
+  }, [movieId, captionsOn]);
+
+  // Effect to handle caption toggle
+  useEffect(() => {
+    const video = videoRef.current;
+    if (video) {
+      const tracks = video.textTracks;
+      for (let i = 0; i < tracks.length; i++) {
+        tracks[i].mode = captionsOn ? 'showing' : 'hidden';
+      }
+    }
+  }, [captionsOn]);
 
   const handleBack = () => {
     window.location.href = `/movie/${movieId}`;
   };
 
+  const toggleCaptions = () => {
+    setCaptionsOn(prev => !prev);
+  };
+
   return (
     <div className="relative w-full">
-      <div className="absolute top-4 left-4 z-10">
+      <style jsx global>{`
+        /* Hide the native captions menu button */
+        video::-webkit-media-text-track-container {
+          transform: translateY(-40px);
+        }
+        
+        video::-webkit-media-text-track-display-backdrop {
+          background-color: rgba(0, 0, 0, 0.6) !important;
+        }
+        
+        video::-internal-media-controls-overflow-button {
+          display: none !important;
+        }
+
+        @supports (-moz-appearance: none) {
+          .media-controls-container .closed-caption-button {
+            display: none !important;
+          }
+        }
+      `}</style>
+
+      <div className="absolute top-4 left-4 z-10 flex gap-4">
         <button
           onClick={handleBack}
           className="flex items-center gap-2 px-4 py-2 bg-black/50 hover:bg-black/70 
@@ -99,6 +132,17 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
           <ArrowLeft className="w-5 h-5" />
           <span>Back to Details</span>
         </button>
+
+        {subtitlesUrl && (
+          <button
+            onClick={toggleCaptions}
+            className="flex items-center gap-2 px-4 py-2 bg-black/50 hover:bg-black/70 
+                     text-white rounded-lg transition-colors backdrop-blur-sm"
+          >
+            <Subtitles className="w-5 h-5" />
+            <span>{captionsOn ? "On" : "Off"}</span>
+          </button>
+        )}
       </div>
 
       <video

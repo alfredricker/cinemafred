@@ -27,8 +27,8 @@ export default async function MoviePage({ params }: { params: Promise<{ id: stri
     <AuthWrapper>
       <div className="min-h-screen bg-gradient-to-br from-gray-900 via-black to-gray-900">
         <Header />
-        <main className="px-4">
-          <div className="max-w-7xl mx-auto space-y-8">
+        <main className="px-20">
+          <div className="max-w-[98] mx-auto space-y-8">
             <MovieDetails id={resolvedParams.id} />
           </div>
         </main>

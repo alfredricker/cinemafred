@@ -21,7 +21,7 @@ interface MovieResponse {
 
 export const MovieGrid: React.FC<MovieGridProps> = ({ 
   initialPage = 1,
-  limit = 24
+  limit = 30
 }) => {
   const [movies, setMovies] = useState<Movie[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -91,7 +91,7 @@ export const MovieGrid: React.FC<MovieGridProps> = ({
 
   return (
     <div className="space-y-8">
-      <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-3 md:gap-5">
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 lg:grid-cols-6 2xl:grid-cols-10 md:gap-5">
         {movies.map((movie) => (
           <MovieCard key={movie.id} movie={movie} />
         ))}

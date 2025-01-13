@@ -116,8 +116,9 @@ export const MovieDetails: React.FC<MovieDetailsProps> = ({ id }) => {
   }
 
   return (
-    <div className="container mx-auto px-3 py-8">
-      <div className="grid md:grid-cols-[350px,1fr] gap-8">
+    <div className="max-w-[98rem] mx-auto px-4 sm:px-8 py-6">
+      <div className="grid grid-cols-[250px,1fr] sm:grid-cols-[300px,1fr] md:grid-cols-[350px,1fr] lg:grid-cols-[375px,1fr] xl:grid-cols-[450px,1fr] 2xl:grid-cols-[500px,1fr] gap-6 lg:gap-8">
+        {/* Poster/Image section */}
         <div className="relative aspect-[2/3] w-full">
           {movie.r2_image_path && !imageError ? (
             <Image
@@ -138,15 +139,16 @@ export const MovieDetails: React.FC<MovieDetailsProps> = ({ id }) => {
           )}
         </div>
 
-        <div>
-          <h1 className="text-4xl font-bold text-gray-100 mb-2">{movie.title}</h1>
-          <p className="text-xl text-gray-400 mb-4">
+        {/* Content section */}
+        <div className="space-y-4">
+          <h1 className="text-4xl font-bold text-gray-100">{movie.title}</h1>
+          <p className="text-xl text-gray-400">
             {movie.year}
             {movie.duration && (
-            <span className="text-gray-400 ml-2">
-              • {formatDuration(movie.duration)}
-            </span>
-          )}
+              <span className="text-gray-400 ml-2">
+                • {formatDuration(movie.duration)}
+              </span>
+            )}
           </p>
 
           <div className="flex flex-col gap-4 mb-6">
@@ -174,7 +176,7 @@ export const MovieDetails: React.FC<MovieDetailsProps> = ({ id }) => {
             ))}
           </div>
 
-          <p className="text-gray-300 mb-6">{movie.description}</p>
+          <p className="text-gray-300 mb-6 max-w-3xl">{movie.description}</p>
 
           <button
             className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition-colors mb-8"
