@@ -51,46 +51,65 @@ export const CreateMovieForm: React.FC<CreateMovieFormProps> = ({ isOpen, onClos
 
   const uploadFile = async (file: File, type: string): Promise<string> => {
     try {
-      // First, get a presigned URL
+      // Step 1: Get a presigned URL
       const presignedResponse = await fetch('/api/upload', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
         },
         body: JSON.stringify({
           filename: file.name,
           type,
-          contentType: file.type
-        })
+          contentType: file.type,
+        }),
       });
-
+  
       if (!presignedResponse.ok) {
         const data = await presignedResponse.json();
         throw new Error(data.error || `Failed to get upload URL for ${type}`);
       }
-
+  
       const { presignedUrl, filename } = await presignedResponse.json();
-
-      // Then upload the file directly to R2 using the presigned URL
-      const uploadResponse = await fetch(presignedUrl, {
-        method: 'PUT',
-        body: file,
-        headers: {
-          'Content-Type': file.type
-        }
+  
+      // Step 2: Upload the file to R2 using XMLHttpRequest to track progress
+      return await new Promise<string>((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+  
+        xhr.open('PUT', presignedUrl, true);
+        xhr.setRequestHeader('Content-Type', file.type);
+  
+        // Track progress
+        xhr.upload.onprogress = (event) => {
+          if (event.lengthComputable) {
+            const progress = Math.round((event.loaded / event.total) * 100);
+            setUploadProgress((prev) => ({
+              ...prev,
+              [type]: progress,
+            }));
+          }
+        };
+  
+        xhr.onload = () => {
+          if (xhr.status === 200) {
+            resolve(filename);
+          } else {
+            reject(new Error(`Failed to upload ${type}, status code: ${xhr.status}`));
+          }
+        };
+  
+        xhr.onerror = () => {
+          reject(new Error(`Upload error for ${type}`));
+        };
+  
+        xhr.send(file);
       });
-
-      if (!uploadResponse.ok) {
-        throw new Error(`Failed to upload ${type}`);
-      }
-
-      return filename;
     } catch (error) {
       console.error(`Upload error for ${type}:`, error);
       throw error;
     }
   };
+  
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -168,6 +187,18 @@ export const CreateMovieForm: React.FC<CreateMovieFormProps> = ({ isOpen, onClos
                     </span>
                   </label>
                 </div>
+                {/* Progress UI */}
+                {uploadProgress['video'] !== undefined && (
+                  <div className="mt-2">
+                    <div className="h-2 bg-gray-800 rounded">
+                      <div
+                        className="h-full bg-blue-600 rounded"
+                        style={{ width: `${uploadProgress['video']}%` }}
+                      ></div>
+                    </div>
+                    <p className="text-sm text-gray-500 mt-1">{uploadProgress['video']}% uploaded</p>
+                  </div>
+                )}
               </div>
 
               <div className="space-y-2">

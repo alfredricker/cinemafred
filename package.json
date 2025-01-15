@@ -13,7 +13,9 @@
     "update-admin-password": "tsx scripts/update-admin-password.ts",
     "migrate-movies": "tsx scripts/migrate-movies.ts",
     "add-movie": "tsx scripts/add-movie.ts",
-    "cleanup-blobs": "tsx scripts/cleanup-blobs.ts"
+    "cleanup-blobs": "tsx scripts/cleanup-blobs.ts",
+    "view-movies": "tsx scripts/view-movies.ts",
+    "delete-movie": "tsx scripts/delete-movie.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.726.1",
