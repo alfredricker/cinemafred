@@ -78,7 +78,7 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
     } finally {
       activeRequests.current.delete(rangeKey);
     }
-  };  
+  };
 
   const tryResumePlayback = async () => {
     const video = videoRef.current;
@@ -115,14 +115,32 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
       const startByte = Math.floor(currentTime * CHUNK_SIZE);
       const endByte = startByte + CHUNK_SIZE - 1;
     
-      fetchChunk(startByte, endByte).finally(() => {
-        setTimeout(() => {
-          setIsBuffering(false);
-          tryResumePlayback();
-        }, 1000); // Allow time for data to load
+      // First fetch the needed chunk
+      fetchChunk(startByte, endByte).then(() => {
+        // After fetching, start checking buffer status periodically
+        const checkBufferAndResume = async () => {
+          const video = videoRef.current;
+          
+          if (video && video.readyState >= 3) {
+            console.log('Buffered enough to resume playback');
+            setIsBuffering(false);
+            if (video.paused) {
+              console.log('Resuming playback');
+              await video.play().catch((error) => {
+                console.error('Error resuming playback:', error);
+                // If playback fails, retry after a short delay
+                setTimeout(checkBufferAndResume, 500);
+              });
+            }
+          } else {
+            console.log('Still buffering, retrying...');
+            bufferingTimeout.current = window.setTimeout(checkBufferAndResume, 500);
+          }
+        };
+    
+        checkBufferAndResume();
       });
     };
-    
 
     const handlePlaying = () => {
       console.log('Video resumed playing');
@@ -150,7 +168,7 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
           fetchChunk(startByte, endByte);
         }
       }
-    };    
+    };
 
     const handleTimeUpdate = () => {
       if (video.currentTime > 0) {
@@ -158,7 +176,7 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
       }
     };
 
-    video.addEventListener('waiting', handleWaiting);
+    video.addEventListener('waiting', handleWaiting); //trying out the handleBuffering function instead of handleWaiting
     video.addEventListener('playing', handlePlaying);
     video.addEventListener('progress', handleProgress);
     video.addEventListener('timeupdate', handleTimeUpdate);
@@ -182,30 +200,56 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
     };
   }, [movieId, streamUrl]);
 
+// in VideoPlayer.tsx
   const handleBack = () => {
-    router.push(`/movie/${movieId}`);
+    // Save the current playback position before navigating
+    if (videoRef.current) {
+      localStorage.setItem(
+        `video-position-${movieId}`, 
+        videoRef.current.currentTime.toString()
+      );
+    }
+
+    // Clean up any active requests and timeouts
+    activeRequests.current.forEach(controller => controller.abort());
+    activeRequests.current.clear();
+    
+    if (bufferingTimeout.current) {
+      window.clearTimeout(bufferingTimeout.current);
+    }
+
+    // Use window.location for a full page navigation
+    window.location.href = `/movie/${movieId}`;
   };
 
   return (
     <div className="relative w-full">
-      <div className="absolute top-4 left-4 z-10 flex gap-4">
+      {/* Control buttons container */}
+      <div className="absolute top-4 left-4 z-50 flex gap-4">
         <button
           onClick={handleBack}
-          className="flex items-center gap-2 px-4 py-2 bg-black/50 hover:bg-black/70 
-                   text-white rounded-lg transition-colors backdrop-blur-sm"
+          className="flex items-center gap-2 px-4 py-2 bg-black/60 hover:bg-black/80 
+                    text-white rounded-lg transition-colors backdrop-blur-sm"
         >
           <ArrowLeft className="w-5 h-5" />
-          <span>Back to Details</span>
+          Back to Details
         </button>
 
         {subtitlesUrl && (
           <button
-            onClick={() => setCaptionsOn(!captionsOn)}
-            className="flex items-center gap-2 px-4 py-2 bg-black/50 hover:bg-black/70 
-                     text-white rounded-lg transition-colors backdrop-blur-sm"
+            onClick={() => {
+              setCaptionsOn(!captionsOn);
+              // Find and update the track element
+              const track = videoRef.current?.textTracks[0];
+              if (track) {
+                track.mode = !captionsOn ? 'showing' : 'hidden';
+              }
+            }}
+            className="flex items-center gap-2 px-4 py-2 bg-black/60 hover:bg-black/80 
+                      text-white rounded-lg transition-colors backdrop-blur-sm"
           >
             <Subtitles className="w-5 h-5" />
-            <span>{captionsOn ? "Subtitles On" : "Subtitles Off"}</span>
+            {captionsOn ? "Subtitles On" : "Subtitles Off"}
           </button>
         )}
       </div>
@@ -221,10 +265,7 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
           controlsList="nodownload"
           crossOrigin="anonymous"
         >
-          <source 
-            src={streamUrl} 
-            type="video/mp4"
-          />
+          <source src={streamUrl} type="video/mp4" />
           {subtitlesUrl && (
             <track 
               kind="subtitles" 
@@ -236,6 +277,7 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
           )}
         </video>
 
+        {/* Buffering overlay */}
         {isBuffering && (
           <div className="absolute inset-0 flex items-center justify-center bg-black/50">
             <Loader2 className="w-12 h-12 animate-spin text-blue-500" />

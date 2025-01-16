@@ -20,16 +20,14 @@ function AuthWrapper({ children }: { children: React.ReactNode }) {
   return children;
 }
 
-export default async function MoviePage({ params }: { params: Promise<{ id: string }> }) {
-  const resolvedParams = await params;
-  
+export default function MoviePage({ params }: { params: { id: string } }) {
   return (
     <AuthWrapper>
       <div className="min-h-screen bg-gradient-to-br from-gray-900 via-black to-gray-900">
         <Header />
         <main className="px-20">
           <div className="max-w-[120rem] mx-auto space-y-8">
-            <MovieDetails id={resolvedParams.id} />
+            <MovieDetails id={params.id} />
           </div>
         </main>
       </div>

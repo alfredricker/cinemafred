@@ -61,3 +61,7 @@ Migration:
 npx prisma migrate dev --name init
 
 I'm going to run the same database for production and development, which isn't best practice but I don't care, it's simpler.
+
+
+To upload a large file directly to the bucket:
+aws s3 cp <path_to_large_file> s3://cinemafred/filename --endpoint-url=https://17eb349fd2bf73bcaa03d603e8152f91.r2.cloudflarestorage.com
