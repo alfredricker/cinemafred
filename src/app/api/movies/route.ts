@@ -7,6 +7,10 @@ import { validateAdmin } from '@/lib/middleware'
 // Mark this route as dynamic
 export const dynamic = 'force-dynamic';
 
+// Helper function to sort titles ignoring leading "The"
+function getSortableTitle(title: string): string {
+  return title.replace(/^the\s+/i, '').toLowerCase();
+}
 
 export async function POST(request: Request) {
   try {
@@ -91,13 +95,10 @@ export async function GET(request: Request) {
       whereClause.year = year;
     }
 
-    // Fetch movies with count
+    // First fetch all movies (we'll handle pagination after sorting)
     const [movies, total] = await Promise.all([
       prisma.movie.findMany({
         where: whereClause,
-        skip,
-        take: limit,
-        orderBy: { title: 'asc' },
         select: {
           id: true,
           title: true,
@@ -119,9 +120,19 @@ export async function GET(request: Request) {
       prisma.movie.count({ where: whereClause })
     ]);
 
+    // Sort movies by title, ignoring leading "The"
+    const sortedMovies = movies.sort((a, b) => {
+      const titleA = getSortableTitle(a.title);
+      const titleB = getSortableTitle(b.title);
+      return titleA.localeCompare(titleB);
+    });
+
+    // Apply pagination after sorting
+    const paginatedMovies = sortedMovies.slice(skip, skip + limit);
+
     // Calculate average ratings for each movie
     const moviesWithAggregates = await Promise.all(
-      movies.map(async (movie) => {
+      paginatedMovies.map(async (movie) => {
         const averageRating = await prisma.rating.aggregate({
           where: { movie_id: movie.id },
           _avg: { value: true }
