@@ -1,4 +1,3 @@
-'use client';
 import { useState, useEffect } from 'react';
 import { MovieCard } from './MovieCard';
 import { Loader2 } from 'lucide-react';
@@ -6,7 +5,6 @@ import { Movie } from '@/types/movie';
 
 interface MovieGridProps {
   initialPage?: number;
-  limit?: number;
 }
 
 interface MovieResponse {
@@ -19,28 +17,67 @@ interface MovieResponse {
   };
 }
 
-export const MovieGrid: React.FC<MovieGridProps> = ({ 
-  initialPage = 1,
-  limit = 30
-}) => {
+export const MovieGrid: React.FC<MovieGridProps> = ({ initialPage = 1 }) => {
   const [movies, setMovies] = useState<Movie[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(initialPage);
   const [totalPages, setTotalPages] = useState(0);
+  const [limit, setLimit] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const width = window.innerWidth;
+      if (width >= 3000) return 54;
+      if (width >= 1680) return 42;
+      if (width >= 1024) return 36;
+      if (width >= 768) return 30;
+      return 24;
+    }
+    return 30;
+  });
+
+  const calculateLimit = () => {
+    const width = window.innerWidth;
+    if (width >= 3000) return 54;      // 2xl screens
+    if (width >= 1680) return 42;      // xl screens
+    if (width >= 1024) return 36;      // lg screens
+    if (width >= 768) return 30;       // md screens
+    return 24;                         // sm/xs screens
+  };
 
   useEffect(() => {
-    fetchMovies();
-  }, []); // Only fetch on initial mount
+    const handleResize = () => {
+      const newLimit = calculateLimit();
+      if (newLimit !== limit) {
+        console.log('Updating limit to:', newLimit);
+        setLimit(newLimit);
+        setMovies([]); // Clear existing movies when limit changes
+        setCurrentPage(1); // Reset to first page
+      }
+    };
 
-  const fetchMovies = async (page = currentPage) => {
+    // Initial calculation
+    handleResize();
+
+    // Debounced resize handler
+    let timeoutId: NodeJS.Timeout;
+    const debouncedResize = () => {
+      clearTimeout(timeoutId);
+      timeoutId = setTimeout(handleResize, 250);
+    };
+
+    window.addEventListener('resize', debouncedResize);
+    return () => {
+      window.removeEventListener('resize', debouncedResize);
+      clearTimeout(timeoutId);
+    };
+  }, []);
+
+  const fetchMovies = async (page: number) => {
     try {
       setIsLoading(true);
       setError(null);
       
-      const response = await fetch(
-        `/api/movies?page=${page}&limit=${limit}`
-      );
+      const response = await fetch(`/api/movies?page=${page}&limit=${limit}`);
 
       if (!response.ok) {
         throw new Error('Failed to fetch movies');
@@ -48,17 +85,12 @@ export const MovieGrid: React.FC<MovieGridProps> = ({
 
       const data: MovieResponse = await response.json();
       
-      // Append new movies instead of replacing them
       setMovies(prevMovies => {
-        // If it's the first page, replace everything
-        if (page === 1) {
-          return data.movies;
-        }
-        // Otherwise, append new movies
-        return [...prevMovies, ...data.movies];
+        return page === 1 ? data.movies : [...prevMovies, ...data.movies];
       });
       
       setTotalPages(data.pagination.pages);
+      setCurrentPage(page);
     } catch (err) {
       setError('Error loading movies. Please try again.');
       console.error('Error fetching movies:', err);
@@ -67,11 +99,13 @@ export const MovieGrid: React.FC<MovieGridProps> = ({
     }
   };
 
-  const handleLoadMore = async () => {
+  useEffect(() => {
+    fetchMovies(1);
+  }, [limit]);
+
+  const handleLoadMore = () => {
     if (currentPage < totalPages && !isLoading) {
-      const nextPage = currentPage + 1;
-      setCurrentPage(nextPage);
-      await fetchMovies(nextPage);
+      fetchMovies(currentPage + 1);
     }
   };
 
@@ -91,7 +125,7 @@ export const MovieGrid: React.FC<MovieGridProps> = ({
 
   return (
     <div className="space-y-8">
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 lg:grid-cols-6 2xl:grid-cols-10 md:gap-5">
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7 2xl:grid-cols-9 gap-3 md:gap-5">
         {movies.map((movie) => (
           <MovieCard key={movie.id} movie={movie} />
         ))}

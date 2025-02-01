@@ -61,23 +61,23 @@ export const CreateMovieForm: React.FC<CreateMovieFormProps> = ({ isOpen, onClos
         body: JSON.stringify({
           filename: file.name,
           type,
-          contentType: file.type,
+          contentType: file.type || 'application/x-subrip', // Add fallback for SRT files
         }),
       });
   
+      const data = await presignedResponse.json();
       if (!presignedResponse.ok) {
-        const data = await presignedResponse.json();
         throw new Error(data.error || `Failed to get upload URL for ${type}`);
       }
-  
-      const { presignedUrl, filename } = await presignedResponse.json();
+      
+      const { presignedUrl, filename } = data;
   
       // Step 2: Upload the file to R2 using XMLHttpRequest to track progress
       return await new Promise<string>((resolve, reject) => {
         const xhr = new XMLHttpRequest();
   
         xhr.open('PUT', presignedUrl, true);
-        xhr.setRequestHeader('Content-Type', file.type);
+        xhr.setRequestHeader('Content-Type', file.type || 'application/x-subrip'); // Add fallback here too
   
         // Track progress
         xhr.upload.onprogress = (event) => {

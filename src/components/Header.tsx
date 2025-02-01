@@ -28,11 +28,11 @@ export const Header = () => {
 
   return (
     <header className="py-4 px-16">
-      <div className="max-w-[98rem] mx-auto flex items-center justify-between">
+      <div className="max-w-[128rem] mx-auto flex items-center justify-between">
         <div className="flex items-center gap-8">
           <Link 
             href="/" 
-            className="text-xl font-bold hover:text-blue-400 transition-colors"
+            className="text-xl font-bold text-white hover:text-blue-400 transition-colors"
           >
             CinemaFred
           </Link>
@@ -44,14 +44,14 @@ export const Header = () => {
             <>
               <button
                 onClick={() => setIsCreateMovieOpen(true)}
-                className="flex items-center gap-2 px-3 py-1.5 rounded-lg hover:bg-black/30 transition-colors"
+                className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-white hover:text-blue-400 transition-colors"
               >
                 <Film className="w-4 h-4" />
                 <span className="text-sm">Add Movie</span>
               </button>
               <button
                 onClick={() => setIsCreateUserOpen(true)}
-                className="flex items-center gap-2 px-3 py-1.5 rounded-lg hover:bg-black/30 transition-colors"
+                className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-white hover:text-blue-400 transition-colors"
               >
                 <UserPlus className="w-4 h-4" />
                 <span className="text-sm">Create User</span>
@@ -60,7 +60,7 @@ export const Header = () => {
           ) : (
             <button
               onClick={() => setIsAccountOpen(true)}
-              className="flex items-center gap-2 px-3 py-1.5 rounded-lg hover:bg-black/30 transition-colors"
+              className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-white hover:text-blue-400 transition-colors"
             >
               <User className="w-4 h-4" />
               <span className="text-sm">Account</span>
@@ -68,7 +68,7 @@ export const Header = () => {
           )}
           <button
             onClick={handleLogout}
-            className="flex items-center gap-2 px-3 py-1.5 rounded-lg hover:bg-black/30 transition-colors"
+            className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-white hover:text-blue-400 transition-colors"
           >
             <LogOut className="w-4 h-4" />
             <span className="text-sm">Log out</span>

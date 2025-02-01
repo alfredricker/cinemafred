@@ -23,9 +23,11 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: validation.error }, { status: validation.status });
     }
 
-    const { filename, type, contentType } = await request.json();
+    const body = await request.json();
+    const { filename, type, contentType } = body;
 
     if (!filename || !type || !contentType) {
+      console.error('Missing fields:', { filename, type, contentType });
       return NextResponse.json({ 
         error: 'Filename, type, and contentType are required' 
       }, { status: 400 });

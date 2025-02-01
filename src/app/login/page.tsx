@@ -33,7 +33,7 @@ export default function LoginPage() {
         setError('Invalid credentials');
       }
     } catch (err) {
-      setError('An unexpected error occurred.');
+      setError('Invalid credentials');
     } finally {
       setIsLoading(false);
     }

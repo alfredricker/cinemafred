@@ -16,8 +16,8 @@ export default {
         'sm': '640px',
         'md': '768px',
         'lg': '1024px',
-        'xl': '2048px',     // Changed from 1280px to 2000px
-        '2xl': '3600px'     // Kept larger than xl
+        'xl': '1680px',     // Changed from 1280px to 2000px
+        '2xl': '3000px'     // Kept larger than xl
       },
     },
   },

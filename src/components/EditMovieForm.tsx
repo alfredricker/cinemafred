@@ -86,7 +86,7 @@ export const EditMovieForm: React.FC<EditMovieFormProps> = ({ isOpen, onClose, m
         body: JSON.stringify({
           filename: file.name,
           type,
-          contentType: file.type
+          contentType: file.type || 'application/x-subrip' // Add fallback for SRT files
         })
       });
   
@@ -102,7 +102,7 @@ export const EditMovieForm: React.FC<EditMovieFormProps> = ({ isOpen, onClose, m
         method: 'PUT',
         body: file,
         headers: {
-          'Content-Type': file.type
+          'Content-Type': file.type || 'application/x-subrip' // Add fallback here too
         }
       });
   
@@ -110,7 +110,7 @@ export const EditMovieForm: React.FC<EditMovieFormProps> = ({ isOpen, onClose, m
         throw new Error(`Failed to upload ${type}`);
       }
   
-      // Return the filename to be used in the movie update
+      // Return the filename with the correct path prefix
       return type === 'subtitles' ? filename : `api/movie/${filename}`;
     } catch (error) {
       console.error(`Upload error for ${type}:`, error);

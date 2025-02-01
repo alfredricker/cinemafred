@@ -101,6 +101,11 @@ export const MovieDetails: React.FC<MovieDetailsProps> = ({ id }) => {
     setIsWatching(true);
   };
 
+  const getOptimizedImageUrl = (path: string) => {
+    const basePath = path.replace(/^api\/movie\//, '');
+    return `/api/image/${basePath}?width=800&quality=95`; // Higher quality for detail view
+  };
+
   if (isWatching) {
     return (
       <div className="container mx-auto px-4 py-8">
@@ -120,8 +125,8 @@ export const MovieDetails: React.FC<MovieDetailsProps> = ({ id }) => {
       <div className="grid grid-cols-[250px,1fr] sm:grid-cols-[300px,1fr] md:grid-cols-[350px,1fr] lg:grid-cols-[375px,1fr] xl:grid-cols-[450px,1fr] 2xl:grid-cols-[500px,1fr] gap-6 lg:gap-8">
         {/* Poster/Image section */}
         <div className="relative aspect-[2/3] w-full">
-          {movie.r2_image_path && !imageError ? (
-            <Image
+        {movie.r2_image_path && !imageError ? (
+          <Image
               src={movie.r2_image_path.startsWith('/') ? movie.r2_image_path : `/${movie.r2_image_path}`}
               alt={movie.title}
               fill
@@ -132,11 +137,11 @@ export const MovieDetails: React.FC<MovieDetailsProps> = ({ id }) => {
                 setImageError(true);
               }}
             />
-          ) : (
-            <div className="w-full h-full flex items-center justify-center bg-gray-800 rounded-lg">
-              <span className="text-gray-500">No image</span>
-            </div>
-          )}
+        ) : (
+          <div className="w-full h-full flex items-center justify-center bg-gray-800 rounded-lg">
+            <span className="text-gray-500">No image</span>
+          </div>
+        )}
         </div>
 
         {/* Content section */}
