@@ -5,6 +5,8 @@ import { Movie } from '@/types/movie';
 
 interface MovieGridProps {
   initialPage?: number;
+  selectedGenre: string | null;
+  sortOption: string;
 }
 
 interface MovieResponse {
@@ -17,7 +19,11 @@ interface MovieResponse {
   };
 }
 
-export const MovieGrid: React.FC<MovieGridProps> = ({ initialPage = 1 }) => {
+export const MovieGrid: React.FC<MovieGridProps> = ({ 
+  initialPage = 1,
+  selectedGenre,
+  sortOption
+}) => {
   const [movies, setMovies] = useState<Movie[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -48,7 +54,6 @@ export const MovieGrid: React.FC<MovieGridProps> = ({ initialPage = 1 }) => {
     const handleResize = () => {
       const newLimit = calculateLimit();
       if (newLimit !== limit) {
-        console.log('Updating limit to:', newLimit);
         setLimit(newLimit);
         setMovies([]); // Clear existing movies when limit changes
         setCurrentPage(1); // Reset to first page
@@ -72,12 +77,30 @@ export const MovieGrid: React.FC<MovieGridProps> = ({ initialPage = 1 }) => {
     };
   }, []);
 
+  // Reset page when filters or sort change
+  useEffect(() => {
+    setMovies([]);
+    setCurrentPage(1);
+    fetchMovies(1);
+  }, [selectedGenre, sortOption]);
+
   const fetchMovies = async (page: number) => {
     try {
       setIsLoading(true);
       setError(null);
       
-      const response = await fetch(`/api/movies?page=${page}&limit=${limit}`);
+      // Build the query string with all parameters
+      const params = new URLSearchParams({
+        page: page.toString(),
+        limit: limit.toString(),
+        sort: sortOption
+      });
+
+      if (selectedGenre) {
+        params.append('genre', selectedGenre);
+      }
+
+      const response = await fetch(`/api/movies?${params.toString()}`);
 
       if (!response.ok) {
         throw new Error('Failed to fetch movies');

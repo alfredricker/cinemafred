@@ -64,14 +64,15 @@ export async function POST(request: Request) {
   }
 }
 
+
 export async function GET(request: Request) {
   try {
-    // Get query parameters from the request URL
     const url = new URL(request.url);
     const page = parseInt(url.searchParams.get('page') || '1');
     const limit = parseInt(url.searchParams.get('limit') || '20');
     const search = url.searchParams.get('search') || undefined;
     const genre = url.searchParams.get('genre') || undefined;
+    const sort = url.searchParams.get('sort') || 'title-asc';
     const year = url.searchParams.get('year') ? parseInt(url.searchParams.get('year')!) : undefined;
 
     // Calculate pagination
@@ -95,10 +96,36 @@ export async function GET(request: Request) {
       whereClause.year = year;
     }
 
-    // First fetch all movies (we'll handle pagination after sorting)
+    // Build orderBy clause based on sort parameter
+    let orderBy: Prisma.MovieOrderByWithRelationInput = {};
+    
+    switch (sort) {
+      case 'title-desc':
+        orderBy = { title: 'desc' };
+        break;
+      case 'rating-desc':
+        orderBy = { rating: 'desc' };
+        break;
+      case 'rating-asc':
+        orderBy = { rating: 'asc' };
+        break;
+      case 'year-desc':
+        orderBy = { year: 'desc' };
+        break;
+      case 'year-asc':
+        orderBy = { year: 'asc' };
+        break;
+      default: // 'title-asc'
+        orderBy = { title: 'asc' };
+    }
+
+    // Fetch movies with count
     const [movies, total] = await Promise.all([
       prisma.movie.findMany({
         where: whereClause,
+        skip,
+        take: limit,
+        orderBy,
         select: {
           id: true,
           title: true,
@@ -120,19 +147,9 @@ export async function GET(request: Request) {
       prisma.movie.count({ where: whereClause })
     ]);
 
-    // Sort movies by title, ignoring leading "The"
-    const sortedMovies = movies.sort((a, b) => {
-      const titleA = getSortableTitle(a.title);
-      const titleB = getSortableTitle(b.title);
-      return titleA.localeCompare(titleB);
-    });
-
-    // Apply pagination after sorting
-    const paginatedMovies = sortedMovies.slice(skip, skip + limit);
-
     // Calculate average ratings for each movie
     const moviesWithAggregates = await Promise.all(
-      paginatedMovies.map(async (movie) => {
+      movies.map(async (movie) => {
         const averageRating = await prisma.rating.aggregate({
           where: { movie_id: movie.id },
           _avg: { value: true }

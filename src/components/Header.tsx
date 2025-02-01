@@ -7,7 +7,6 @@ import { CreateMovieForm } from './CreateMovieForm';
 import { AccountDialog } from './AccountDialog';
 import { UserPlus, LogOut, Film, User } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { SortSelect } from './SortSelect';
 import Link from 'next/link';
 
 export const Header = () => {
@@ -27,17 +26,15 @@ export const Header = () => {
   };
 
   return (
+    // can include border-b border-gray-800 in className = 
     <header className="py-4 px-16">
       <div className="max-w-[128rem] mx-auto flex items-center justify-between">
-        <div className="flex items-center gap-8">
-          <Link 
-            href="/" 
-            className="text-xl font-bold text-white hover:text-blue-400 transition-colors"
-          >
-            CinemaFred
-          </Link>
-          <SortSelect />
-        </div>
+        <Link 
+          href="/" 
+          className="text-xl font-bold text-white hover:text-blue-400 transition-colors"
+        >
+          CinemaFred
+        </Link>
         
         <div className="flex items-center gap-4">
           {user?.isAdmin ? (
