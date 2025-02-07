@@ -96,36 +96,34 @@ export async function GET(request: Request) {
       whereClause.year = year;
     }
 
-    // Build orderBy clause based on sort parameter
+    // For title sorting, we'll fetch without orderBy and sort in memory
+    const isTitleSort = sort === 'title-asc' || sort === 'title-desc';
+    
+    // Build orderBy clause based on sort parameter (except for title sort)
     let orderBy: Prisma.MovieOrderByWithRelationInput = {};
     
-    switch (sort) {
-      case 'title-desc':
-        orderBy = { title: 'desc' };
-        break;
-      case 'rating-desc':
-        orderBy = { rating: 'desc' };
-        break;
-      case 'rating-asc':
-        orderBy = { rating: 'asc' };
-        break;
-      case 'year-desc':
-        orderBy = { year: 'desc' };
-        break;
-      case 'year-asc':
-        orderBy = { year: 'asc' };
-        break;
-      default: // 'title-asc'
-        orderBy = { title: 'asc' };
+    if (!isTitleSort) {
+      switch (sort) {
+        case 'rating-desc':
+          orderBy = { rating: 'desc' };
+          break;
+        case 'rating-asc':
+          orderBy = { rating: 'asc' };
+          break;
+        case 'year-desc':
+          orderBy = { year: 'desc' };
+          break;
+        case 'year-asc':
+          orderBy = { year: 'asc' };
+          break;
+      }
     }
 
     // Fetch movies with count
     const [movies, total] = await Promise.all([
       prisma.movie.findMany({
         where: whereClause,
-        skip,
-        take: limit,
-        orderBy,
+        orderBy: isTitleSort ? undefined : orderBy,
         select: {
           id: true,
           title: true,
@@ -148,7 +146,7 @@ export async function GET(request: Request) {
     ]);
 
     // Calculate average ratings for each movie
-    const moviesWithAggregates = await Promise.all(
+    let moviesWithAggregates = await Promise.all(
       movies.map(async (movie) => {
         const averageRating = await prisma.rating.aggregate({
           where: { movie_id: movie.id },
@@ -162,8 +160,22 @@ export async function GET(request: Request) {
       })
     );
 
+    // If sorting by title, sort the movies array
+    if (isTitleSort) {
+      moviesWithAggregates.sort((a, b) => {
+        const titleA = getSortableTitle(a.title);
+        const titleB = getSortableTitle(b.title);
+        return sort === 'title-asc' 
+          ? titleA.localeCompare(titleB)
+          : titleB.localeCompare(titleA);
+      });
+    }
+
+    // Apply pagination after sorting
+    const paginatedMovies = moviesWithAggregates.slice(skip, skip + limit);
+
     return NextResponse.json({
-      movies: moviesWithAggregates,
+      movies: paginatedMovies,
       pagination: {
         total,
         pages: Math.ceil(total / limit),

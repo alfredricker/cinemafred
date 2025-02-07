@@ -1,3 +1,4 @@
+// src/app/login/page.tsx
 'use client';
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/context/AuthContext';
@@ -33,7 +34,7 @@ export default function LoginPage() {
         setError('Invalid credentials');
       }
     } catch (err) {
-      setError('Invalid credentials');
+      setError('An unexpected error occurred.');
     } finally {
       setIsLoading(false);
     }
@@ -44,11 +45,10 @@ export default function LoginPage() {
       await updatePassword(newPassword);
       router.push('/');
     } catch (error) {
-      throw error; // Let the dialog handle the error
+      throw error;
     }
   };
 
-  // Show password reset dialog if user needs to reset password
   useEffect(() => {
     if (user?.mustResetPassword) {
       setShowResetDialog(true);
@@ -56,8 +56,8 @@ export default function LoginPage() {
   }, [user]);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-black to-gray-900 flex items-center justify-center px-4">
-      <div className="max-w-md w-full space-y-8">
+    <div className="min-h-screen relative flex items-center justify-center px-4 bg-gradient-to-br from-gray-900 via-black to-gray-900">
+      <div className="w-full max-w-md space-y-8 relative z-10">
         <div className="text-center">
           <div className="flex justify-center">
             <Film className="h-16 w-16 text-blue-500" />
@@ -69,7 +69,7 @@ export default function LoginPage() {
         <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
           <div className="rounded-md shadow-sm space-y-4">
             <div className="relative">
-              <User className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-500" />
+              <User className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-500 pointer-events-none" />
               <input
                 type="text"
                 required
@@ -83,7 +83,7 @@ export default function LoginPage() {
             </div>
             
             <div className="relative">
-              <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-500" />
+              <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-500 pointer-events-none" />
               <input
                 type="password"
                 required
@@ -124,4 +124,4 @@ export default function LoginPage() {
       )}
     </div>
   );
-};
+}

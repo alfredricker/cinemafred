@@ -43,7 +43,7 @@ export const MovieGridHeader: React.FC<MovieGridHeaderProps> = ({
   };
 
   return (
-    <div className="py-4 px-16">
+    <div className="py-2 px-16">
       <div className="max-w-[128rem] mx-auto">
         <div className="flex items-center justify-between">
           {/* Genre Filters */}
