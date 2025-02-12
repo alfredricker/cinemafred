@@ -29,6 +29,7 @@ model Movie {
   director          String
   genre             String[]  // Prisma supports array types
   rating            Float     @default(0)
+  averageRating     Float?    @default(0.0)  // Store precomputed rating
   r2_image_path     String
   r2_video_path     String
   r2_subtitles_path String?   // Optional

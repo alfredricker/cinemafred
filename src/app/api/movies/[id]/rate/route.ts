@@ -1,4 +1,3 @@
-// src/app/api/movies/[id]/rate/route.ts
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/db';
 import jwt from 'jsonwebtoken';
@@ -16,10 +15,7 @@ export async function GET(
   try {
     const authHeader = request.headers.get('Authorization');
     if (!authHeader?.startsWith('Bearer ')) {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      );
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     const token = authHeader.substring(7);
@@ -37,10 +33,7 @@ export async function GET(
     return NextResponse.json({ rating: rating?.value || null });
   } catch (error) {
     console.error('Error fetching rating:', error);
-    return NextResponse.json(
-      { error: 'Failed to fetch rating' },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: 'Failed to fetch rating' }, { status: 500 });
   }
 }
 
@@ -52,10 +45,7 @@ export async function POST(
   try {
     const authHeader = request.headers.get('Authorization');
     if (!authHeader?.startsWith('Bearer ')) {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      );
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     const token = authHeader.substring(7);
@@ -64,49 +54,49 @@ export async function POST(
 
     // Validate rating value
     if (typeof value !== 'number' || value < 0 || value > 10) {
-      return NextResponse.json(
-        { error: 'Invalid rating value' },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: 'Invalid rating value' }, { status: 400 });
     }
 
-    // Upsert the rating
-    await prisma.rating.upsert({
-      where: {
-        user_id_movie_id: {
+    // Use a transaction to update rating & averageRating efficiently
+    const result = await prisma.$transaction(async (tx) => {
+      // Upsert the rating
+      await tx.rating.upsert({
+        where: {
+          user_id_movie_id: {
+            user_id: decoded.id,
+            movie_id: params.id
+          }
+        },
+        update: { value },
+        create: {
           user_id: decoded.id,
-          movie_id: params.id
+          movie_id: params.id,
+          value
         }
-      },
-      update: { value },
-      create: {
-        user_id: decoded.id,
-        movie_id: params.id,
-        value
-      }
-    });
+      });
 
-    // Calculate new average rating
-    const averageRating = await prisma.rating.aggregate({
-      where: { movie_id: params.id },
-      _avg: { value: true }
-    });
+      // Recalculate averageRating
+      const { _avg } = await tx.rating.aggregate({
+        where: { movie_id: params.id },
+        _avg: { value: true }
+      });
 
-    // Update movie's base rating
-    await prisma.movie.update({
-      where: { id: params.id },
-      data: { rating: averageRating._avg.value || 0 }
+      // Update `averageRating` field in the `Movie` table
+      const updatedMovie = await tx.movie.update({
+        where: { id: params.id },
+        data: { averageRating: _avg.value || 0 },
+        select: { averageRating: true }
+      });
+
+      return updatedMovie;
     });
 
     return NextResponse.json({
       message: 'Rating updated successfully',
-      averageRating: averageRating._avg.value
+      averageRating: result.averageRating
     });
   } catch (error) {
     console.error('Error updating rating:', error);
-    return NextResponse.json(
-      { error: 'Failed to update rating' },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: 'Failed to update rating' }, { status: 500 });
   }
 }

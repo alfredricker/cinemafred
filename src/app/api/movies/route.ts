@@ -96,19 +96,17 @@ export async function GET(request: Request) {
       whereClause.year = year;
     }
 
-    // For title sorting, we'll fetch without orderBy and sort in memory
+    // Determine sorting logic
     const isTitleSort = sort === 'title-asc' || sort === 'title-desc';
-    
-    // Build orderBy clause based on sort parameter (except for title sort)
     let orderBy: Prisma.MovieOrderByWithRelationInput = {};
-    
+
     if (!isTitleSort) {
       switch (sort) {
         case 'rating-desc':
-          orderBy = { rating: 'desc' };
+          orderBy = { averageRating: 'desc' };  // Use precomputed averageRating
           break;
         case 'rating-asc':
-          orderBy = { rating: 'asc' };
+          orderBy = { averageRating: 'asc' };  // Use precomputed averageRating
           break;
         case 'year-desc':
           orderBy = { year: 'desc' };
@@ -119,7 +117,7 @@ export async function GET(request: Request) {
       }
     }
 
-    // Fetch movies with count
+    // Fetch movies
     const [movies, total] = await Promise.all([
       prisma.movie.findMany({
         where: whereClause,
@@ -131,6 +129,7 @@ export async function GET(request: Request) {
           director: true,
           genre: true,
           rating: true,
+          averageRating: true,  // Now using stored avgRating
           r2_image_path: true,
           r2_video_path: true,
           description: true,
@@ -145,34 +144,19 @@ export async function GET(request: Request) {
       prisma.movie.count({ where: whereClause })
     ]);
 
-    // Calculate average ratings for each movie
-    let moviesWithAggregates = await Promise.all(
-      movies.map(async (movie) => {
-        const averageRating = await prisma.rating.aggregate({
-          where: { movie_id: movie.id },
-          _avg: { value: true }
-        });
-
-        return {
-          ...movie,
-          averageRating: averageRating._avg.value || movie.rating
-        };
-      })
-    );
-
-    // If sorting by title, sort the movies array
+    // If sorting by title, sort manually
     if (isTitleSort) {
-      moviesWithAggregates.sort((a, b) => {
+      movies.sort((a, b) => {
         const titleA = getSortableTitle(a.title);
         const titleB = getSortableTitle(b.title);
-        return sort === 'title-asc' 
+        return sort === 'title-asc'
           ? titleA.localeCompare(titleB)
           : titleB.localeCompare(titleA);
       });
     }
 
     // Apply pagination after sorting
-    const paginatedMovies = moviesWithAggregates.slice(skip, skip + limit);
+    const paginatedMovies = movies.slice(skip, skip + limit);
 
     return NextResponse.json({
       movies: paginatedMovies,

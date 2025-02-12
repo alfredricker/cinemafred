@@ -1,4 +1,3 @@
-// src/app/api/movies/[id]/route.ts
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/db';
 import { validateAdmin } from '@/lib/middleware';
@@ -44,19 +43,7 @@ export async function GET(
       );
     }
 
-    // Get average rating
-    const averageRating = await prisma.rating.aggregate({
-      where: { movie_id: id },
-      _avg: { value: true }
-    });
-
-    // Combine movie data with aggregated rating
-    const movieWithRating = {
-      ...movie,
-      averageRating: averageRating._avg.value || movie.rating
-    };
-
-    return NextResponse.json(movieWithRating);
+    return NextResponse.json(movie); // No need to compute averageRating manually
   } catch (error) {
     console.error('Error fetching movie:', error);
     return NextResponse.json(
@@ -106,7 +93,7 @@ export async function PUT(
       );
     }
 
-    // Update movie
+    // Update movie (excluding `averageRating` unless explicitly provided)
     const updatedMovie = await prisma.movie.update({
       where: { id },
       data: {
@@ -119,7 +106,8 @@ export async function PUT(
         r2_image_path: updates.r2_image_path || existingMovie.r2_image_path,
         r2_subtitles_path: updates.r2_subtitles_path,
         streaming_url: updates.streaming_url,
-        cloudflare_video_id: updates.cloudflare_video_id
+        cloudflare_video_id: updates.cloudflare_video_id,
+        ...(updates.averageRating !== undefined && { averageRating: updates.averageRating }) // Optional update
       }
     });
 

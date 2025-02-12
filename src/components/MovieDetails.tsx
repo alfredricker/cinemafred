@@ -161,7 +161,7 @@ export const MovieDetails: React.FC<MovieDetailsProps> = ({ id }) => {
             <div className="flex items-center">
               <Star className="w-8 h-8 text-yellow-400 fill-yellow-400 mr-2" />
               <span className="text-2xl font-bold text-gray-100">
-                {movie.averageRating ? movie.averageRating.toFixed(1) : 'N/A'}
+                {movie.averageRating ? movie.averageRating.toFixed(1) : movie.rating?.toFixed(1) || 'N/A'}
               </span>
               <span className="text-gray-400 ml-1">/10</span>
             </div>

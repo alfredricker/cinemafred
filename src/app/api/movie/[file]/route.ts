@@ -1,4 +1,3 @@
-// src/app/api/movie/[file]/route.ts
 import { NextResponse } from "next/server";
 import { GetObjectCommand } from "@aws-sdk/client-s3";
 import { r2Client, BUCKET_NAME } from "@/lib/r2";
@@ -42,6 +41,7 @@ function convertSRTtoVTT(srtContent: string): string {
   return vttContent;
 }
 
+
 export async function GET(req: Request, { params }: { params: { file: string } }) {
   const { file } = params;
 
@@ -62,7 +62,7 @@ export async function GET(req: Request, { params }: { params: { file: string } }
     let contentType = "application/octet-stream";
     if (file.endsWith('.mp4')) {
       contentType = "video/mp4";
-    } else if (file.endsWith('.srt')) {
+    }  else if (file.endsWith('.srt')) {
       // For SRT files, convert to WebVTT
       const response = await new Response(stream).text();
       const vttContent = convertSRTtoVTT(response);
