@@ -3,12 +3,6 @@ import React, { useState, useEffect } from 'react';
 import { Loader2, Upload, AlertCircle, Trash2, ChevronRight, AlertTriangle } from 'lucide-react';
 import { Movie } from '@/types/movie';
 
-interface EditMovieFormProps {
-  isOpen: boolean;
-  onClose: () => void;
-  movie: Movie;
-}
-
 interface MovieFormData {
   title: string;
   year: number;
@@ -22,17 +16,35 @@ interface MovieFormData {
   cloudflare_video_id?: string | null;
 }
 
+interface EditMovieFormProps {
+  isOpen: boolean;
+  onClose: () => void;
+  movie: Movie;
+}
+
+const defaultFormData: MovieFormData = {
+  title: '',
+  year: new Date().getFullYear(),
+  director: '',
+  genre: [],
+  description: '',
+  r2_video_path: '',
+  r2_image_path: '',
+  r2_subtitles_path: null
+};
+
 export const EditMovieForm: React.FC<EditMovieFormProps> = ({ isOpen, onClose, movie }) => {
-  const [formData, setFormData] = useState<MovieFormData>({
-    title: movie.title,
-    year: movie.year,
-    director: movie.director,
-    genre: movie.genre,
-    description: movie.description,
-    r2_video_path: movie.r2_video_path,
-    r2_image_path: movie.r2_image_path,
-    r2_subtitles_path: movie.r2_subtitles_path
-  });
+  const [formData, setFormData] = useState<MovieFormData>(() => ({
+    ...defaultFormData,
+    title: movie.title ?? defaultFormData.title,
+    year: movie.year ?? defaultFormData.year,
+    director: movie.director ?? defaultFormData.director,
+    genre: Array.isArray(movie.genre) ? [...movie.genre] : defaultFormData.genre,
+    description: movie.description ?? defaultFormData.description,
+    r2_video_path: movie.r2_video_path ?? defaultFormData.r2_video_path,
+    r2_image_path: movie.r2_image_path ?? defaultFormData.r2_image_path,
+    r2_subtitles_path: movie.r2_subtitles_path ?? defaultFormData.r2_subtitles_path
+  }));
   
   const [files, setFiles] = useState<{
     video: File | null;
@@ -51,14 +63,15 @@ export const EditMovieForm: React.FC<EditMovieFormProps> = ({ isOpen, onClose, m
 
   useEffect(() => {
     setFormData({
-      title: movie.title,
-      year: movie.year,
-      director: movie.director,
-      genre: movie.genre,
-      description: movie.description,
-      r2_video_path: movie.r2_video_path,
-      r2_image_path: movie.r2_image_path,
-      r2_subtitles_path: movie.r2_subtitles_path
+      ...defaultFormData,
+      title: movie.title ?? defaultFormData.title,
+      year: movie.year ?? defaultFormData.year,
+      director: movie.director ?? defaultFormData.director,
+      genre: Array.isArray(movie.genre) ? [...movie.genre] : defaultFormData.genre,
+      description: movie.description ?? defaultFormData.description,
+      r2_video_path: movie.r2_video_path ?? defaultFormData.r2_video_path,
+      r2_image_path: movie.r2_image_path ?? defaultFormData.r2_image_path,
+      r2_subtitles_path: movie.r2_subtitles_path ?? defaultFormData.r2_subtitles_path
     });
   }, [movie]);
 
@@ -70,13 +83,14 @@ export const EditMovieForm: React.FC<EditMovieFormProps> = ({ isOpen, onClose, m
   };
 
   const handleGenreChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const genres = e.target.value.split(',').map(g => g.trim());
+    const genres = e.target.value.split(',')
+      .map(g => g.trim())
+      .filter(g => g.length > 0);
     setFormData(prev => ({ ...prev, genre: genres }));
   };
 
   const uploadToR2 = async (file: File, type: string) => {
     try {
-      // First, get a presigned URL
       const presignedResponse = await fetch('/api/upload', {
         method: 'POST',
         headers: {
@@ -86,7 +100,7 @@ export const EditMovieForm: React.FC<EditMovieFormProps> = ({ isOpen, onClose, m
         body: JSON.stringify({
           filename: file.name,
           type,
-          contentType: file.type || 'application/x-subrip' // Add fallback for SRT files
+          contentType: file.type || 'application/x-subrip'
         })
       });
   
@@ -97,12 +111,11 @@ export const EditMovieForm: React.FC<EditMovieFormProps> = ({ isOpen, onClose, m
   
       const { presignedUrl, filename } = await presignedResponse.json();
   
-      // Upload the file directly to R2 using the presigned URL
       const uploadResponse = await fetch(presignedUrl, {
         method: 'PUT',
         body: file,
         headers: {
-          'Content-Type': file.type || 'application/x-subrip' // Add fallback here too
+          'Content-Type': file.type || 'application/x-subrip'
         }
       });
   
@@ -110,7 +123,6 @@ export const EditMovieForm: React.FC<EditMovieFormProps> = ({ isOpen, onClose, m
         throw new Error(`Failed to upload ${type}`);
       }
   
-      // Return the filename with the correct path prefix
       return type === 'subtitles' ? filename : `api/movie/${filename}`;
     } catch (error) {
       console.error(`Upload error for ${type}:`, error);
@@ -124,7 +136,6 @@ export const EditMovieForm: React.FC<EditMovieFormProps> = ({ isOpen, onClose, m
     setError(null);
 
     try {
-      // Upload any new files to R2
       const updates: Partial<MovieFormData> = { ...formData };
 
       if (files.video) {
@@ -137,7 +148,6 @@ export const EditMovieForm: React.FC<EditMovieFormProps> = ({ isOpen, onClose, m
         updates.r2_subtitles_path = await uploadToR2(files.subtitles, 'subtitles');
       }
 
-      // Update movie in database
       const response = await fetch(`/api/movies/${movie.id}`, {
         method: 'PUT',
         headers: {
@@ -152,7 +162,7 @@ export const EditMovieForm: React.FC<EditMovieFormProps> = ({ isOpen, onClose, m
       }
 
       onClose();
-      window.location.reload(); // Refresh to show updates
+      window.location.reload();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to update movie');
     } finally {
@@ -181,7 +191,7 @@ export const EditMovieForm: React.FC<EditMovieFormProps> = ({ isOpen, onClose, m
       }
 
       onClose();
-      window.location.reload(); // Refresh to show updates
+      window.location.reload();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to delete movie');
     } finally {

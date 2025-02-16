@@ -25,6 +25,8 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
   const router = useRouter();
   const [captionsOn, setCaptionsOn] = useState(false);
   const CHUNK_SIZE = 16 * 1024 * 1024; // 16MB chunks
+  const [showControls, setShowControls] = useState(true);
+  const controlsTimeout = useRef<NodeJS.Timeout | null>(null);
 
   const isRangeLoaded = (start: number, end: number) => {
     for (const range of completedRanges.current) {
@@ -56,10 +58,13 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
     activeRequests.current.set(rangeKey, controller);
   
     try {
-      const url = new URL(streamUrl);
-      if (isPreload) url.searchParams.set('preload', 'true');
+      // Construct URL safely without using URL constructor
+      const baseUrl = streamUrl.startsWith('/') ? streamUrl : `/${streamUrl}`;
+      const separator = baseUrl.includes('?') ? '&' : '?';
+      const queryParams = `range=${rangeKey}${isPreload ? '&preload=true' : ''}`;
+      const fullUrl = `${baseUrl}${separator}${queryParams}`;
   
-      const response = await fetch(`${url.toString()}?range=${rangeKey}`, {
+      const response = await fetch(fullUrl, {
         signal: controller.signal,
       });
   
@@ -78,6 +83,17 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
     } finally {
       activeRequests.current.delete(rangeKey);
     }
+  };
+
+    // Handle touch events for mobile
+  const handleTouchStart = () => {
+    setShowControls(true);
+    if (controlsTimeout.current) {
+      clearTimeout(controlsTimeout.current);
+    }
+    controlsTimeout.current = setTimeout(() => {
+      setShowControls(false);
+    }, 3000);
   };
 
   const tryResumePlayback = async () => {
@@ -223,7 +239,7 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
   };
 
   return (
-    <div className="relative w-full">
+    <div className="relative w-full" onTouchStart={handleTouchStart}>
       {/* Control buttons container */}
       <div className="absolute top-4 left-4 z-50 flex gap-4">
         <button

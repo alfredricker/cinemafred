@@ -126,13 +126,9 @@ export async function GET(request: Request) {
           id: true,
           title: true,
           year: true,
-          director: true,
-          genre: true,
           rating: true,
-          averageRating: true,  // Now using stored avgRating
+          averageRating: true,
           r2_image_path: true,
-          r2_video_path: true,
-          description: true,
           _count: {
             select: {
               ratings: true,
