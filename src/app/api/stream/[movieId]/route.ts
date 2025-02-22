@@ -4,9 +4,30 @@ import { GetObjectCommand } from "@aws-sdk/client-s3";
 import { r2Client, BUCKET_NAME } from "@/lib/r2";
 import { headers } from "next/headers";
 import prisma from '@/lib/db';
+import jwt from 'jsonwebtoken';
 
-const CHUNK_SIZE = 16 * 1024 * 1024; // 16MB chunks
-const MAX_CHUNK_SIZE = 32 * 1024 * 1024; // 32MB maximum chunk size
+const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
+
+// Lightweight token validation for streaming
+const validateStreamToken = (request: Request) => {
+  try {
+    const authHeader = request.headers.get('Authorization');
+    if (!authHeader?.startsWith('Bearer ')) {
+      return false;
+    }
+
+    const token = authHeader.substring(7);
+    
+    // For chunk requests, only verify token signature without full decode
+    jwt.verify(token, JWT_SECRET, { complete: true });
+    return true;
+  } catch (error) {
+    return false;
+  }
+};
+
+const CHUNK_SIZE = 8 * 1024 * 1024; // 16MB chunks
+const MAX_CHUNK_SIZE = 16 * 1024 * 1024; // 32MB maximum chunk size
 const PRELOAD_CHUNK_SIZE = 4 * 1024 * 1024; // 4MB for preload requests
 
 export async function GET(
@@ -84,9 +105,9 @@ export async function GET(
           "Content-Length": contentSize.toString(),
           "Content-Range": `bytes ${start}-${end}/${contentLength}`,
           "Accept-Ranges": "bytes",
-          "Cache-Control": "public, max-age=3600",
+          "Cache-Control": "public, max-age=3600, must-revalidate",
           "Connection": "keep-alive",
-          // Add preload hint headers
+          "Cross-Origin-Resource-Policy": "cross-origin",
           "Link": `<${request.url}>; rel=preload; as=fetch`,
         },
       });
@@ -112,6 +133,7 @@ export async function GET(
         "Accept-Ranges": "bytes",
         "Cache-Control": "public, max-age=3600",
         "Connection": "keep-alive",
+        "Cross-Origin-Resource-Policy": "cross-origin",
       },
     });
   } catch (error) {

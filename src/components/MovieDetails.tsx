@@ -5,6 +5,7 @@ import { RatingStars } from './RatingStars';
 import Image from 'next/image';
 import { VideoPlayer } from './VideoPlayer';
 import { Movie } from '@/types/movie';
+import { useAuth } from '@/context/AuthContext'
 
 interface MovieDetailsProps {
   id: string;
@@ -37,6 +38,7 @@ export const MovieDetails: React.FC<MovieDetailsProps> = ({ id }) => {
   const [showReviews, setShowReviews] = useState(false);
   const [isWatching, setIsWatching] = useState(false);
   const [imageError, setImageError] = useState(false);
+  const { user } = useAuth(); // Get user from auth context
 
   const formatDuration = (seconds: number): string => {
     const hours = Math.floor(seconds / 3600);
@@ -115,6 +117,7 @@ export const MovieDetails: React.FC<MovieDetailsProps> = ({ id }) => {
           title={movie.title}
           movieId={movie.id}
           subtitlesUrl={movie.r2_subtitles_path ? `/api/movie/${movie.r2_subtitles_path}` : null}
+          isAdmin={user?.isAdmin} // Pass isAdmin flag from the user object
         />
       </div>
     );
