@@ -12,6 +12,7 @@ interface MovieFormData {
   director: string;
   genre: string[];
   description: string;
+  genreInput?: string;
 }
 
 export const CreateMovieForm: React.FC<CreateMovieFormProps> = ({ isOpen, onClose }) => {
@@ -20,7 +21,8 @@ export const CreateMovieForm: React.FC<CreateMovieFormProps> = ({ isOpen, onClos
     year: new Date().getFullYear(),
     director: '',
     genre: [],
-    description: ''
+    description: '',
+    genreInput: '' // Initialize the input value
   });
   
   const [files, setFiles] = useState<{
@@ -37,16 +39,162 @@ export const CreateMovieForm: React.FC<CreateMovieFormProps> = ({ isOpen, onClos
   const [error, setError] = useState<string | null>(null);
   const [uploadProgress, setUploadProgress] = useState<{[key: string]: number}>({});
 
-  const handleFileChange = (type: 'video' | 'image' | 'subtitles') => (e: React.ChangeEvent<HTMLInputElement>) => {
+
+  const handleFileChange = (type: 'video' | 'image' | 'subtitles') => async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      setFiles(prev => ({ ...prev, [type]: file }));
+    if (!file) return;
+    
+    setFiles(prev => ({ ...prev, [type]: file }));
+
+    // Only fetch metadata for video files
+    if (type === 'video') {
+      try {
+        setIsSubmitting(true);
+        setError(null);
+
+        console.log('Processing video file:', file.name);
+        
+        // Fetch metadata based on filename
+        const response = await fetch(`/api/movies/metadata?filename=${encodeURIComponent(file.name)}`, {
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          },
+        });
+
+        const data = await response.json();
+        console.log('Metadata response:', data);
+
+        if (!response.ok) {
+          throw new Error(data.error || 'Failed to fetch movie metadata');
+        }
+
+        if (!data.metadata) {
+          throw new Error('No metadata found for this movie');
+        }
+
+        // Auto-fill the form
+        setFormData(prev => ({
+          ...prev,
+          title: data.metadata.title,
+          year: data.metadata.year,
+          director: data.metadata.director,
+          genre: data.metadata.genre,
+          genreInput: data.metadata.genre.join(', '), // Add this line
+          description: data.metadata.description,
+          duration: data.metadata.duration
+        }));
+
+        // Handle poster download if available
+        if (data.metadata.posterUrl) {
+          try {
+            console.log('Downloading poster from:', data.metadata.posterUrl);
+            
+            // Show loading state for poster
+            setUploadProgress(prev => ({
+              ...prev,
+              poster: 0
+            }));
+
+            // Request poster download
+            const posterResponse = await fetch('/api/movies/poster', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${localStorage.getItem('token')}`,
+              },
+              body: JSON.stringify({ 
+                imageUrl: data.metadata.posterUrl 
+              }),
+            });
+
+            if (!posterResponse.ok) {
+              const errorData = await posterResponse.json();
+              throw new Error(errorData.error || 'Failed to download poster');
+            }
+
+            const posterData = await posterResponse.json();
+            console.log('Poster download response:', posterData);
+
+            if (!posterData.path) {
+              throw new Error('No poster path received from server');
+            }
+
+            // Update progress
+            setUploadProgress(prev => ({
+              ...prev,
+              poster: 50
+            }));
+
+            // Fetch the downloaded poster
+            const posterRequest = await fetch(`/${posterData.path}`);
+            if (!posterRequest.ok) {
+              throw new Error('Failed to fetch downloaded poster');
+            }
+
+            const posterBlob = await posterRequest.blob();
+            console.log('Poster blob received:', posterBlob.size, 'bytes');
+
+            // Create a File object from the poster
+            const posterFile = new File(
+              [posterBlob],
+              posterData.path.split('/').pop() || 'poster.jpg',
+              { type: 'image/jpeg' }
+            );
+
+            // Update form and files state
+            setFormData(prev => ({
+              ...prev,
+              r2_image_path: posterData.path,
+            }));
+
+            setFiles(prev => ({
+              ...prev,
+              image: posterFile
+            }));
+
+            // Show completion
+            setUploadProgress(prev => ({
+              ...prev,
+              poster: 100
+            }));
+
+            console.log('Poster process completed successfully');
+          } catch (posterError) {
+            console.error('Error in poster download process:', posterError);
+            setError('Failed to download poster. Please upload one manually.');
+          }
+        } else {
+          console.log('No poster URL available in metadata');
+        }
+      } catch (err) {
+        const errorMessage = err instanceof Error ? err.message : 'Failed to auto-detect movie information';
+        setError(errorMessage);
+        console.error('Error in handleFileChange:', err);
+        
+        // Reset states
+        setUploadProgress({});
+        setFormData({
+          title: '',
+          year: new Date().getFullYear(),
+          director: '',
+          genre: [],
+          description: '',
+          genreInput: ''
+        });
+      } finally {
+        setIsSubmitting(false);
+      }
     }
   };
 
   const handleGenreChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const genres = e.target.value.split(',').map(g => g.trim());
-    setFormData(prev => ({ ...prev, genre: genres }));
+    const input = e.target.value;
+    const genres = input.split(',').map(g => g.trim()).filter(g => g.length > 0);
+    setFormData(prev => ({
+      ...prev,
+      genre: genres,
+      genreInput: input
+    }));
   };
 
   const uploadFile = async (file: File, type: string): Promise<string> => {
@@ -212,7 +360,6 @@ export const CreateMovieForm: React.FC<CreateMovieFormProps> = ({ isOpen, onClos
                     onChange={handleFileChange('image')}
                     className="hidden"
                     id="image-upload"
-                    required
                   />
                   <label htmlFor="image-upload" className="cursor-pointer text-center">
                     <Upload className="mx-auto h-8 w-8 text-gray-500 mb-2" />
@@ -298,6 +445,7 @@ export const CreateMovieForm: React.FC<CreateMovieFormProps> = ({ isOpen, onClos
                 <input
                   type="text"
                   id="genre"
+                  value={formData.genreInput}
                   onChange={handleGenreChange}
                   className="mt-1 block w-full rounded-md bg-gray-800 border-gray-700 text-white"
                   placeholder="Action, Drama, Thriller"
@@ -337,9 +485,17 @@ export const CreateMovieForm: React.FC<CreateMovieFormProps> = ({ isOpen, onClos
               </button>
               <button
                 type="submit"
-                disabled={isSubmitting}
+                disabled={
+                  isSubmitting || 
+                  !files.video || 
+                  !files.image || 
+                  !formData.title || 
+                  !formData.director || 
+                  formData.genre.length === 0 ||
+                  !formData.description
+                }
                 className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 
-                         disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                          disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
                 {isSubmitting ? (
                   <span className="flex items-center gap-2">
