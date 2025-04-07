@@ -54,8 +54,36 @@ export const CreateMovieForm: React.FC<CreateMovieFormProps> = ({ isOpen, onClos
 
         console.log('Processing video file:', file.name);
         
-        // Fetch metadata based on filename
-        const response = await fetch(`/api/movies/metadata?filename=${encodeURIComponent(file.name)}`, {
+        // Parse filename following Example.Title.Year.mp4 format
+        const filenameParts = file.name.split('.');
+        const extension = filenameParts.pop(); // Remove extension
+        
+        if (!extension || !['mp4', 'mkv', 'avi'].includes(extension.toLowerCase())) {
+          throw new Error('Invalid file extension. Expected: mp4, mkv, or avi');
+        }
+
+        const year = filenameParts.pop(); // Get year (last element before extension)
+        if (!year?.match(/^(?:19|20)\d{2}$/)) {
+          throw new Error('Invalid filename format. Expected: Movie.Title.Year.mp4');
+        }
+
+        const title = filenameParts.join(' ').trim(); // Join remaining parts as title
+        if (!title) {
+          throw new Error('No title found in filename');
+        }
+
+        console.log('Parsed filename:', { title, year });
+        
+        // Create query parameters for both title and year
+        const queryParams = new URLSearchParams({
+          title,
+          year
+        });
+        
+        console.log('Sending to API - Title:', title, 'Year:', year);
+        
+        // Fetch metadata with separate title and year parameters
+        const response = await fetch(`/api/movies/metadata?${queryParams.toString()}`, {
           headers: {
             'Authorization': `Bearer ${localStorage.getItem('token')}`,
           },

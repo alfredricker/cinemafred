@@ -154,17 +154,32 @@ interface TMDBMovieCredit {
       };
     }
   
-    async searchMovie(filename: string): Promise<{ metadata: MovieMetadata | null, suggestions?: MovieSuggestion[] }> {
+    async searchMovie(input: string): Promise<{ metadata: MovieMetadata | null, suggestions?: MovieSuggestion[] }> {
       try {
-        const { title, year } = this.parseFilename(filename);
-  
+        let title: string;
+        let year: number;
+
+        // Check if input contains a space and a 4-digit number at the end
+        if (input.includes(' ') && /\s\d{4}$/.test(input)) {
+          // Input is in "title year" format (from API route)
+          const parts = input.split(' ');
+          year = parseInt(parts.pop()!, 10);
+          title = parts.join(' ');
+        } else {
+          // Input is a filename, use existing parsing logic
+          const parsed = this.parseFilename(input);
+          title = parsed.title;
+          year = parsed.year;
+        }
+
         // First, try searching with the year
         const searchUrl = new URL(`${this.baseUrl}/search/movie`);
         searchUrl.searchParams.append('api_key', this.apiKey);
         searchUrl.searchParams.append('query', title);
         searchUrl.searchParams.append('year', year.toString());
         
-        console.log('Searching TMDB with URL:', searchUrl.toString());
+        console.log('Searching TMDB with:', { title, year });
+        console.log('Search URL:', searchUrl.toString());
         
         const searchResponse = await fetch(searchUrl.toString());
         if (!searchResponse.ok) {

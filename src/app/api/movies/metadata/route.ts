@@ -17,19 +17,22 @@ export async function GET(request: Request) {
     }
 
     const url = new URL(request.url);
-    const filename = url.searchParams.get('filename');
+    const title = url.searchParams.get('title');
+    const year = url.searchParams.get('year');
 
-    console.log('Received metadata request for filename:', filename);
+    console.log('Received metadata request for:', { title, year });
 
-    if (!filename) {
-      return NextResponse.json({ error: 'Filename parameter is required' }, { status: 400 });
+    if (!title || !year) {
+      return NextResponse.json({ error: 'Title and year parameters are required' }, { status: 400 });
     }
 
     const tmdb = new MovieMetadataService(process.env.TMDB_API_KEY);
-    const { metadata, suggestions } = await tmdb.searchMovie(filename);
+    // Combine title and year in the format the service expects
+    const searchQuery = `${title} ${year}`;
+    const { metadata, suggestions } = await tmdb.searchMovie(searchQuery);
     
     if (!metadata && (!suggestions || !suggestions.length)) {
-      console.log('No metadata or suggestions found for:', filename);
+      console.log('No metadata or suggestions found for:', { title, year });
       return NextResponse.json({ error: 'Movie not found' }, { status: 404 });
     }
 

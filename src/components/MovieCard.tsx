@@ -17,10 +17,25 @@ export const MovieCard: React.FC<MovieCardProps> = ({ movie, priority = false })
   const { user } = useAuth();
   const [imageError, setImageError] = useState(false);
   const [showEditForm, setShowEditForm] = useState(false);
+  const [fullMovieData, setFullMovieData] = useState<Movie | null>(null);
 
   const handleCardClick = (e: React.MouseEvent) => {
     if ((e.target as HTMLElement).closest('.edit-button')) return;
     if (movie.id) router.push(`/movie/${movie.id}`);
+  };
+
+  const fetchFullMovieDetails = async () => {
+    try {
+      const response = await fetch(`/api/movies/${movie.id}`);
+      if (!response.ok) {
+        throw new Error('Failed to fetch movie details');
+      }
+      const data = await response.json();
+      setFullMovieData(data);
+      setShowEditForm(true);
+    } catch (error) {
+      console.error('Error fetching movie details:', error);
+    }
   };
 
   // Ensure WEBP format by appending `.webp` or adding a query param (if backend supports it)
@@ -35,7 +50,7 @@ export const MovieCard: React.FC<MovieCardProps> = ({ movie, priority = false })
           <button
             onClick={(e) => {
               e.stopPropagation();
-              setShowEditForm(true);
+              fetchFullMovieDetails();
             }}
             className="edit-button absolute top-2 right-2 p-2 bg-black/50 rounded-full 
                       opacity-0 group-hover:opacity-100 hover:bg-black/70 transition-all
@@ -87,11 +102,11 @@ export const MovieCard: React.FC<MovieCardProps> = ({ movie, priority = false })
         </div>
       </div>
 
-      {showEditForm && (
+      {showEditForm && fullMovieData && (
         <EditMovieForm
           isOpen={showEditForm}
           onClose={() => setShowEditForm(false)}
-          movie={movie}
+          movie={fullMovieData}
         />
       )}
     </>

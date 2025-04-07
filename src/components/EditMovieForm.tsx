@@ -34,17 +34,23 @@ const defaultFormData: MovieFormData = {
 };
 
 export const EditMovieForm: React.FC<EditMovieFormProps> = ({ isOpen, onClose, movie }) => {
-  const [formData, setFormData] = useState<MovieFormData>(() => ({
-    ...defaultFormData,
-    title: movie.title ?? defaultFormData.title,
-    year: movie.year ?? defaultFormData.year,
-    director: movie.director ?? defaultFormData.director,
-    genre: Array.isArray(movie.genre) ? [...movie.genre] : defaultFormData.genre,
-    description: movie.description ?? defaultFormData.description,
-    r2_video_path: movie.r2_video_path ?? defaultFormData.r2_video_path,
-    r2_image_path: movie.r2_image_path ?? defaultFormData.r2_image_path,
-    r2_subtitles_path: movie.r2_subtitles_path ?? defaultFormData.r2_subtitles_path
-  }));
+  console.log('Movie prop received:', movie);
+  
+  const [formData, setFormData] = useState<MovieFormData>(() => {
+    const initialData = {
+      ...defaultFormData,
+      title: movie.title || defaultFormData.title,
+      year: movie.year || defaultFormData.year,
+      director: movie.director || defaultFormData.director,
+      genre: Array.isArray(movie.genre) ? [...movie.genre] : defaultFormData.genre,
+      description: movie.description || defaultFormData.description,
+      r2_video_path: movie.r2_video_path || defaultFormData.r2_video_path,
+      r2_image_path: movie.r2_image_path || defaultFormData.r2_image_path,
+      r2_subtitles_path: movie.r2_subtitles_path || defaultFormData.r2_subtitles_path
+    };
+    console.log('Initial form data:', initialData);
+    return initialData;
+  });
   
   const [files, setFiles] = useState<{
     video: File | null;
@@ -64,14 +70,14 @@ export const EditMovieForm: React.FC<EditMovieFormProps> = ({ isOpen, onClose, m
   useEffect(() => {
     setFormData({
       ...defaultFormData,
-      title: movie.title ?? defaultFormData.title,
-      year: movie.year ?? defaultFormData.year,
-      director: movie.director ?? defaultFormData.director,
+      title: movie.title || defaultFormData.title,
+      year: movie.year || defaultFormData.year,
+      director: movie.director || defaultFormData.director,
       genre: Array.isArray(movie.genre) ? [...movie.genre] : defaultFormData.genre,
-      description: movie.description ?? defaultFormData.description,
-      r2_video_path: movie.r2_video_path ?? defaultFormData.r2_video_path,
-      r2_image_path: movie.r2_image_path ?? defaultFormData.r2_image_path,
-      r2_subtitles_path: movie.r2_subtitles_path ?? defaultFormData.r2_subtitles_path
+      description: movie.description || defaultFormData.description,
+      r2_video_path: movie.r2_video_path || defaultFormData.r2_video_path,
+      r2_image_path: movie.r2_image_path || defaultFormData.r2_image_path,
+      r2_subtitles_path: movie.r2_subtitles_path || defaultFormData.r2_subtitles_path
     });
   }, [movie]);
 
