@@ -8,6 +8,7 @@ export interface User {
   isAdmin: boolean;
   dateCreated: Date;
   mustResetPassword?: boolean;  // Optional field
+  isGuest?: boolean;
 }
 
 export interface UserResponse {
@@ -16,7 +17,8 @@ export interface UserResponse {
   username: string;  // Added username
   isAdmin: boolean;
   isActive: boolean;
-  mustResetPassword?: boolean;
+  mustResetPassword: boolean;
+  isGuest: boolean;
 }
 
 export interface AuthResponse {

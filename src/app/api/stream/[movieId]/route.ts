@@ -7,6 +7,8 @@ import prisma from '@/lib/db';
 import jwt from 'jsonwebtoken';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
+const MAX_RETRIES = 3;
+const RETRY_DELAY = 1000; // 1 second
 
 // Lightweight token validation for streaming
 const validateStreamToken = (request: Request) => {
@@ -30,6 +32,24 @@ const CHUNK_SIZE = 8 * 1024 * 1024; // 16MB chunks
 const MAX_CHUNK_SIZE = 16 * 1024 * 1024; // 32MB maximum chunk size
 const PRELOAD_CHUNK_SIZE = 4 * 1024 * 1024; // 4MB for preload requests
 
+// Helper function to retry operations
+const retryOperation = async <T>(
+  operation: () => Promise<T>,
+  retries: number = MAX_RETRIES,
+  delay: number = RETRY_DELAY
+): Promise<T> => {
+  try {
+    return await operation();
+  } catch (error) {
+    if (retries > 0 && (error as any).code === 'EAI_AGAIN') {
+      console.log(`Retrying operation, ${retries} attempts remaining...`);
+      await new Promise(resolve => setTimeout(resolve, delay));
+      return retryOperation(operation, retries - 1, delay * 2);
+    }
+    throw error;
+  }
+};
+
 export async function GET(
   request: Request,
   { params }: { params: { movieId: string } }
@@ -52,13 +72,13 @@ export async function GET(
 
     const videoKey = movie.r2_video_path.replace(/^api\/movie\//, '');
 
-    // Get video size
+    // Get video size with retry
     const headCommand = new GetObjectCommand({
       Bucket: BUCKET_NAME,
       Key: videoKey,
     });
 
-    const headResponse = await r2Client.send(headCommand);
+    const headResponse = await retryOperation(() => r2Client.send(headCommand));
     const contentLength = Number(headResponse.ContentLength || 0);
 
     // Handle range requests
@@ -87,14 +107,14 @@ export async function GET(
 
       const contentSize = end - start + 1;
 
-      // Fetch the chunk
+      // Fetch the chunk with retry
       const command = new GetObjectCommand({
         Bucket: BUCKET_NAME,
         Key: videoKey,
         Range: `bytes=${start}-${end}`
       });
 
-      const data = await r2Client.send(command);
+      const data = await retryOperation(() => r2Client.send(command));
       const stream = data.Body as ReadableStream;
 
       // Send the chunk
@@ -113,7 +133,7 @@ export async function GET(
       });
     }
 
-    // Handle initial request
+    // Handle initial request with retry
     const initialChunkSize = CHUNK_SIZE;
     const command = new GetObjectCommand({
       Bucket: BUCKET_NAME,
@@ -121,7 +141,7 @@ export async function GET(
       Range: `bytes=0-${initialChunkSize - 1}`
     });
 
-    const data = await r2Client.send(command);
+    const data = await retryOperation(() => r2Client.send(command));
     const stream = data.Body as ReadableStream;
 
     return new Response(stream, {

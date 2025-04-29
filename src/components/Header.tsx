@@ -54,7 +54,7 @@ export const Header = () => {
                 <span className="text-sm">Create User</span>
               </button>
             </>
-          ) : (
+          ) : !user?.isGuest && (
             <button
               onClick={() => setIsAccountOpen(true)}
               className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-white hover:text-blue-400 transition-colors"

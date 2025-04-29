@@ -5,6 +5,7 @@ import { UserResponse, AuthResponse } from '@/types/user';
 
 interface AuthContextType {
   login: (username: string, password: string) => Promise<boolean>;
+  loginAsGuest: () => void;
   logout: () => Promise<void>;
   updatePassword: (newPassword: string) => Promise<void>;
   user: UserResponse | null;
@@ -92,16 +93,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       localStorage.setItem('token', data.token);
       
-      const userResponse: UserResponse = {
+      setUser({
         id: data.user.id,
         email: data.user.email,
         username: data.user.username,
         isAdmin: data.user.isAdmin,
         isActive: data.user.isActive,
-        mustResetPassword: data.user.mustResetPassword
-      };
+        mustResetPassword: data.user.mustResetPassword ?? false,
+        isGuest: false
+      });
       
-      setUser(userResponse);
       return true;
     } catch (error) {
       console.error('Login error:', error);
@@ -109,6 +110,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const loginAsGuest = () => {
+    const guestUser: UserResponse = {
+      id: 'guest',
+      email: 'guest@cinemafred.com',
+      username: 'Guest',
+      isAdmin: false,
+      isActive: true,
+      mustResetPassword: false,
+      isGuest: true
+    };
+    setUser(guestUser);
+    localStorage.setItem('isGuest', 'true');
   };
 
   const updatePassword = async (newPassword: string): Promise<void> => {
@@ -155,6 +170,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       console.error('Logout error:', error);
     } finally {
       localStorage.removeItem('token');
+      localStorage.removeItem('isGuest');
       setUser(null);
       setIsLoading(false);
     }
@@ -166,7 +182,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <AuthContext.Provider value={{ login, logout, updatePassword, user, isLoading }}>
+    <AuthContext.Provider value={{ login, loginAsGuest, logout, updatePassword, user, isLoading }}>
       {children}
     </AuthContext.Provider>
   );

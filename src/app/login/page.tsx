@@ -2,7 +2,7 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/context/AuthContext';
-import { Film, Lock, User } from 'lucide-react';
+import { Film, Lock, User, UserCircle } from 'lucide-react';
 import { redirect, useRouter } from 'next/navigation';
 import { PasswordResetDialog } from '@/components/PasswordResetDialog';
 
@@ -12,7 +12,7 @@ export default function LoginPage() {
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [showResetDialog, setShowResetDialog] = useState(false);
-  const { login, updatePassword, user } = useAuth();
+  const { login, loginAsGuest, updatePassword, user } = useAuth();
   const router = useRouter();
 
   useEffect(() => {
@@ -38,6 +38,11 @@ export default function LoginPage() {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const handleGuestLogin = () => {
+    loginAsGuest();
+    router.push('/');
   };
 
   const handlePasswordReset = async (newPassword: string) => {
@@ -113,6 +118,17 @@ export default function LoginPage() {
           >
             {isLoading ? 'Verifying...' : 'Sign in'}
           </button>
+
+          <div className="flex items-center justify-center">
+            <button
+              type="button"
+              onClick={handleGuestLogin}
+              className="text-sm text-blue-400 hover:text-blue-300 flex items-center gap-2"
+            >
+              <UserCircle className="h-4 w-4" />
+              Continue as Guest
+            </button>
+          </div>
         </form>
       </div>
 

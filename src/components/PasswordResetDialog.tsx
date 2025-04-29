@@ -42,6 +42,13 @@ export const PasswordResetDialog = ({ onUpdatePassword, onClose }: PasswordReset
       <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50" />
       <div className="fixed inset-0 flex items-center justify-center p-4 z-50">
         <div className="bg-gray-900 rounded-lg p-6 w-full max-w-md relative">
+          <button
+            onClick={onClose}
+            className="absolute top-4 right-4 text-gray-400 hover:text-white"
+          >
+            <X className="h-5 w-5" />
+          </button>
+
           <div className="flex items-center gap-3 mb-6">
             <KeyRound className="h-6 w-6 text-blue-500" />
             <h2 className="text-xl font-bold text-white">Reset Password</h2>

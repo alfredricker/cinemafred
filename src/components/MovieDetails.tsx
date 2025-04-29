@@ -6,6 +6,7 @@ import Image from 'next/image';
 import { VideoPlayer } from './VideoPlayer';
 import { Movie } from '@/types/movie';
 import { useAuth } from '@/context/AuthContext'
+import { useRouter } from 'next/navigation';
 
 interface MovieDetailsProps {
   id: string;
@@ -38,7 +39,8 @@ export const MovieDetails: React.FC<MovieDetailsProps> = ({ id }) => {
   const [showReviews, setShowReviews] = useState(false);
   const [isWatching, setIsWatching] = useState(false);
   const [imageError, setImageError] = useState(false);
-  const { user } = useAuth(); // Get user from auth context
+  const { user } = useAuth();
+  const router = useRouter();
 
   const formatDuration = (seconds: number): string => {
     const hours = Math.floor(seconds / 3600);
@@ -100,7 +102,11 @@ export const MovieDetails: React.FC<MovieDetailsProps> = ({ id }) => {
   }
 
   const handleWatchNow = () => {
-    setIsWatching(true);
+    if (user?.isGuest) {
+      router.push('/login');
+    } else {
+      setIsWatching(true);
+    }
   };
 
   const getOptimizedImageUrl = (path: string) => {
@@ -117,7 +123,7 @@ export const MovieDetails: React.FC<MovieDetailsProps> = ({ id }) => {
           title={movie.title}
           movieId={movie.id}
           subtitlesUrl={movie.r2_subtitles_path ? `/api/movie/${movie.r2_subtitles_path}` : null}
-          isAdmin={user?.isAdmin} // Pass isAdmin flag from the user object
+          isAdmin={user?.isAdmin}
         />
       </div>
     );
@@ -169,10 +175,21 @@ export const MovieDetails: React.FC<MovieDetailsProps> = ({ id }) => {
               <span className="text-gray-400 ml-1">/10</span>
             </div>
             
-            {/* User rating section - now on its own line but stars stay inline */}
-            <div className="flex flex-col gap-2"> {/* you could also do flex items-center gap-2 if you want this to be on the same line */}
+            {/* User rating section */}
+            <div className="flex flex-col gap-2">
               <span className="text-gray-300">Rate this movie:</span>
-              <RatingStars movieId={movie.id} initialRating={movie.averageRating} />
+              {user?.isGuest ? (
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => {}}
+                    className="text-blue-400 hover:text-blue-300 transition-colors"
+                  >
+                    Log in to rate movies
+                  </button>
+                </div>
+              ) : (
+                <RatingStars movieId={movie.id} initialRating={movie.averageRating} />
+              )}
             </div>
           </div>
 
@@ -186,12 +203,21 @@ export const MovieDetails: React.FC<MovieDetailsProps> = ({ id }) => {
 
           <p className="text-gray-300 mb-6 max-w-3xl">{movie.description}</p>
 
-          <button
-            className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition-colors mb-8"
-            onClick={handleWatchNow}
-          >
-            Watch Now
-          </button>
+          {user?.isGuest ? (
+            <button
+              className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition-colors mb-8"
+              onClick={() => {}}
+            >
+              Log in to watch movie
+            </button>
+          ) : (
+            <button
+              className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition-colors mb-8"
+              onClick={handleWatchNow}
+            >
+              Watch Now
+            </button>
+          )}
 
           <div>
             <button
