@@ -21,18 +21,20 @@
     "@aws-sdk/client-s3": "^3.726.1",
     "@aws-sdk/s3-request-presigner": "^3.726.1",
     "@prisma/client": "^5.9.1",
+    "@types/video.js": "^7.3.58",
     "@vercel/postgres": "^0.10.0",
     "bcrypt": "^5.1.1",
     "bcryptjs": "^2.4.3",
     "jsonwebtoken": "^9.0.2",
     "lucide-react": "^0.469.0",
     "neonctl": "^2.6.0",
-    "next": "14.2.23",
+    "next": "^14.2.23",
     "pg": "^8.11.3",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "sharp": "^0.33.5",
-    "uuid": "^9.0.1"
+    "uuid": "^9.0.1",
+    "video.js": "^8.23.4"
   },
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",

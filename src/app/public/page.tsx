@@ -1,7 +1,7 @@
 'use client';
 import { Header } from '@/components/Header';
-import { MovieGridHeader } from '@/components/MovieGridHeader';
-import { MovieGrid } from '@/components/MovieGrid';
+import { MovieGridHeader } from '@/components/movies/MovieGridHeader';
+import { MovieGrid } from '@/components/movies/MovieGrid';
 import { useState } from 'react';
 
 export default function PublicHome() {

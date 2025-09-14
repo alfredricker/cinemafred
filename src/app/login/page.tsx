@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { Film, Lock, User, UserCircle } from 'lucide-react';
 import { redirect, useRouter } from 'next/navigation';
-import { PasswordResetDialog } from '@/components/PasswordResetDialog';
+import { PasswordResetDialog } from '@/components/account/PasswordResetDialog';
 
 export default function LoginPage() {
   const [username, setUsername] = useState('');
@@ -34,7 +34,19 @@ export default function LoginPage() {
         setError('Invalid credentials');
       }
     } catch (err) {
-      setError('An unexpected error occurred.');
+      console.error('Login error:', err);
+      if (err instanceof Error) {
+        // Check for specific error messages from the API
+        if (err.message === 'Invalid credentials' || err.message.includes('Invalid credentials')) {
+          setError('Invalid credentials');
+        } else if (err.message === 'Account is inactive') {
+          setError('Account is inactive');
+        } else {
+          setError('An unexpected error occurred.');
+        }
+      } else {
+        setError('An unexpected error occurred.');
+      }
     } finally {
       setIsLoading(false);
     }

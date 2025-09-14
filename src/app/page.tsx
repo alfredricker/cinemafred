@@ -1,7 +1,7 @@
 'use client';
 import { Header } from '@/components/Header';
-import { MovieGridHeader } from '@/components/MovieGridHeader';
-import { MovieGrid } from '@/components/MovieGrid';
+import { MovieGridHeader } from '@/components/movies/MovieGridHeader';
+import { MovieGrid } from '@/components/movies/MovieGrid';
 import { useAuth } from '@/context/AuthContext';
 import { redirect } from 'next/navigation';
 import { Loader2 } from 'lucide-react';

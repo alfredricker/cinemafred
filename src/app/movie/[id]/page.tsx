@@ -1,5 +1,5 @@
 'use client';
-import { MovieDetails } from '@/components/MovieDetails';
+import { MovieDetails } from '@/components/movies/MovieDetails';
 import { Header } from '@/components/Header';
 import { useAuth } from '@/context/AuthContext';
 import { redirect } from 'next/navigation';
