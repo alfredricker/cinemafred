@@ -93,15 +93,15 @@ export const MovieDetailsModal: React.FC<MovieDetailsModalProps> = ({
   };
 
   const getOptimizedImageUrl = (path: string) => {
-    const basePath = path.replace(/^api\/movie\//, '');
-    return `/api/image/${basePath}?width=400&quality=95`;
+    // Use the same format as MovieCard for consistency
+    return `/api/movie/${path.split('/').pop()}?format=webp`;
   };
 
   if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
-      <div className="relative w-[70vw] h-[60vh] bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 rounded-2xl shadow-2xl border border-gray-700 overflow-hidden">
+      <div className="relative w-[60vw] h-[55vh] bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 rounded-2xl shadow-2xl border border-gray-700 overflow-hidden">
         {/* Close button */}
         <button
           onClick={onClose}
@@ -127,20 +127,23 @@ export const MovieDetailsModal: React.FC<MovieDetailsModalProps> = ({
         ) : movie ? (
           <div className="flex h-full">
             {/* Movie Poster */}
-            <div className="w-1/3 relative">
-              {movie.r2_image_path && !imageError ? (
-                <Image
-                  src={movie.r2_image_path.startsWith('/') ? movie.r2_image_path : `/${movie.r2_image_path}`}
-                  alt={movie.title}
-                  fill
-                  className="object-cover"
-                  onError={() => setImageError(true)}
-                />
-              ) : (
-                <div className="w-full h-full bg-gray-700 flex items-center justify-center">
-                  <span className="text-gray-400 text-sm">No Image</span>
-                </div>
-              )}
+            <div className="flex-shrink-0 p-6">
+              <div className="relative aspect-[27/40] w-80 overflow-hidden rounded-lg bg-gray-800">
+                {movie.r2_image_path && !imageError ? (
+                  <Image
+                    src={getOptimizedImageUrl(movie.r2_image_path)}
+                    alt={movie.title}
+                    fill
+                    quality={85}
+                    className="object-cover"
+                    onError={() => setImageError(true)}
+                  />
+                ) : (
+                  <div className="w-full h-full bg-gray-700 flex items-center justify-center">
+                    <span className="text-gray-400 text-sm">No Image</span>
+                  </div>
+                )}
+              </div>
             </div>
 
             {/* Movie Details */}
