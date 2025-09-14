@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { ArrowLeft, Subtitles, Loader2, Info } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useBufferManager } from '@/hooks/useBufferManager';
-import { BufferVisualization } from './Buffer';
+import { Debug } from './Debug';
 
 interface VideoPlayerProps {
   streamUrl: string;
@@ -11,6 +11,7 @@ interface VideoPlayerProps {
   movieId: string;
   subtitlesUrl?: string | null;
   isAdmin?: boolean;
+  onClose?: () => void;
 }
 
 export const VideoPlayer: React.FC<VideoPlayerProps> = ({ 
@@ -19,7 +20,8 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
   title,
   movieId,
   subtitlesUrl,
-  isAdmin = false
+  isAdmin = false,
+  onClose
 }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const router = useRouter();
@@ -252,8 +254,12 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
     // Clean up buffer manager
     cleanup();
 
-    // Use window.location for a full page navigation
-    window.location.href = `/movie/${movieId}`;
+    // Use onClose if provided, otherwise fallback to navigation
+    if (onClose) {
+      onClose();
+    } else {
+      window.location.href = `/movie/${movieId}`;
+    }
   };
   
   // Format time in MM:SS format
@@ -264,7 +270,7 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
   };
 
   return (
-    <div className="relative w-full" onTouchStart={handleTouchStart}>
+    <div className="fixed inset-0 bg-black flex flex-col" onTouchStart={handleTouchStart}>
       {/* Debug panel toggle - only for admins */}
       {isAdmin && (
         <button
@@ -307,10 +313,10 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
         )}
       </div>
 
-      <div className="relative">
+      <div className="flex-1 relative flex items-center justify-center">
         <video
           ref={videoRef}
-          className="w-full aspect-video rounded-lg bg-gray-900"
+          className="w-full h-full bg-black"
           controls
           poster={poster}
           preload="auto"
@@ -380,115 +386,30 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
       </div>
 
       {/* Debug panel - only shown for admins */}
-      {isAdmin && showDebugPanel && (
-        <div className="mt-4 p-4 bg-gray-900 border border-gray-700 rounded-lg">
-          <h3 className="text-lg font-medium text-white mb-2">Player Debug Information</h3>
-          
-          <div className="grid grid-cols-2 gap-4 mb-4">
-            <div>
-              <h4 className="text-sm font-medium text-gray-300 mb-1">Playback</h4>
-              <div className="space-y-1 text-sm text-gray-400">
-                <p>Time: {bufferInfo.current.toFixed(2)}s / {bufferInfo.duration.toFixed(2)}s</p>
-                <p>State: {['NOTHING', 'METADATA', 'CURRENT', 'FUTURE', 'ENOUGH'][bufferInfo.readyState] || 'UNKNOWN'}</p>
-                <p>Rate: {bufferInfo.playbackRate}x</p>
-                <p>Buffering: {bufferInfo.isBuffering ? `Yes (${bufferInfo.bufferingCount}x)` : 'No'}</p>
-                <p>Total Buffer Time: {(bufferInfo.totalBufferingTime / 1000).toFixed(1)}s</p>
-              </div>
-            </div>
-            
-            <div>
-              <h4 className="text-sm font-medium text-gray-300 mb-1">Buffer</h4>
-              <div className="space-y-1 text-sm text-gray-400">
-                <p>Loaded: {bufferInfo.loadedPercentage.toFixed(1)}%</p>
-                <p>Ranges: {bufferInfo.ranges.length}</p>
-                {bufferInfo.ranges.slice(0, 3).map((range, i) => (
-                  <p key={i} className="text-xs">
-                    {i+1}: {range.start.toFixed(1)}s-{range.end.toFixed(1)}s ({(range.end - range.start).toFixed(1)}s)
-                  </p>
-                ))}
-                {bufferInfo.ranges.length > 3 && <p className="text-xs">...and {bufferInfo.ranges.length - 3} more</p>}
-                {bufferInfo.lastError && (
-                  <p className="text-red-400 text-xs">Error: {bufferInfo.lastError}</p>
-                )}
-              </div>
-            </div>
-          </div>
-          
-          <h4 className="text-sm font-medium text-gray-300 mb-1">Buffer Visualization</h4>
-          <BufferVisualization bufferInfo={bufferInfo} formatTime={formatTime} />
-          
-          <h4 className="text-sm font-medium text-gray-300 mt-4 mb-1">Network Activity</h4>
-          <div className="grid grid-cols-4 gap-1 mb-2 max-h-20 overflow-y-auto">
-            {Array.from(bufferInfo.requestStatus).slice(-12).map(([range, status], i) => (
-              <div 
-                key={i} 
-                className={`text-xs px-1 py-0.5 rounded text-center ${
-                  status === 'completed' ? 'bg-green-900 text-green-300' : 
-                  status === 'pending' ? 'bg-yellow-900 text-yellow-300' : 
-                  status === 'skipped' ? 'bg-gray-700 text-gray-400' :
-                  'bg-red-900 text-red-300'
-                }`}
-                title={`${range}: ${status}`}
-              >
-                {status === 'skipped' ? 'S' : status[0].toUpperCase()}
-              </div>
-            ))}
-          </div>
-          
-          <h4 className="text-sm font-medium text-gray-300 mt-4 mb-1">Debug Log</h4>
-          <div className="bg-gray-950 p-2 rounded-lg h-32 overflow-y-auto font-mono text-xs">
-            {debugLog.current.slice(0, 20).map((log, i) => (
-              <div key={i} className="text-gray-300 leading-tight">
-                {log}
-              </div>
-            ))}
-          </div>
-          
-          <div className="mt-4 space-y-2">
-            <div className="flex justify-between items-center">
-              <button
-                onClick={() => {
-                  debugLog.current = [];
-                  addDebugLog('Debug data cleared');
-                }}
-                className="px-3 py-1 bg-gray-800 hover:bg-gray-700 text-white text-sm rounded"
-              >
-                Clear Debug Data
-              </button>
-              
-              <button
-                onClick={() => {
-                  addDebugLog('Resetting buffer state...');
-                  resetBuffer();
-                }}
-                className="px-3 py-1 bg-red-700 hover:bg-red-600 text-white text-sm rounded"
-              >
-                Reset Buffer
-              </button>
-              
-              <button
-                onClick={() => {
-                  // Force rebuffering
-                  if (videoRef.current) {
-                    const video = videoRef.current;
-                    const currentTime = video.currentTime;
-                    addDebugLog(`Forcing rebuffer by seeking to ${currentTime.toFixed(2)}s`);
-                    video.currentTime = currentTime + 0.1;
-                  }
-                }}
-                className="px-3 py-1 bg-blue-700 hover:bg-blue-600 text-white text-sm rounded"
-              >
-                Force Rebuffer
-              </button>
-            </div>
-            
-            <div className="text-xs text-gray-400 text-center">
-              Active Requests: {Array.from(bufferInfo.requestStatus).filter(([, status]) => status === 'pending').length} | 
-              Completed: {Array.from(bufferInfo.requestStatus).filter(([, status]) => status === 'completed').length} | 
-              Skipped: {Array.from(bufferInfo.requestStatus).filter(([, status]) => status === 'skipped').length}
-            </div>
-          </div>
-        </div>
+      {isAdmin && (
+        <Debug
+          isOpen={showDebugPanel}
+          onClose={() => setShowDebugPanel(false)}
+          bufferInfo={bufferInfo}
+          debugLog={debugLog.current}
+          formatTime={formatTime}
+          onClearDebug={() => {
+            debugLog.current = [];
+            addDebugLog('Debug data cleared');
+          }}
+          onResetBuffer={() => {
+            addDebugLog('Resetting buffer state...');
+            resetBuffer();
+          }}
+          onForceRebuffer={() => {
+            if (videoRef.current) {
+              const video = videoRef.current;
+              const currentTime = video.currentTime;
+              addDebugLog(`Forcing rebuffer by seeking to ${currentTime.toFixed(2)}s`);
+              video.currentTime = currentTime + 0.1;
+            }
+          }}
+        />
       )}
     </div>
   );

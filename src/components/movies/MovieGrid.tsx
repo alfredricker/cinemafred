@@ -7,6 +7,7 @@ interface MovieGridProps {
   initialPage?: number;
   selectedGenre: string | null;
   sortOption: string;
+  onMovieClick?: (movieId: string) => void;
 }
 
 interface MovieResponse {
@@ -20,9 +21,10 @@ interface MovieResponse {
 }
 
 export const MovieGrid: React.FC<MovieGridProps> = ({ 
-  initialPage = 1,
-  selectedGenre,
-  sortOption
+  initialPage = 1, 
+  selectedGenre, 
+  sortOption,
+  onMovieClick
 }) => {
   const [movies, setMovies] = useState<Movie[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -150,7 +152,7 @@ export const MovieGrid: React.FC<MovieGridProps> = ({
     <div className="space-y-8">
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7 2xl:grid-cols-9 gap-3 md:gap-5">
         {movies.map((movie) => (
-          <MovieCard key={movie.id} movie={movie} />
+          <MovieCard key={movie.id} movie={movie} onMovieClick={onMovieClick} />
         ))}
       </div>
 

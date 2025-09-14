@@ -10,9 +10,10 @@ import { EditMovieForm } from '@/components/forms/EditMovieForm';
 interface MovieCardProps {
   movie: Movie;
   priority?: boolean;
+  onMovieClick?: (movieId: string) => void;
 }
 
-export const MovieCard: React.FC<MovieCardProps> = ({ movie, priority = false }) => {
+export const MovieCard: React.FC<MovieCardProps> = ({ movie, priority = false, onMovieClick }) => {
   const router = useRouter();
   const { user } = useAuth();
   const [imageError, setImageError] = useState(false);
@@ -21,7 +22,13 @@ export const MovieCard: React.FC<MovieCardProps> = ({ movie, priority = false })
 
   const handleCardClick = (e: React.MouseEvent) => {
     if ((e.target as HTMLElement).closest('.edit-button')) return;
-    if (movie.id) router.push(`/movie/${movie.id}`);
+    if (movie.id) {
+      if (onMovieClick) {
+        onMovieClick(movie.id);
+      } else {
+        router.push(`/movie/${movie.id}`);
+      }
+    }
   };
 
   const fetchFullMovieDetails = async () => {
