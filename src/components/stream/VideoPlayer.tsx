@@ -303,11 +303,14 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
                 track.mode = !captionsOn ? 'showing' : 'hidden';
               }
             }}
-            className="flex items-center gap-2 px-4 py-2 bg-black/60 hover:bg-black/80 
-                      text-white rounded-lg transition-colors backdrop-blur-sm"
+            className={`flex items-center justify-center w-10 h-10 rounded-lg transition-colors backdrop-blur-sm ${
+              captionsOn 
+                ? 'bg-blue-600/80 hover:bg-blue-700/80 text-white' 
+                : 'bg-black/60 hover:bg-black/80 text-white'
+            }`}
+            title={captionsOn ? "Turn off subtitles" : "Turn on subtitles"}
           >
             <Subtitles className="w-5 h-5" />
-            {captionsOn ? "Subtitles On" : "Subtitles Off"}
           </button>
         )}
       </div>
@@ -319,7 +322,6 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
           controls
           poster={poster}
           preload="auto"
-          title={title}
           controlsList="nodownload"
           crossOrigin="anonymous"
         >

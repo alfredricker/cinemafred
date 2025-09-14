@@ -3,7 +3,6 @@ import { Header } from '@/components/Header';
 import { MovieGridHeader } from '@/components/movies/MovieGridHeader';
 import { MovieGrid } from '@/components/movies/MovieGrid';
 import { MovieDetailsModal } from '@/components/movies/MovieDetailsModal';
-import { VideoPlayer } from '@/components/stream/VideoPlayer';
 import { useAuth } from '@/context/AuthContext';
 import { redirect } from 'next/navigation';
 import { Loader2 } from 'lucide-react';
@@ -15,8 +14,6 @@ export default function Home() {
   const [sortOption, setSortOption] = useState('title-asc');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedMovieId, setSelectedMovieId] = useState<string | null>(null);
-  const [isWatching, setIsWatching] = useState(false);
-  const [watchingMovieId, setWatchingMovieId] = useState<string | null>(null);
 
   if (isLoading) {
     return (
@@ -50,30 +47,6 @@ export default function Home() {
     setSelectedMovieId(null);
   };
 
-  const handleWatchNow = (movieId: string) => {
-    setWatchingMovieId(movieId);
-    setIsWatching(true);
-    setSelectedMovieId(null); // Close modal
-  };
-
-  const handleCloseVideo = () => {
-    setIsWatching(false);
-    setWatchingMovieId(null);
-  };
-
-  // Show video player in fullscreen if watching
-  if (isWatching && watchingMovieId) {
-    return (
-      <VideoPlayer
-        streamUrl={`/api/stream/${watchingMovieId}`}
-        title="Movie"
-        movieId={watchingMovieId}
-        isAdmin={user?.isAdmin}
-        onClose={handleCloseVideo}
-      />
-    );
-  }
-
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-900 via-black to-gray-900">
       <Header />
@@ -103,7 +76,7 @@ export default function Home() {
           movieId={selectedMovieId}
           isOpen={!!selectedMovieId}
           onClose={handleCloseModal}
-          onWatchNow={handleWatchNow}
+          onWatchNow={() => {}} // No longer needed since we navigate to movie page
         />
       )}
     </div>

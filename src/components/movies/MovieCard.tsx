@@ -26,6 +26,7 @@ export const MovieCard: React.FC<MovieCardProps> = ({ movie, priority = false, o
       if (onMovieClick) {
         onMovieClick(movie.id);
       } else {
+        // Navigate directly to movie page
         router.push(`/movie/${movie.id}`);
       }
     }

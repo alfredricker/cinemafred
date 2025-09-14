@@ -89,7 +89,8 @@ export const MovieDetailsModal: React.FC<MovieDetailsModalProps> = ({
       // Could redirect to login or show login modal
       return;
     }
-    onWatchNow(movieId);
+    // Navigate to dedicated movie page
+    window.location.href = `/movie/${movieId}`;
   };
 
   const getOptimizedImageUrl = (path: string) => {
