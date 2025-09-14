@@ -7,6 +7,7 @@ interface MovieGridProps {
   initialPage?: number;
   selectedGenre: string | null;
   sortOption: string;
+  searchQuery?: string;
   onMovieClick?: (movieId: string) => void;
 }
 
@@ -24,6 +25,7 @@ export const MovieGrid: React.FC<MovieGridProps> = ({
   initialPage = 1, 
   selectedGenre, 
   sortOption,
+  searchQuery = '',
   onMovieClick
 }) => {
   const [movies, setMovies] = useState<Movie[]>([]);
@@ -79,12 +81,12 @@ export const MovieGrid: React.FC<MovieGridProps> = ({
     };
   }, []);
 
-  // Reset page when filters or sort change
+  // Reset page when filters, sort, or search change
   useEffect(() => {
     setMovies([]);
     setCurrentPage(1);
     fetchMovies(1);
-  }, [selectedGenre, sortOption]);
+  }, [selectedGenre, sortOption, searchQuery]);
 
   const fetchMovies = async (page: number) => {
     try {
@@ -100,6 +102,10 @@ export const MovieGrid: React.FC<MovieGridProps> = ({
 
       if (selectedGenre) {
         params.append('genre', selectedGenre);
+      }
+
+      if (searchQuery.trim()) {
+        params.append('search', searchQuery.trim());
       }
 
       const response = await fetch(`/api/movies?${params.toString()}`);

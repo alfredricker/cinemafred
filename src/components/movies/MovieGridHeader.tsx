@@ -1,10 +1,13 @@
 import React, { useState } from 'react';
+import { Search } from 'lucide-react';
 
 interface MovieGridHeaderProps {
   onGenreSelect?: (genre: string | null) => void;
   onSortChange?: (option: string) => void;
   selectedGenre: string | null;
   selectedSort: string;
+  searchQuery?: string;
+  onSearchChange?: (query: string) => void;
 }
 
 export const MovieGridHeader: React.FC<MovieGridHeaderProps> = ({
@@ -12,6 +15,8 @@ export const MovieGridHeader: React.FC<MovieGridHeaderProps> = ({
   onSortChange,
   selectedGenre,
   selectedSort,
+  searchQuery = '',
+  onSearchChange,
 }) => {
   const genres = [
     'Drama',
@@ -89,6 +94,22 @@ export const MovieGridHeader: React.FC<MovieGridHeaderProps> = ({
               ))}
             </select>
           </div>
+
+          {/* Search Field */}
+          {onSearchChange && (
+            <div className="ml-6">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                <input
+                  type="text"
+                  placeholder="Search movies..."
+                  value={searchQuery}
+                  onChange={(e) => onSearchChange(e.target.value)}
+                  className="w-64 pl-9 pr-4 py-1.5 bg-gray-800/30 border border-gray-700/50 rounded-md text-white placeholder-gray-400 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-transparent transition-all"
+                />
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>

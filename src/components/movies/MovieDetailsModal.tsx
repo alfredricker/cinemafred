@@ -101,7 +101,7 @@ export const MovieDetailsModal: React.FC<MovieDetailsModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
-      <div className="relative w-[60vw] h-[50vh] bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 rounded-2xl shadow-2xl border border-gray-700 overflow-hidden">
+      <div className="relative w-[70vw] h-[60vh] bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 rounded-2xl shadow-2xl border border-gray-700 overflow-hidden">
         {/* Close button */}
         <button
           onClick={onClose}
@@ -182,6 +182,14 @@ export const MovieDetailsModal: React.FC<MovieDetailsModalProps> = ({
                   </div>
                 )}
 
+                {/* Rating Component */}
+                <div className="mb-6">
+                  <RatingStars
+                    movieId={movie.id}
+                    initialRating={movie.averageRating}
+                  />
+                </div>
+
                 {/* Genres */}
                 {movie.genre && (
                   <div className="mb-6">
@@ -201,14 +209,6 @@ export const MovieDetailsModal: React.FC<MovieDetailsModalProps> = ({
                   <Play className="w-5 h-5" />
                   Watch Now
                 </button>
-
-                {/* Rating Component */}
-                <div className="flex-1">
-                  <RatingStars
-                    movieId={movie.id}
-                    initialRating={movie.averageRating}
-                  />
-                </div>
               </div>
             </div>
           </div>

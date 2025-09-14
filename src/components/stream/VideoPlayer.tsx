@@ -287,11 +287,10 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
       <div className="absolute top-4 left-4 z-50 flex gap-4">
         <button
           onClick={handleBack}
-          className="flex items-center gap-2 px-4 py-2 bg-black/60 hover:bg-black/80 
+          className="flex items-center justify-center w-10 h-10 bg-black/60 hover:bg-black/80 
                     text-white rounded-lg transition-colors backdrop-blur-sm"
         >
           <ArrowLeft className="w-5 h-5" />
-          Back to Details
         </button>
 
         {subtitlesUrl && (

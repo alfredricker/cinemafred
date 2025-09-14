@@ -13,6 +13,7 @@ export default function Home() {
   const { user, isLoading } = useAuth();
   const [selectedGenre, setSelectedGenre] = useState<string | null>(null);
   const [sortOption, setSortOption] = useState('title-asc');
+  const [searchQuery, setSearchQuery] = useState('');
   const [selectedMovieId, setSelectedMovieId] = useState<string | null>(null);
   const [isWatching, setIsWatching] = useState(false);
   const [watchingMovieId, setWatchingMovieId] = useState<string | null>(null);
@@ -35,6 +36,10 @@ export default function Home() {
 
   const handleSortChange = (option: string) => {
     setSortOption(option);
+  };
+
+  const handleSearchChange = (query: string) => {
+    setSearchQuery(query);
   };
 
   const handleMovieClick = (movieId: string) => {
@@ -72,17 +77,21 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-900 via-black to-gray-900">
       <Header />
+      
       <MovieGridHeader
         onGenreSelect={handleGenreSelect}
         onSortChange={handleSortChange}
         selectedGenre={selectedGenre}
         selectedSort={sortOption}
+        searchQuery={searchQuery}
+        onSearchChange={handleSearchChange}
       />
       <main className="px-16">
         <div className="max-w-[128rem] mx-auto pt-8 pb-16">
           <MovieGrid 
             selectedGenre={selectedGenre}
             sortOption={sortOption}
+            searchQuery={searchQuery}
             onMovieClick={handleMovieClick}
           />
         </div>
