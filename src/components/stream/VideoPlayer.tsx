@@ -425,11 +425,12 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
                 className={`text-xs px-1 py-0.5 rounded text-center ${
                   status === 'completed' ? 'bg-green-900 text-green-300' : 
                   status === 'pending' ? 'bg-yellow-900 text-yellow-300' : 
+                  status === 'skipped' ? 'bg-gray-700 text-gray-400' :
                   'bg-red-900 text-red-300'
                 }`}
                 title={`${range}: ${status}`}
               >
-                {status[0].toUpperCase()}
+                {status === 'skipped' ? 'S' : status[0].toUpperCase()}
               </div>
             ))}
           </div>
@@ -443,41 +444,49 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
             ))}
           </div>
           
-          <div className="mt-4 flex justify-between">
-            <button
-              onClick={() => {
-                debugLog.current = [];
-                addDebugLog('Debug data cleared');
-              }}
-              className="px-3 py-1 bg-gray-800 hover:bg-gray-700 text-white text-sm rounded"
-            >
-              Clear Debug Data
-            </button>
+          <div className="mt-4 space-y-2">
+            <div className="flex justify-between items-center">
+              <button
+                onClick={() => {
+                  debugLog.current = [];
+                  addDebugLog('Debug data cleared');
+                }}
+                className="px-3 py-1 bg-gray-800 hover:bg-gray-700 text-white text-sm rounded"
+              >
+                Clear Debug Data
+              </button>
+              
+              <button
+                onClick={() => {
+                  addDebugLog('Resetting buffer state...');
+                  resetBuffer();
+                }}
+                className="px-3 py-1 bg-red-700 hover:bg-red-600 text-white text-sm rounded"
+              >
+                Reset Buffer
+              </button>
+              
+              <button
+                onClick={() => {
+                  // Force rebuffering
+                  if (videoRef.current) {
+                    const video = videoRef.current;
+                    const currentTime = video.currentTime;
+                    addDebugLog(`Forcing rebuffer by seeking to ${currentTime.toFixed(2)}s`);
+                    video.currentTime = currentTime + 0.1;
+                  }
+                }}
+                className="px-3 py-1 bg-blue-700 hover:bg-blue-600 text-white text-sm rounded"
+              >
+                Force Rebuffer
+              </button>
+            </div>
             
-            <button
-              onClick={() => {
-                addDebugLog('Resetting buffer state...');
-                resetBuffer();
-              }}
-              className="px-3 py-1 bg-red-700 hover:bg-red-600 text-white text-sm rounded"
-            >
-              Reset Buffer
-            </button>
-            
-            <button
-              onClick={() => {
-                // Force rebuffering
-                if (videoRef.current) {
-                  const video = videoRef.current;
-                  const currentTime = video.currentTime;
-                  addDebugLog(`Forcing rebuffer by seeking to ${currentTime.toFixed(2)}s`);
-                  video.currentTime = currentTime + 0.1;
-                }
-              }}
-              className="px-3 py-1 bg-blue-700 hover:bg-blue-600 text-white text-sm rounded"
-            >
-              Force Rebuffer
-            </button>
+            <div className="text-xs text-gray-400 text-center">
+              Active Requests: {Array.from(bufferInfo.requestStatus).filter(([, status]) => status === 'pending').length} | 
+              Completed: {Array.from(bufferInfo.requestStatus).filter(([, status]) => status === 'completed').length} | 
+              Skipped: {Array.from(bufferInfo.requestStatus).filter(([, status]) => status === 'skipped').length}
+            </div>
           </div>
         </div>
       )}

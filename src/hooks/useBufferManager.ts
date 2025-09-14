@@ -11,7 +11,7 @@ export interface BufferInfo {
   isBuffering: boolean;
   duration: number;
   loadedPercentage: number;
-  requestStatus: Map<string, 'pending' | 'completed' | 'failed'>;
+  requestStatus: Map<string, 'pending' | 'completed' | 'failed' | 'skipped'>;
   lastError?: string;
   playbackRate: number;
   readyState: number;
@@ -34,7 +34,7 @@ export const useBufferManager = ({
   videoRef,
   streamUrl,
   movieId,
-  chunkSize = 8 * 1024 * 1024, // 8MB default
+  chunkSize = 4 * 1024 * 1024, // 4MB default (optimized for better performance)
   maxCachedChunks = 10, // Limit cached chunks to prevent memory bloat
   onDebugLog
 }: UseBufferManagerProps) => {
@@ -131,6 +131,13 @@ export const useBufferManager = ({
     const controller = new AbortController();
     activeRequests.current.set(rangeKey, controller);
     
+    // Set shorter timeout for preload requests
+    const timeoutMs = isPreload ? 15000 : 30000; // 15s for preload, 30s for regular
+    const timeoutId = setTimeout(() => {
+      controller.abort();
+      log(`${isPreload ? 'Preload' : 'Chunk'} request timeout: ${rangeKey}`);
+    }, timeoutMs);
+    
     // Update request status
     setBufferInfo(prev => ({
       ...prev,
@@ -148,6 +155,8 @@ export const useBufferManager = ({
         signal: controller.signal,
         headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
       });
+
+      clearTimeout(timeoutId);
 
       if (response.ok) {
         const fetchTime = Math.round(performance.now() - startTime);
@@ -167,17 +176,27 @@ export const useBufferManager = ({
         throw new Error(`HTTP error: ${response.status}`);
       }
     } catch (error: unknown) {
+      clearTimeout(timeoutId);
+      
       const errorMessage = error instanceof Error 
         ? (error.name === 'AbortError' ? `Request aborted: ${rangeKey}` : `Chunk error ${rangeKey}: ${error.message}`)
         : 'Unknown error';
       
-      log(errorMessage);
-      
-      setBufferInfo(prev => ({
-        ...prev,
-        requestStatus: new Map(prev.requestStatus).set(rangeKey, 'failed'),
-        lastError: errorMessage
-      }));
+      // For preload failures, log but don't treat as critical
+      if (isPreload) {
+        log(`Preload failed (non-critical): ${errorMessage}`);
+        setBufferInfo(prev => ({
+          ...prev,
+          requestStatus: new Map(prev.requestStatus).set(rangeKey, 'skipped')
+        }));
+      } else {
+        log(errorMessage);
+        setBufferInfo(prev => ({
+          ...prev,
+          requestStatus: new Map(prev.requestStatus).set(rangeKey, 'failed'),
+          lastError: errorMessage
+        }));
+      }
     } finally {
       activeRequests.current.delete(rangeKey);
     }
@@ -255,9 +274,19 @@ export const useBufferManager = ({
     log(`Fetching chunk: ${startByte}-${endByte} for ${currentTime.toFixed(2)}s`);
     
     fetchChunk(startByte, endByte).then(() => {
+      let retryCount = 0;
+      const maxRetries = 10; // Prevent infinite buffering
+      
       const checkAndResume = () => {
         const video = videoRef.current;
         if (!video) return;
+        
+        retryCount++;
+        if (retryCount > maxRetries) {
+          log(`Buffering timeout after ${maxRetries} retries, forcing resume`);
+          tryResumePlayback();
+          return;
+        }
         
         updateBufferInfo();
         
@@ -271,12 +300,16 @@ export const useBufferManager = ({
           log(`Resume ready (readyState: ${video.readyState})`);
           tryResumePlayback();
         } else {
-          log('Still buffering, retrying...');
+          log(`Still buffering, retry ${retryCount}/${maxRetries}...`);
           bufferingTimeout.current = window.setTimeout(checkAndResume, 500);
         }
       };
       
       checkAndResume();
+    }).catch((error) => {
+      log(`Chunk fetch failed: ${error.message}, attempting resume anyway`);
+      // If chunk fetch fails, try to resume with what we have
+      setTimeout(tryResumePlayback, 1000);
     });
   }, [videoRef, chunkSize, log, fetchChunk, tryResumePlayback, updateBufferInfo]);
 
@@ -314,19 +347,32 @@ export const useBufferManager = ({
 
     const { buffered, currentTime, duration } = video;
     
-    // Smart preloading - only when buffer is low
+    // More conservative preloading - only when buffer is very low and no active requests
+    const activeRequestCount = activeRequests.current.size;
+    
+    // Don't preload if we already have too many active requests
+    if (activeRequestCount > 2) {
+      updateBufferInfo();
+      return;
+    }
+    
     for (let i = 0; i < buffered.length; i++) {
       const bufferStart = buffered.start(i);
       const bufferEnd = buffered.end(i);
 
-      if (currentTime >= bufferStart && bufferEnd - currentTime < 15) {
+      // Only preload when buffer is very low (10s instead of 15s) and we're in the current range
+      if (currentTime >= bufferStart && bufferEnd - currentTime < 10 && bufferEnd - currentTime > 5) {
         const kbps = (chunkSize / 8) * (duration ? (1 / duration) : 0.1);
         const startByte = Math.floor(bufferEnd * kbps);
         const endByte = startByte + chunkSize - 1;
         
-        log(`Preloading from ${bufferEnd.toFixed(2)}s`);
-        fetchChunk(startByte, endByte, true);
-        break; // Only preload one chunk at a time
+        // Check if this range is already being requested or completed
+        const rangeKey = `${startByte}-${endByte}`;
+        if (!activeRequests.current.has(rangeKey) && !completedRanges.current.has(rangeKey)) {
+          log(`Preloading from ${bufferEnd.toFixed(2)}s`);
+          fetchChunk(startByte, endByte, true);
+          break; // Only preload one chunk at a time
+        }
       }
     }
     
