@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { ArrowLeft, Subtitles, Loader2, Info } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { useBufferManager } from '../../hooks/useBufferManager';
+import { useBufferManager } from '@/hooks/useBufferManager';
 import { BufferVisualization } from './Buffer';
 
 interface VideoPlayerProps {
@@ -29,8 +29,11 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
   
   // Debug-specific state
   const [showDebugPanel, setShowDebugPanel] = useState(false);
+  const [videoError, setVideoError] = useState<string | null>(null);
+  const [retryCount, setRetryCount] = useState(0);
   const debugLog = useRef<string[]>([]);
   const logLimit = 100; // Limit logs to prevent memory issues
+  const maxRetries = 3;
 
   const addDebugLog = (message: string) => {
     const timestamp = new Date().toISOString().substr(11, 12); // HH:MM:SS.mmm format
@@ -77,10 +80,57 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
     }
   };
 
+  const retryVideo = () => {
+    const video = videoRef.current;
+    if (!video || retryCount >= maxRetries) {
+      setVideoError('Failed to load video after multiple attempts');
+      return;
+    }
+    
+    addDebugLog(`Retrying video load (attempt ${retryCount + 1}/${maxRetries})`);
+    setRetryCount(prev => prev + 1);
+    
+    const currentTime = video.currentTime;
+    resetBuffer();
+    
+    // Set the authenticated URL again
+    const authenticatedUrl = getAuthenticatedStreamUrl();
+    video.src = authenticatedUrl;
+    video.load();
+    
+    // Restore position after a short delay
+    setTimeout(() => {
+      if (video && currentTime > 0) {
+        video.currentTime = currentTime;
+      }
+    }, 1000);
+  };
+
   const handleError = () => {
     const video = videoRef.current;
     if (video?.error) {
-      addDebugLog(`Video error: ${video.error.code} - ${video.error.message}`);
+      const errorCode = video.error.code;
+      const errorMessage = video.error.message;
+      addDebugLog(`Video error: ${errorCode} - ${errorMessage}`);
+      
+      const errorTypes = {
+        1: 'MEDIA_ERR_ABORTED',
+        2: 'MEDIA_ERR_NETWORK', 
+        3: 'MEDIA_ERR_DECODE',
+        4: 'MEDIA_ERR_SRC_NOT_SUPPORTED'
+      };
+      
+      const errorType = errorTypes[errorCode as keyof typeof errorTypes] || 'UNKNOWN';
+      setVideoError(`${errorType}: ${errorMessage}`);
+      
+      // Handle specific error types with recovery
+      if (errorCode === 2 && retryCount < maxRetries) { // MEDIA_ERR_NETWORK
+        addDebugLog('Network error - will retry in 2 seconds');
+        setTimeout(retryVideo, 2000);
+      } else if (errorCode === 3) { // MEDIA_ERR_DECODE
+        addDebugLog('Decode error - attempting buffer reset');
+        resetBuffer();
+      }
     }
   };
 
@@ -111,12 +161,25 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
     
     addDebugLog(`Metadata loaded. Duration: ${video.duration.toFixed(2)}s`);
     
+    // Clear any previous errors on successful load
+    setVideoError(null);
+    setRetryCount(0);
+    
+    // Validate video source
+    if (!video.duration || video.duration === Infinity || isNaN(video.duration)) {
+      addDebugLog('Invalid video duration detected - source may be corrupted');
+      setVideoError('Invalid video source - duration could not be determined');
+      return;
+    }
+    
     // Restore saved position
     const savedPosition = localStorage.getItem(`video-position-${movieId}`);
     if (savedPosition) {
       const position = parseFloat(savedPosition);
-      addDebugLog(`Restoring position: ${position.toFixed(2)}s`);
-      video.currentTime = position;
+      if (position > 0 && position < video.duration) {
+        addDebugLog(`Restoring position: ${position.toFixed(2)}s`);
+        video.currentTime = position;
+      }
     }
     
     updateBufferInfo();
@@ -124,9 +187,28 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
 
   const handleCanPlayThrough = () => addDebugLog('Can play through');
 
+  // Create authenticated stream URL
+  const getAuthenticatedStreamUrl = () => {
+    const token = localStorage.getItem('token');
+    if (!token) {
+      addDebugLog('No authentication token found');
+      return streamUrl;
+    }
+    
+    const separator = streamUrl.includes('?') ? '&' : '?';
+    return `${streamUrl}${separator}token=${encodeURIComponent(token)}`;
+  };
+
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
+
+    // Set authenticated source
+    const authenticatedUrl = getAuthenticatedStreamUrl();
+    if (video.src !== authenticatedUrl) {
+      video.src = authenticatedUrl;
+      addDebugLog(`Updated video source with auth token`);
+    }
 
     // Event listeners array for easier management
     const events = [
@@ -156,7 +238,7 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
       cleanup();
       addDebugLog('Player unmounted');
     };
-  }, [movieId, streamUrl, handleWaiting, handlePlaying, handleProgress, cleanup]);
+  }, [movieId, streamUrl, subtitlesUrl]);
 
   const handleBack = () => {
     // Save the current playback position before navigating
@@ -236,7 +318,6 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
           controlsList="nodownload"
           crossOrigin="anonymous"
         >
-          <source src={streamUrl} type="video/mp4" />
           {subtitlesUrl && (
             <track 
               kind="subtitles" 
@@ -249,7 +330,7 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
         </video>
 
         {/* Buffering overlay */}
-        {isBuffering && (
+        {isBuffering && !videoError && (
           <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/70">
             <Loader2 className="w-12 h-12 animate-spin text-blue-500 mb-4" />
             <div className="text-white text-sm">
@@ -261,6 +342,38 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
             </div>
             <div className="mt-2 text-gray-300 text-xs">
               ReadyState: {bufferInfo.readyState} / Loaded: {Math.round(bufferInfo.loadedPercentage)}%
+            </div>
+          </div>
+        )}
+
+        {/* Error overlay */}
+        {videoError && (
+          <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/80">
+            <div className="text-red-400 text-lg mb-4">Video Error</div>
+            <div className="text-white text-sm text-center mb-4 max-w-md">
+              {videoError}
+            </div>
+            <div className="flex gap-4">
+              <button
+                onClick={() => {
+                  setVideoError(null);
+                  setRetryCount(0);
+                  retryVideo();
+                }}
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+              >
+                Retry
+              </button>
+              <button
+                onClick={() => {
+                  setVideoError(null);
+                  setRetryCount(0);
+                  resetBuffer();
+                }}
+                className="px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded-lg transition-colors"
+              >
+                Reset
+              </button>
             </div>
           </div>
         )}

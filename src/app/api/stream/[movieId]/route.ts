@@ -10,20 +10,65 @@ const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
 const MAX_RETRIES = 3;
 const RETRY_DELAY = 1000; // 1 second
 
+// Simple circuit breaker to prevent overwhelming R2 during outages
+class CircuitBreaker {
+  private failures = 0;
+  private lastFailureTime = 0;
+  private readonly threshold = 5; // Open circuit after 5 failures
+  private readonly timeout = 60000; // 1 minute timeout
+
+  isOpen(): boolean {
+    if (this.failures >= this.threshold) {
+      if (Date.now() - this.lastFailureTime < this.timeout) {
+        return true; // Circuit is open
+      } else {
+        this.reset(); // Reset after timeout
+      }
+    }
+    return false;
+  }
+
+  recordSuccess(): void {
+    this.failures = 0;
+  }
+
+  recordFailure(): void {
+    this.failures++;
+    this.lastFailureTime = Date.now();
+  }
+
+  private reset(): void {
+    this.failures = 0;
+    this.lastFailureTime = 0;
+  }
+}
+
+const r2CircuitBreaker = new CircuitBreaker();
+
 // Lightweight token validation for streaming
 const validateStreamToken = (request: Request) => {
   try {
+    // Try Authorization header first
     const authHeader = request.headers.get('Authorization');
-    if (!authHeader?.startsWith('Bearer ')) {
+    let token = null;
+    
+    if (authHeader?.startsWith('Bearer ')) {
+      token = authHeader.substring(7);
+    } else {
+      // Try query parameter as fallback for video element requests
+      const url = new URL(request.url);
+      token = url.searchParams.get('token');
+    }
+    
+    if (!token) {
       return false;
     }
-
-    const token = authHeader.substring(7);
     
-    // For chunk requests, only verify token signature without full decode
+    // For streaming requests, only verify token signature without full decode
     jwt.verify(token, JWT_SECRET, { complete: true });
     return true;
   } catch (error) {
+    console.error('Token validation error:', error);
     return false;
   }
 };
@@ -32,7 +77,7 @@ const CHUNK_SIZE = 8 * 1024 * 1024; // 16MB chunks
 const MAX_CHUNK_SIZE = 16 * 1024 * 1024; // 32MB maximum chunk size
 const PRELOAD_CHUNK_SIZE = 4 * 1024 * 1024; // 4MB for preload requests
 
-// Helper function to retry operations
+// Helper function to retry operations with better error handling
 const retryOperation = async <T>(
   operation: () => Promise<T>,
   retries: number = MAX_RETRIES,
@@ -41,11 +86,24 @@ const retryOperation = async <T>(
   try {
     return await operation();
   } catch (error) {
-    if (retries > 0 && (error as any).code === 'EAI_AGAIN') {
-      console.log(`Retrying operation, ${retries} attempts remaining...`);
+    const errorCode = (error as any).code;
+    const shouldRetry = retries > 0 && (
+      errorCode === 'EAI_AGAIN' ||
+      errorCode === 'ETIMEDOUT' ||
+      errorCode === 'ECONNRESET' ||
+      errorCode === 'ENOTFOUND' ||
+      errorCode === 'ENETUNREACH' ||
+      (error as any).name === 'TimeoutError' ||
+      (error as any).$metadata?.httpStatusCode >= 500
+    );
+
+    if (shouldRetry) {
+      console.log(`Retrying operation due to ${errorCode || 'unknown error'}, ${retries} attempts remaining...`);
       await new Promise(resolve => setTimeout(resolve, delay));
-      return retryOperation(operation, retries - 1, delay * 2);
+      return retryOperation(operation, retries - 1, Math.min(delay * 1.5, 10000)); // Cap max delay at 10s
     }
+    
+    console.error('Operation failed after all retries:', error);
     throw error;
   }
 };
@@ -55,6 +113,19 @@ export async function GET(
   { params }: { params: { movieId: string } }
 ) {
   try {
+    // Check circuit breaker first
+    if (r2CircuitBreaker.isOpen()) {
+      console.log('R2 circuit breaker is open, rejecting request');
+      return NextResponse.json({ 
+        error: "Service temporarily unavailable" 
+      }, { status: 503 });
+    }
+
+    // Validate authentication for all requests
+    if (!validateStreamToken(request)) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const { movieId } = params;
     const headersList = headers();
     const range = headersList.get("range");
@@ -117,6 +188,9 @@ export async function GET(
       const data = await retryOperation(() => r2Client.send(command));
       const stream = data.Body as ReadableStream;
 
+      // Record successful operation
+      r2CircuitBreaker.recordSuccess();
+
       // Send the chunk
       return new Response(stream, {
         status: 206,
@@ -144,6 +218,9 @@ export async function GET(
     const data = await retryOperation(() => r2Client.send(command));
     const stream = data.Body as ReadableStream;
 
+    // Record successful operation
+    r2CircuitBreaker.recordSuccess();
+
     return new Response(stream, {
       status: 206,
       headers: {
@@ -158,6 +235,14 @@ export async function GET(
     });
   } catch (error) {
     console.error("Streaming Error:", error);
+    
+    // Record failure for circuit breaker
+    const errorCode = (error as any).code;
+    if (errorCode === 'ETIMEDOUT' || errorCode === 'ENETUNREACH' || 
+        errorCode === 'ECONNRESET' || (error as any).name === 'TimeoutError') {
+      r2CircuitBreaker.recordFailure();
+    }
+    
     return NextResponse.json(
       { error: "Failed to stream video" },
       { status: 500 }

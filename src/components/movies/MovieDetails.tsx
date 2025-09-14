@@ -1,9 +1,9 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { Star, Loader2 } from 'lucide-react';
-import { RatingStars } from './RatingStars';
+import { RatingStars } from '@/components/movies/RatingStars';
 import Image from 'next/image';
-import { VideoPlayer } from './VideoPlayer';
+import { VideoPlayer } from '@/components/stream/VideoPlayer';
 import { Movie } from '@/types/movie';
 import { useAuth } from '@/context/AuthContext'
 import { useRouter } from 'next/navigation';

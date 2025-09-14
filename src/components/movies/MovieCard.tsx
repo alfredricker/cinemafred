@@ -5,7 +5,7 @@ import { Movie } from '@/types/movie';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import { Star, Pencil } from 'lucide-react';
-import { EditMovieForm } from './EditMovieForm';
+import { EditMovieForm } from '@/components/forms/EditMovieForm';
 
 interface MovieCardProps {
   movie: Movie;

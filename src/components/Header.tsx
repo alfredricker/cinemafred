@@ -2,9 +2,9 @@
 'use client';
 import { useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
-import { CreateUserDialog } from './CreateUserDialog';
-import { CreateMovieForm } from './CreateMovieForm';
-import { AccountDialog } from './AccountDialog';
+import { CreateUserDialog } from '@/components/account/CreateUserDialog';
+import { CreateMovieForm } from '@/components/forms/CreateMovieForm';
+import { AccountDialog } from '@/components/account/AccountDialog';
 import { UserPlus, LogOut, Film, User } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
