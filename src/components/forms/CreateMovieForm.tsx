@@ -39,6 +39,31 @@ export const CreateMovieForm: React.FC<CreateMovieFormProps> = ({ isOpen, onClos
   const [error, setError] = useState<string | null>(null);
   const [uploadProgress, setUploadProgress] = useState<{[key: string]: number}>({});
 
+  // Function to reset form data
+  const resetForm = () => {
+    setFormData({
+      title: '',
+      year: new Date().getFullYear(),
+      director: '',
+      genre: [],
+      description: '',
+      genreInput: ''
+    });
+    setFiles({
+      video: null,
+      image: null,
+      subtitles: null
+    });
+    setError(null);
+    setUploadProgress({});
+  };
+
+  // Enhanced close handler that clears form data
+  const handleClose = () => {
+    resetForm();
+    onClose();
+  };
+
 
   const handleFileChange = (type: 'video' | 'image' | 'subtitles') => async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -323,7 +348,7 @@ export const CreateMovieForm: React.FC<CreateMovieFormProps> = ({ isOpen, onClos
         throw new Error('Failed to create movie');
       }
 
-      onClose();
+      handleClose();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create movie');
     } finally {
@@ -335,7 +360,7 @@ export const CreateMovieForm: React.FC<CreateMovieFormProps> = ({ isOpen, onClos
 
   return (
     <>
-      <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50" onClick={onClose} />
+      <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50" onClick={handleClose} />
       <div className="fixed inset-0 flex items-center justify-center p-4 z-50">
         <div className="bg-gray-900 rounded-lg p-6 w-full max-w-2xl" onClick={e => e.stopPropagation()}>
           <h2 className="text-xl font-bold text-white mb-6">Add New Movie</h2>
@@ -506,7 +531,7 @@ export const CreateMovieForm: React.FC<CreateMovieFormProps> = ({ isOpen, onClos
             <div className="flex justify-end gap-3">
               <button
                 type="button"
-                onClick={onClose}
+                onClick={handleClose}
                 className="px-4 py-2 text-gray-400 hover:text-white transition-colors"
               >
                 Cancel
