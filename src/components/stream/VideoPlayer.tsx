@@ -1,8 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { ArrowLeft, Subtitles, Loader2, Info } from 'lucide-react';
+import { ArrowLeft, Subtitles } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { useBufferManager } from '@/hooks/useBufferManager';
-import { Debug } from './Debug';
 
 interface VideoPlayerProps {
   streamUrl: string;
@@ -26,60 +24,20 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
   const videoRef = useRef<HTMLVideoElement>(null);
   const router = useRouter();
   const [captionsOn, setCaptionsOn] = useState(false);
-  const [showControls, setShowControls] = useState(true);
-  const controlsTimeout = useRef<NodeJS.Timeout | null>(null);
-  
-  // Debug-specific state
-  const [showDebugPanel, setShowDebugPanel] = useState(false);
   const [videoError, setVideoError] = useState<string | null>(null);
   const [retryCount, setRetryCount] = useState(0);
-  const debugLog = useRef<string[]>([]);
-  const logLimit = 100; // Limit logs to prevent memory issues
   const maxRetries = 3;
 
-  const addDebugLog = (message: string) => {
-    const timestamp = new Date().toISOString().substr(11, 12); // HH:MM:SS.mmm format
-    const logMessage = `[${timestamp}] ${message}`;
-    console.log(logMessage); // Also output to console
-    
-    debugLog.current = [logMessage, ...debugLog.current.slice(0, logLimit - 1)];
-  };
-
-  // Initialize buffer manager
-  const {
-    isBuffering,
-    bufferInfo,
-    updateBufferInfo,
-    handleWaiting,
-    handlePlaying,
-    handleProgress,
-    resetBuffer,
-    cleanup
-  } = useBufferManager({
-    videoRef,
-    streamUrl,
-    movieId,
-    onDebugLog: addDebugLog
-  });
-
-  // Handle touch events for mobile
-  const handleTouchStart = () => {
-    setShowControls(true);
-    if (controlsTimeout.current) {
-      clearTimeout(controlsTimeout.current);
-    }
-    controlsTimeout.current = setTimeout(() => {
-      setShowControls(false);
-    }, 3000);
-  };
-
-  // Optimized video event handlers
+  // Simple video event handlers
   const handleTimeUpdate = () => {
     const video = videoRef.current;
     if (video && video.currentTime > 0) {
       localStorage.setItem(`video-position-${movieId}`, video.currentTime.toString());
-      updateBufferInfo();
     }
+  };
+
+  const handleLoadStart = () => {
+    setVideoError(null);
   };
 
   const retryVideo = () => {
@@ -89,11 +47,10 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
       return;
     }
     
-    addDebugLog(`Retrying video load (attempt ${retryCount + 1}/${maxRetries})`);
+    console.log(`Retrying video load (attempt ${retryCount + 1}/${maxRetries})`);
     setRetryCount(prev => prev + 1);
     
     const currentTime = video.currentTime;
-    resetBuffer();
     
     // Set the authenticated URL again
     const authenticatedUrl = getAuthenticatedStreamUrl();
@@ -113,7 +70,7 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
     if (video?.error) {
       const errorCode = video.error.code;
       const errorMessage = video.error.message;
-      addDebugLog(`Video error: ${errorCode} - ${errorMessage}`);
+      console.log(`Video error: ${errorCode} - ${errorMessage}`);
       
       const errorTypes = {
         1: 'MEDIA_ERR_ABORTED',
@@ -127,33 +84,9 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
       
       // Handle specific error types with recovery
       if (errorCode === 2 && retryCount < maxRetries) { // MEDIA_ERR_NETWORK
-        addDebugLog('Network error - will retry in 2 seconds');
+        console.log('Network error - will retry in 2 seconds');
         setTimeout(retryVideo, 2000);
-      } else if (errorCode === 3) { // MEDIA_ERR_DECODE
-        addDebugLog('Decode error - attempting buffer reset');
-        resetBuffer();
       }
-    }
-  };
-
-  const handleSeeking = () => {
-    const video = videoRef.current;
-    video && addDebugLog(`Seeking to ${video.currentTime.toFixed(2)}s`);
-  };
-
-  const handleSeeked = () => {
-    const video = videoRef.current;
-    if (video) {
-      addDebugLog(`Seeked to ${video.currentTime.toFixed(2)}s`);
-      handleProgress();
-    }
-  };
-
-  const handleRateChange = () => {
-    const video = videoRef.current;
-    if (video) {
-      addDebugLog(`Rate: ${video.playbackRate}x`);
-      updateBufferInfo();
     }
   };
 
@@ -161,7 +94,7 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
     const video = videoRef.current;
     if (!video) return;
     
-    addDebugLog(`Metadata loaded. Duration: ${video.duration.toFixed(2)}s`);
+    console.log(`Metadata loaded. Duration: ${video.duration.toFixed(2)}s`);
     
     // Clear any previous errors on successful load
     setVideoError(null);
@@ -169,7 +102,7 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
     
     // Validate video source
     if (!video.duration || video.duration === Infinity || isNaN(video.duration)) {
-      addDebugLog('Invalid video duration detected - source may be corrupted');
+      console.log('Invalid video duration detected - source may be corrupted');
       setVideoError('Invalid video source - duration could not be determined');
       return;
     }
@@ -179,21 +112,17 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
     if (savedPosition) {
       const position = parseFloat(savedPosition);
       if (position > 0 && position < video.duration) {
-        addDebugLog(`Restoring position: ${position.toFixed(2)}s`);
+        console.log(`Restoring position: ${position.toFixed(2)}s`);
         video.currentTime = position;
       }
     }
-    
-    updateBufferInfo();
   };
-
-  const handleCanPlayThrough = () => addDebugLog('Can play through');
 
   // Create authenticated stream URL
   const getAuthenticatedStreamUrl = () => {
     const token = localStorage.getItem('token');
     if (!token) {
-      addDebugLog('No authentication token found');
+      console.log('No authentication token found');
       return streamUrl;
     }
     
@@ -209,36 +138,28 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
     const authenticatedUrl = getAuthenticatedStreamUrl();
     if (video.src !== authenticatedUrl) {
       video.src = authenticatedUrl;
-      addDebugLog(`Updated video source with auth token`);
+      console.log(`Updated video source with auth token`);
     }
 
-    // Event listeners array for easier management
+    // Event listeners for native browser buffering
     const events = [
-      ['waiting', handleWaiting],
-      ['playing', handlePlaying],
-      ['progress', handleProgress],
+      ['loadstart', handleLoadStart],
       ['timeupdate', handleTimeUpdate],
       ['error', handleError],
-      ['seeking', handleSeeking],
-      ['seeked', handleSeeked],
-      ['ratechange', handleRateChange],
-      ['loadedmetadata', handleLoadedMetadata],
-      ['canplaythrough', handleCanPlayThrough]
+      ['loadedmetadata', handleLoadedMetadata]
     ] as const;
 
     // Add all event listeners
     events.forEach(([event, handler]) => video.addEventListener(event, handler));
 
-    // Initial logs
-    addDebugLog(`Player initialized: ${movieId}`);
-    addDebugLog(`Stream: ${streamUrl}`);
-    subtitlesUrl && addDebugLog('Subtitles available');
+    console.log(`Player initialized: ${movieId}`);
+    console.log(`Stream: ${streamUrl}`);
+    subtitlesUrl && console.log('Subtitles available');
 
     return () => {
       // Remove all event listeners
       events.forEach(([event, handler]) => video.removeEventListener(event, handler));
-      cleanup();
-      addDebugLog('Player unmounted');
+      console.log('Player unmounted');
     };
   }, [movieId, streamUrl, subtitlesUrl]);
 
@@ -250,9 +171,6 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
         videoRef.current.currentTime.toString()
       );
     }
-
-    // Clean up buffer manager
-    cleanup();
 
     // Use onClose if provided, otherwise fallback to navigation
     if (onClose) {
@@ -270,18 +188,7 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 bg-black flex flex-col" onTouchStart={handleTouchStart}>
-      {/* Debug panel toggle - only for admins */}
-      {isAdmin && (
-        <button
-          onClick={() => setShowDebugPanel(!showDebugPanel)}
-          className="absolute top-4 right-4 z-50 flex items-center gap-1 px-3 py-1.5 bg-black/60 hover:bg-black/80 
-                    text-white rounded-lg transition-colors backdrop-blur-sm"
-        >
-          <Info className="w-4 h-4" />
-          {showDebugPanel ? "Hide Debug" : "Show Debug"}
-        </button>
-      )}
+    <div className="fixed inset-0 bg-black flex flex-col">{/* Simplified video player with native buffering */}
 
       {/* Control buttons container */}
       <div className="absolute top-4 left-4 z-50 flex gap-4">
@@ -341,22 +248,7 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
           )}
         </video>
 
-        {/* Buffering overlay */}
-        {isBuffering && !videoError && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/70">
-            <Loader2 className="w-12 h-12 animate-spin text-blue-500 mb-4" />
-            <div className="text-white text-sm">
-              Buffering... {bufferInfo.bufferingStartTime && (
-                <span>
-                  ({Math.round((performance.now() - bufferInfo.bufferingStartTime) / 1000)}s)
-                </span>
-              )}
-            </div>
-            <div className="mt-2 text-gray-300 text-xs">
-              ReadyState: {bufferInfo.readyState} / Loaded: {Math.round(bufferInfo.loadedPercentage)}%
-            </div>
-          </div>
-        )}
+        {/* Native browser loading indicator is used instead of custom overlay */}
 
         {/* Error overlay */}
         {videoError && (
@@ -376,47 +268,11 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
               >
                 Retry
               </button>
-              <button
-                onClick={() => {
-                  setVideoError(null);
-                  setRetryCount(0);
-                  resetBuffer();
-                }}
-                className="px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded-lg transition-colors"
-              >
-                Reset
-              </button>
             </div>
           </div>
         )}
       </div>
 
-      {/* Debug panel - only shown for admins */}
-      {isAdmin && (
-        <Debug
-          isOpen={showDebugPanel}
-          onClose={() => setShowDebugPanel(false)}
-          bufferInfo={bufferInfo}
-          debugLog={debugLog.current}
-          formatTime={formatTime}
-          onClearDebug={() => {
-            debugLog.current = [];
-            addDebugLog('Debug data cleared');
-          }}
-          onResetBuffer={() => {
-            addDebugLog('Resetting buffer state...');
-            resetBuffer();
-          }}
-          onForceRebuffer={() => {
-            if (videoRef.current) {
-              const video = videoRef.current;
-              const currentTime = video.currentTime;
-              addDebugLog(`Forcing rebuffer by seeking to ${currentTime.toFixed(2)}s`);
-              video.currentTime = currentTime + 0.1;
-            }
-          }}
-        />
-      )}
     </div>
   );
 };

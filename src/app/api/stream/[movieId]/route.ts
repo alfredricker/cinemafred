@@ -73,18 +73,14 @@ const validateStreamToken = (request: Request) => {
   }
 };
 
-// Optimized chunk sizes based on industry best practices
-const INITIAL_CHUNK_SIZE = 1 * 1024 * 1024; // 1MB for initial load (faster startup)
-const CHUNK_SIZE = 4 * 1024 * 1024; // 4MB for regular chunks (good balance)
-const MAX_CHUNK_SIZE = 8 * 1024 * 1024; // 8MB maximum chunk size
-const PRELOAD_CHUNK_SIZE = 2 * 1024 * 1024; // 2MB for preload requests
+// Simplified chunk sizes for native browser buffering
+const DEFAULT_CHUNK_SIZE = 2 * 1024 * 1024; // 2MB default - good balance for most connections
 
 // Helper function to retry operations with better error handling
 const retryOperation = async <T>(
   operation: () => Promise<T>,
   retries: number = MAX_RETRIES,
-  delay: number = RETRY_DELAY,
-  isPreload: boolean = false
+  delay: number = RETRY_DELAY
 ): Promise<T> => {
   try {
     return await operation();
@@ -100,25 +96,10 @@ const retryOperation = async <T>(
       (error as any).$metadata?.httpStatusCode >= 500
     );
 
-    // For preload requests, be less aggressive with retries
-    if (isPreload && shouldRetry) {
-      const maxPreloadRetries = 2; // Only 2 retries for preload
-      const actualRetries = Math.min(retries, maxPreloadRetries);
-      
-      if (actualRetries > 0) {
-        console.log(`Retrying preload operation due to ${errorCode || 'unknown error'}, ${actualRetries} attempts remaining...`);
-        await new Promise(resolve => setTimeout(resolve, Math.min(delay, 2000))); // Cap preload delay at 2s
-        return retryOperation(operation, actualRetries - 1, delay * 1.2, isPreload);
-      } else {
-        console.log(`Preload failed after retries, skipping: ${errorCode || 'unknown error'}`);
-        throw error; // Let preload failures fail fast
-      }
-    }
-
-    if (shouldRetry && !isPreload) {
+    if (shouldRetry) {
       console.log(`Retrying operation due to ${errorCode || 'unknown error'}, ${retries} attempts remaining...`);
       await new Promise(resolve => setTimeout(resolve, delay));
-      return retryOperation(operation, retries - 1, Math.min(delay * 1.5, 10000), isPreload);
+      return retryOperation(operation, retries - 1, Math.min(delay * 1.5, 10000));
     }
     
     console.error('Operation failed after all retries:', error);
@@ -147,7 +128,6 @@ export async function GET(
     const { movieId } = params;
     const headersList = headers();
     const range = headersList.get("range");
-    const isPreload = new URL(request.url).searchParams.has('preload');
 
     // Find the movie in the database
     const movie = await prisma.movie.findUnique({
@@ -167,36 +147,20 @@ export async function GET(
       Key: videoKey,
     });
 
-    const headResponse = await retryOperation(() => r2Client.send(headCommand), MAX_RETRIES, RETRY_DELAY, false);
+    const headResponse = await retryOperation(() => r2Client.send(headCommand), MAX_RETRIES, RETRY_DELAY);
     const contentLength = Number(headResponse.ContentLength || 0);
     const contentType = headResponse.ContentType || 'video/mp4';
     const etag = headResponse.ETag;
 
-    // Handle range requests
+    // Handle range requests - simplified for native browser buffering
     if (range) {
       let [startStr, endStr] = range.replace(/bytes=/, "").split("-");
       let start = parseInt(startStr, 10);
       let end = endStr ? parseInt(endStr, 10) : undefined;
 
-      // If this is a preload request, use smaller chunk size
-      if (isPreload) {
-        end = start + PRELOAD_CHUNK_SIZE - 1;
-      } else if (!end) {
-        // Calculate adaptive chunk size based on position and connection quality
-        const position = start / contentLength;
-        
-        // Start with smaller chunks, increase as we progress and connection proves stable
-        let adaptiveChunkSize = CHUNK_SIZE;
-        
-        // Increase chunk size for later parts of the video (user is likely engaged)
-        if (position > 0.1) { // After 10% of video
-          adaptiveChunkSize = Math.min(CHUNK_SIZE * 1.5, MAX_CHUNK_SIZE);
-        }
-        if (position > 0.5) { // After 50% of video
-          adaptiveChunkSize = MAX_CHUNK_SIZE;
-        }
-        
-        end = Math.min(start + adaptiveChunkSize - 1, contentLength - 1);
+      // If no end specified, use default chunk size
+      if (!end) {
+        end = Math.min(start + DEFAULT_CHUNK_SIZE - 1, contentLength - 1);
       }
 
       // Ensure we don't exceed file size
@@ -213,7 +177,7 @@ export async function GET(
         Range: `bytes=${start}-${end}`
       });
 
-      const data = await retryOperation(() => r2Client.send(command), MAX_RETRIES, RETRY_DELAY, isPreload);
+      const data = await retryOperation(() => r2Client.send(command), MAX_RETRIES, RETRY_DELAY);
       const stream = data.Body as ReadableStream;
 
       // Record successful operation
@@ -227,24 +191,22 @@ export async function GET(
           "Content-Length": contentSize.toString(),
           "Content-Range": `bytes ${start}-${end}/${contentLength}`,
           "Accept-Ranges": "bytes",
-          "Cache-Control": "public, max-age=3600, must-revalidate",
+          "Cache-Control": "public, max-age=3600",
           "Connection": "keep-alive",
           "Cross-Origin-Resource-Policy": "cross-origin",
-          "Link": `<${request.url}>; rel=preload; as=fetch`,
           ...(etag && { "ETag": etag }),
         },
       });
     }
 
-    // Handle initial request with smaller chunk for faster startup
-    const initialChunkSize = INITIAL_CHUNK_SIZE;
+    // Handle initial request
     const command = new GetObjectCommand({
       Bucket: BUCKET_NAME,
       Key: videoKey,
-      Range: `bytes=0-${initialChunkSize - 1}`
+      Range: `bytes=0-${DEFAULT_CHUNK_SIZE - 1}`
     });
 
-    const data = await retryOperation(() => r2Client.send(command), MAX_RETRIES, RETRY_DELAY, false);
+    const data = await retryOperation(() => r2Client.send(command), MAX_RETRIES, RETRY_DELAY);
     const stream = data.Body as ReadableStream;
 
     // Record successful operation
@@ -254,8 +216,8 @@ export async function GET(
       status: 206,
       headers: {
         "Content-Type": contentType,
-        "Content-Length": initialChunkSize.toString(),
-        "Content-Range": `bytes 0-${initialChunkSize - 1}/${contentLength}`,
+        "Content-Length": DEFAULT_CHUNK_SIZE.toString(),
+        "Content-Range": `bytes 0-${DEFAULT_CHUNK_SIZE - 1}/${contentLength}`,
         "Accept-Ranges": "bytes",
         "Cache-Control": "public, max-age=3600",
         "Connection": "keep-alive",
