@@ -315,15 +315,20 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
         )}
       </div>
 
-      <div className="flex-1 relative flex items-center justify-center">
+      <div className="flex-1 relative bg-slate-900">
         <video
           ref={videoRef}
-          className="w-full h-full bg-black"
+          className="absolute inset-0 w-full h-full"
           controls
           poster={poster}
           preload="auto"
           controlsList="nodownload"
           crossOrigin="anonymous"
+          style={{
+            backgroundColor: 'transparent',
+            objectFit: 'contain',
+            objectPosition: 'center'
+          }}
         >
           {subtitlesUrl && (
             <track 
