@@ -74,38 +74,69 @@ interface TMDBMovieCredit {
         // Remove file extension if present
         const name = filename.replace(/\.[^/.]+$/, "");
         
-        // Extract year (last 4 digits)
-        const yearMatch = name.match(/\d{4}$/);
-        if (!yearMatch) {
+        // Common quality indicators, codecs, and other metadata to remove
+        const qualityPatterns = [
+          // Quality indicators
+          /\b(720p|1080p|2160p|4K|HD|UHD|HDR|SDR)\b/gi,
+          // Source types
+          /\b(BluRay|BDRip|DVDRip|WEBRip|WEB-DL|HDTV|CAM|TS|TC)\b/gi,
+          // Codecs and formats
+          /\b(x264|x265|H\.264|H\.265|HEVC|AVC|AAC|AC3|DTS|MP3)\b/gi,
+          // Release groups (in brackets or after dash)
+          /[-\[]([A-Z0-9]+(\.[A-Z0-9]+)*)\]?$/gi,
+          // Common tags
+          /\b(REPACK|PROPER|INTERNAL|LIMITED|UNRATED|EXTENDED|DC|DIRECTORS\.CUT)\b/gi,
+          // File size indicators
+          /\b\d+(\.\d+)?(GB|MB)\b/gi
+        ];
+        
+        // Clean the filename by removing quality indicators and metadata
+        let cleanName = name;
+        qualityPatterns.forEach(pattern => {
+          cleanName = cleanName.replace(pattern, '');
+        });
+        
+        // Extract year - look for 4-digit year (1900-current year + 5)
+        const currentYear = new Date().getFullYear();
+        const yearPattern = /\b(19\d{2}|20\d{2})\b/g;
+        const yearMatches = cleanName.match(yearPattern);
+        
+        if (!yearMatches || yearMatches.length === 0) {
           throw new Error(`No year found in filename: ${filename}`);
         }
         
-        const year = parseInt(yearMatch[0], 10);
-        if (year < 1900 || year > new Date().getFullYear()) {
-          throw new Error(`Invalid year in filename: ${year}`);
+        // Use the last valid year found (in case there are multiple)
+        let year = 0;
+        for (const yearStr of yearMatches) {
+          const yearNum = parseInt(yearStr, 10);
+          if (yearNum >= 1900 && yearNum <= currentYear + 5) {
+            year = yearNum;
+          }
         }
         
-        // Extract title (everything before the year)
-        let title = name.slice(0, -4)
-          // Replace underscores with spaces
-          .replace(/_/g, ' ')
-          // replace periods with spaces
-          .replace(/./g, ' ')
-          // Add spaces before capital letters
-          .replace(/([A-Z])/g, ' $1')
-          // Clean up the title
-          .trim()
-          .toLowerCase()
-          .replace(/\s+/g, ' ');
+        if (year === 0) {
+          throw new Error(`No valid year found in filename: ${filename}`);
+        }
+        
+        // Extract title - everything before the year
+        const yearIndex = cleanName.lastIndexOf(year.toString());
+        let title = cleanName.slice(0, yearIndex)
+          // Replace periods and underscores with spaces
+          .replace(/[._]/g, ' ')
+          // Add spaces before capital letters (for CamelCase)
+          .replace(/([a-z])([A-Z])/g, '$1 $2')
+          // Clean up multiple spaces
+          .replace(/\s+/g, ' ')
+          .trim();
       
         if (!title) {
           throw new Error(`No title found in filename: ${filename}`);
         }
+        
+        // Capitalize first letter of each word for better matching
+        title = title.toLowerCase().replace(/\b\w/g, l => l.toUpperCase());
       
-        // Remove common words that might interfere with search
-        title = title.replace(/\b(the|a|an)\b/g, '').trim();
-      
-        console.log('Parsed filename:', { title, year });
+        console.log('Parsed filename:', { original: filename, title, year });
         return { title, year };
     }
   

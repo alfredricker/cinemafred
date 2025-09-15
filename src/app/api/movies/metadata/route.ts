@@ -19,16 +19,23 @@ export async function GET(request: Request) {
     const url = new URL(request.url);
     const title = url.searchParams.get('title');
     const year = url.searchParams.get('year');
+    const filename = url.searchParams.get('filename');
 
-    console.log('Received metadata request for:', { title, year });
+    console.log('Received metadata request for:', { title, year, filename });
 
-    if (!title || !year) {
-      return NextResponse.json({ error: 'Title and year parameters are required' }, { status: 400 });
+    // Support both filename parsing and direct title/year parameters
+    let searchQuery: string;
+    if (filename) {
+      // Use filename for parsing
+      searchQuery = filename;
+    } else if (title && year) {
+      // Use direct title and year parameters
+      searchQuery = `${title} ${year}`;
+    } else {
+      return NextResponse.json({ error: 'Either filename or both title and year parameters are required' }, { status: 400 });
     }
 
     const tmdb = new MovieMetadataService(process.env.TMDB_API_KEY);
-    // Combine title and year in the format the service expects
-    const searchQuery = `${title} ${year}`;
     const { metadata, suggestions } = await tmdb.searchMovie(searchQuery);
     
     if (!metadata && (!suggestions || !suggestions.length)) {

@@ -79,35 +79,24 @@ export const CreateMovieForm: React.FC<CreateMovieFormProps> = ({ isOpen, onClos
 
         console.log('Processing video file:', file.name);
         
-        // Parse filename following Example.Title.Year.mp4 format
-        const filenameParts = file.name.split('.');
-        const extension = filenameParts.pop(); // Remove extension
-        
-        if (!extension || !['mp4', 'mkv', 'avi'].includes(extension.toLowerCase())) {
+        // Validate file extension
+        const extension = file.name.split('.').pop()?.toLowerCase();
+        if (!extension || !['mp4', 'mkv', 'avi'].includes(extension)) {
           throw new Error('Invalid file extension. Expected: mp4, mkv, or avi');
         }
 
-        const year = filenameParts.pop(); // Get year (last element before extension)
-        if (!year?.match(/^(?:19|20)\d{2}$/)) {
-          throw new Error('Invalid filename format. Expected: Movie.Title.Year.mp4');
-        }
-
-        const title = filenameParts.join(' ').trim(); // Join remaining parts as title
-        if (!title) {
-          throw new Error('No title found in filename');
-        }
-
-        console.log('Parsed filename:', { title, year });
+        // The TMDB service will now handle the complex parsing
+        // We just need to pass the filename and let it extract title and year
+        console.log('Sending filename to TMDB service for parsing:', file.name);
         
-        // Create query parameters for both title and year
+        // Create query parameters with the filename for parsing
         const queryParams = new URLSearchParams({
-          title,
-          year
+          filename: file.name
         });
         
-        console.log('Sending to API - Title:', title, 'Year:', year);
+        console.log('Sending filename to API:', file.name);
         
-        // Fetch metadata with separate title and year parameters
+        // Fetch metadata using filename parsing
         const response = await fetch(`/api/movies/metadata?${queryParams.toString()}`, {
           headers: {
             'Authorization': `Bearer ${localStorage.getItem('token')}`,
