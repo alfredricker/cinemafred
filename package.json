@@ -23,6 +23,8 @@
     "convert-to-hls:force-delete": "tsx scripts/convert-existing-movies.ts --force --delete-original",
     "segment-video": "tsx scripts/hls-segmenter.ts",
     "test-hls": "tsx scripts/test-hls-setup.ts",
+    "analyze-quality": "tsx scripts/analyze-video-quality.ts",
+    "analyze-quality:movie": "tsx scripts/analyze-video-quality.ts",
     "query-movie": "tsx scripts/query-by-name.ts",
     "query-movie:interactive": "tsx scripts/query-by-name.ts --interactive"
   },

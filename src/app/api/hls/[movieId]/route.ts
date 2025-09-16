@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server';
 import { headers } from 'next/headers';
 import { prisma } from '@/lib/prisma';
-import { hlsR2Manager } from '@/lib/hls-r2';
-import { hlsHybridManager, HLSHybridManager } from '@/lib/hls-hybrid';
+import { hlsR2Manager } from '@/lib/hls/r2';
+import { hlsHybridManager, HLSHybridManager } from '@/lib/hls/hybrid';
 
 // Add CORS headers for OPTIONS requests
 export async function OPTIONS(request: Request) {

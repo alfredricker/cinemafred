@@ -161,17 +161,28 @@ class HLSSegmenter {
       }
     }
 
-    // Always add original quality
+    // Always add original quality with better bitrate calculation
     const originalQualityName = this.getQualityName(height);
     const originalBitrate = Math.max(sourceBitrate || 0, 2000000); // Minimum 2 Mbps
     
+    // Use higher quality for original - 95% of source bitrate instead of 80%
+    const targetBitrate = Math.floor(originalBitrate * 0.95 / 1000); // 95% of source bitrate
+    const maxBitrate = Math.floor(originalBitrate * 1.1 / 1000); // Allow 110% for peaks
+    const bufferSize = Math.floor(originalBitrate * 1.5 / 1000); // Larger buffer for quality
+    
+    console.log(`📊 Original video analysis:`);
+    console.log(`   Source resolution: ${width}x${height}`);
+    console.log(`   Source bitrate: ${(originalBitrate / 1000000).toFixed(1)} Mbps`);
+    console.log(`   Target bitrate: ${(targetBitrate / 1000).toFixed(1)} Mbps (${((targetBitrate * 1000 / originalBitrate) * 100).toFixed(1)}% of source)`);
+    console.log(`   Max bitrate: ${(maxBitrate / 1000).toFixed(1)} Mbps`);
+    
     configs.push({
       name: originalQualityName,
-      videoBitrate: `${Math.floor(originalBitrate * 0.8 / 1000)}k`, // 80% of source bitrate
+      videoBitrate: `${targetBitrate}k`,
       audioBitrate: '192k',
       resolution: `${width}x${height}`,
-      maxrate: `${Math.floor(originalBitrate * 0.9 / 1000)}k`,
-      bufsize: `${Math.floor(originalBitrate * 1.2 / 1000)}k`
+      maxrate: `${maxBitrate}k`,
+      bufsize: `${bufferSize}k`
     });
 
     return configs;
@@ -222,10 +233,19 @@ class HLSSegmenter {
         ffmpegArgs.push('-vf', `scale=${bitrate.resolution}`);
       }
 
+      // Enhanced quality settings
       ffmpegArgs.push(
-        '-preset', isOriginalQuality ? 'slow' : 'medium', // Better quality for original
+        '-preset', isOriginalQuality ? 'slower' : 'medium', // Even better quality for original
+        '-crf', isOriginalQuality ? '18' : '23', // Constant Rate Factor for quality
+        '-profile:v', 'high', // H.264 high profile for better compression
+        '-level', '4.1', // H.264 level
+        '-pix_fmt', 'yuv420p', // Pixel format for compatibility
         '-g', '48', // GOP size (2 seconds at 24fps)
-        '-sc_threshold', '0',
+        '-keyint_min', '48', // Minimum keyframe interval
+        '-sc_threshold', '0', // Disable scene change detection
+        '-b_strategy', '1', // B-frame strategy
+        '-bf', '3', // Max B-frames
+        '-refs', '3', // Reference frames
         '-f', 'hls',
         '-hls_time', segmentDuration.toString(),
         '-hls_playlist_type', 'vod',

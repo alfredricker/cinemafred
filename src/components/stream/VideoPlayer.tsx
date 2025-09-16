@@ -133,7 +133,12 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
       });
 
       hls.on(Hls.Events.LEVEL_SWITCHED, (event, data) => {
-        console.log('Quality switched to level', data.level);
+        const level = hls.levels[data.level];
+        const quality = level ? `${level.height}p (${Math.round(level.bitrate / 1000)}k)` : `Level ${data.level}`;
+        console.log(`🎬 Quality switched to: ${quality}`);
+        console.log(`   Resolution: ${level?.width}x${level?.height}`);
+        console.log(`   Bitrate: ${level ? Math.round(level.bitrate / 1000) : 'unknown'}k`);
+        console.log(`   Codec: ${level?.codecSet || 'unknown'}`);
         setHlsStats(prev => ({ ...prev, currentLevel: data.level }));
       });
 
@@ -423,11 +428,26 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
       </div>
 
       {/* HLS Stats (only show for admins) */}
-      {isAdmin && isHLSSupported && (
-        <div className="absolute top-4 right-4 z-50 bg-black/60 backdrop-blur-sm rounded-lg p-2 text-white text-xs">
-          <div>Level: {hlsStats.currentLevel >= 0 ? hlsStats.currentLevel : 'Auto'}</div>
+      {isAdmin && isHLSSupported && hlsRef.current && (
+        <div className="absolute top-4 right-4 z-50 bg-black/60 backdrop-blur-sm rounded-lg p-2 text-white text-xs max-w-xs">
+          <div className="font-semibold mb-1">📊 HLS Stats</div>
+          <div>Quality: {hlsStats.currentLevel >= 0 ? (() => {
+            const level = hlsRef.current?.levels[hlsStats.currentLevel];
+            return level ? `${level.height}p (${Math.round(level.bitrate / 1000)}k)` : hlsStats.currentLevel;
+          })() : 'Auto'}</div>
           <div>Loaded: {(hlsStats.loadedBytes / 1024 / 1024).toFixed(1)}MB</div>
-          <div>HLS: {isHLSSupported ? 'Yes' : 'No'}</div>
+          <div>Levels: {hlsRef.current.levels.length}</div>
+          <div>Buffer: {videoRef.current ? (() => {
+            const video = videoRef.current;
+            const buffered = video.buffered;
+            if (buffered.length > 0) {
+              const bufferEnd = buffered.end(buffered.length - 1);
+              const bufferSeconds = bufferEnd - video.currentTime;
+              return `${bufferSeconds.toFixed(1)}s`;
+            }
+            return '0s';
+          })() : '0s'}</div>
+          <div>Mode: {useHLS ? 'HLS' : 'MP4'}</div>
         </div>
       )}
 

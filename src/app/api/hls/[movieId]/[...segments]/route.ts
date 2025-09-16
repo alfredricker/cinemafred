@@ -88,7 +88,7 @@ export async function GET(
       console.log(`Generating authenticated bitrate playlist for: ${bitrate}`);
       
       // Import the HLS manager here to avoid circular imports
-      const { hlsR2Manager } = await import('@/lib/hls-r2');
+      const { hlsR2Manager } = await import('@/lib/hls/r2');
       
       try {
         const playlistContent = await hlsR2Manager.generateAuthenticatedBitratePlaylist(

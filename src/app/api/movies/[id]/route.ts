@@ -1,9 +1,29 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/db';
 import { validateAdmin } from '@/lib/middleware';
+import { DeleteObjectCommand } from '@aws-sdk/client-s3';
+import { r2Client, BUCKET_NAME } from '@/lib/r2';
 
 // Mark this route as dynamic
 export const dynamic = 'force-dynamic';
+
+/**
+ * Helper function to delete a file from R2 storage
+ */
+async function deleteR2File(key: string): Promise<void> {
+  try {
+    const command = new DeleteObjectCommand({
+      Bucket: BUCKET_NAME,
+      Key: key
+    });
+    
+    await r2Client.send(command);
+    console.log(`✅ Deleted R2 file: ${key}`);
+  } catch (error) {
+    console.error(`❌ Failed to delete R2 file: ${key}`, error);
+    throw error;
+  }
+}
 
 export async function GET(
   request: Request,
@@ -140,9 +160,18 @@ export async function DELETE(
 
     const { id } = params;
 
-    // Check if movie exists
+    // Check if movie exists and get all file paths
     const existingMovie = await prisma.movie.findUnique({
-      where: { id }
+      where: { id },
+      select: {
+        id: true,
+        title: true,
+        r2_video_path: true,
+        r2_image_path: true,
+        r2_subtitles_path: true,
+        r2_hls_path: true,
+        hls_ready: true
+      }
     });
 
     if (!existingMovie) {
@@ -152,15 +181,66 @@ export async function DELETE(
       );
     }
 
-    // Delete related records first
+    console.log(`🗑️ Deleting movie: ${existingMovie.title} (${id})`);
+
+    // Delete files from Cloudflare R2 storage
+    const deletePromises: Promise<void>[] = [];
+
+    // Delete video file
+    if (existingMovie.r2_video_path) {
+      const videoKey = existingMovie.r2_video_path.replace(/^api\/movie\//, '');
+      console.log(`Deleting video: ${videoKey}`);
+      deletePromises.push(deleteR2File(videoKey));
+    }
+
+    // Delete image file
+    if (existingMovie.r2_image_path) {
+      const imageKey = existingMovie.r2_image_path.replace(/^api\/movie\//, '');
+      console.log(`Deleting image: ${imageKey}`);
+      deletePromises.push(deleteR2File(imageKey));
+    }
+
+    // Delete subtitles file
+    if (existingMovie.r2_subtitles_path) {
+      const subtitlesKey = existingMovie.r2_subtitles_path.replace(/^api\/movie\//, '');
+      console.log(`Deleting subtitles: ${subtitlesKey}`);
+      deletePromises.push(deleteR2File(subtitlesKey));
+    }
+
+    // Delete HLS files if they exist
+    if (existingMovie.hls_ready && existingMovie.r2_hls_path) {
+      console.log(`Deleting HLS files for movie: ${id}`);
+      const { hlsR2Manager } = await import('@/lib/hls/r2');
+      deletePromises.push(hlsR2Manager.deleteHLSFiles(id));
+    }
+
+    // Execute all R2 deletions in parallel
+    try {
+      await Promise.all(deletePromises);
+      console.log(`✅ Successfully deleted all R2 files for movie: ${existingMovie.title}`);
+    } catch (r2Error) {
+      console.error('⚠️ Some R2 files could not be deleted:', r2Error);
+      // Continue with database deletion even if some R2 files failed
+      // This prevents orphaned database records
+    }
+
+    // Delete related records from database
     await prisma.$transaction([
       prisma.rating.deleteMany({ where: { movie_id: id } }),
       prisma.review.deleteMany({ where: { movie_id: id } }),
       prisma.movie.delete({ where: { id } })
     ]);
 
+    console.log(`✅ Successfully deleted movie from database: ${existingMovie.title}`);
+
     return NextResponse.json({
-      message: 'Movie deleted successfully'
+      message: `Movie "${existingMovie.title}" deleted successfully`,
+      deletedFiles: {
+        video: !!existingMovie.r2_video_path,
+        image: !!existingMovie.r2_image_path,
+        subtitles: !!existingMovie.r2_subtitles_path,
+        hls: existingMovie.hls_ready && !!existingMovie.r2_hls_path
+      }
     });
   } catch (error) {
     console.error('Error deleting movie:', error);
