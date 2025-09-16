@@ -22,7 +22,9 @@
     "convert-to-hls:delete": "tsx scripts/convert-existing-movies.ts --delete-original",
     "convert-to-hls:force-delete": "tsx scripts/convert-existing-movies.ts --force --delete-original",
     "segment-video": "tsx scripts/hls-segmenter.ts",
-    "test-hls": "tsx scripts/test-hls-setup.ts"
+    "test-hls": "tsx scripts/test-hls-setup.ts",
+    "query-movie": "tsx scripts/query-by-name.ts",
+    "query-movie:interactive": "tsx scripts/query-by-name.ts --interactive"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.726.1",
