@@ -79,15 +79,20 @@ export default function MoviePage() {
     ? `/api/movie/${movie.r2_subtitles_path.split('/').pop()}`
     : undefined;
 
+  // Determine if HLS should be used
+  const useHLS = movie.hls_ready && movie.r2_hls_path;
+  const streamUrl = useHLS ? `/api/hls/${movieId}` : `/api/stream/${movieId}`;
+
   return (
     <VideoPlayer
-      streamUrl={`/api/stream/${movieId}`}
+      streamUrl={streamUrl}
       poster={movie.r2_image_path ? `/api/movie/${movie.r2_image_path.split('/').pop()}` : undefined}
       title={movie.title}
       movieId={movieId}
       subtitlesUrl={subtitlesUrl}
       isAdmin={user?.isAdmin}
       onClose={handleClose}
+      useHLS={useHLS}
     />
   );
 }

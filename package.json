@@ -34,6 +34,7 @@
     "@vercel/postgres": "^0.10.0",
     "bcrypt": "^5.1.1",
     "bcryptjs": "^2.4.3",
+    "hls.js": "^1.6.12",
     "jsonwebtoken": "^9.0.2",
     "lucide-react": "^0.469.0",
     "neonctl": "^2.6.0",

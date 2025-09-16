@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { ArrowLeft, Subtitles } from 'lucide-react';
+import { ArrowLeft, Subtitles, Settings } from 'lucide-react';
 import { useRouter } from 'next/navigation';
+import Hls from 'hls.js';
 
 interface VideoPlayerProps {
   streamUrl: string;
@@ -10,6 +11,7 @@ interface VideoPlayerProps {
   subtitlesUrl?: string | null;
   isAdmin?: boolean;
   onClose?: () => void;
+  useHLS?: boolean; // Flag to enable HLS streaming
 }
 
 export const VideoPlayer: React.FC<VideoPlayerProps> = ({ 
@@ -19,16 +21,209 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
   movieId,
   subtitlesUrl,
   isAdmin = false,
-  onClose
+  onClose,
+  useHLS = true
 }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
+  const hlsRef = useRef<Hls | null>(null);
   const router = useRouter();
   const [captionsOn, setCaptionsOn] = useState(false);
   const [videoError, setVideoError] = useState<string | null>(null);
   const [retryCount, setRetryCount] = useState(0);
+  const [isHLSSupported, setIsHLSSupported] = useState(false);
+  const [availableQualities, setAvailableQualities] = useState<string[]>([]);
+  const [currentQuality, setCurrentQuality] = useState<string>('auto');
+  const [showQualityMenu, setShowQualityMenu] = useState(false);
+  const [hlsStats, setHlsStats] = useState<{
+    loadedBytes: number;
+    totalBytes: number;
+    currentLevel: number;
+  }>({ loadedBytes: 0, totalBytes: 0, currentLevel: -1 });
   const maxRetries = 3;
 
-  // Simple video event handlers
+  // Create authenticated stream URL
+  const getAuthenticatedStreamUrl = (isHLS: boolean = false) => {
+    const token = localStorage.getItem('token');
+    if (!token) {
+      console.log('No authentication token found');
+      return streamUrl;
+    }
+    
+    console.log('Retrieved token from localStorage:', token.substring(0, 20) + '...');
+    
+    // For HLS, use the HLS API endpoint
+    const baseUrl = isHLS ? `/api/hls/${movieId}` : streamUrl;
+    const separator = baseUrl.includes('?') ? '&' : '?';
+    const authenticatedUrl = `${baseUrl}${separator}token=${encodeURIComponent(token)}`;
+    
+    console.log('Generated authenticated URL:', authenticatedUrl);
+    return authenticatedUrl;
+  };
+
+  // Initialize HLS player
+  const initializeHLS = () => {
+    const video = videoRef.current;
+    if (!video) return;
+
+    // Check if HLS is supported
+    if (Hls.isSupported()) {
+      setIsHLSSupported(true);
+      
+      // Create HLS instance with simplified config
+      const hls = new Hls({
+        debug: false,
+        enableWorker: true,
+        backBufferLength: 90,
+        maxBufferLength: 30,
+        maxMaxBufferLength: 600,
+        maxBufferSize: 60 * 1000 * 1000, // 60MB
+        maxBufferHole: 0.5,
+        highBufferWatchdogPeriod: 2,
+        nudgeOffset: 0.1,
+        nudgeMaxRetry: 3,
+        maxFragLookUpTolerance: 0.25,
+        manifestLoadingTimeOut: 10000,
+        manifestLoadingMaxRetry: 1,
+        manifestLoadingRetryDelay: 1000,
+        levelLoadingTimeOut: 10000,
+        levelLoadingMaxRetry: 4,
+        levelLoadingRetryDelay: 1000,
+        fragLoadingTimeOut: 20000,
+        fragLoadingMaxRetry: 6,
+        fragLoadingRetryDelay: 1000,
+        testBandwidth: true,
+        progressive: false,
+        enableCEA708Captions: true,
+        enableWebVTT: true,
+        abrEwmaFastVoD: 3.0,
+        abrEwmaSlowVoD: 9.0,
+        abrEwmaDefaultEstimate: 500000,
+        abrBandWidthFactor: 0.95,
+        abrBandWidthUpFactor: 0.7,
+        maxStarvationDelay: 4,
+        maxLoadingDelay: 4,
+        minAutoBitrate: 0,
+      });
+
+      hlsRef.current = hls;
+
+      // HLS event handlers
+      hls.on(Hls.Events.MANIFEST_PARSED, (event, data) => {
+        console.log('HLS manifest parsed, found', data.levels.length, 'quality levels');
+        
+        // Extract quality levels
+        const qualities = data.levels.map((level, index) => {
+          const height = level.height || 0;
+          const bitrate = Math.round(level.bitrate / 1000);
+          return {
+            index,
+            label: height > 0 ? `${height}p (${bitrate}k)` : `${bitrate}k`,
+            height,
+            bitrate
+          };
+        });
+
+        // Sort by quality (highest first)
+        qualities.sort((a, b) => b.height - a.height);
+        setAvailableQualities(['auto', ...qualities.map(q => q.label)]);
+        
+        // Clear any previous errors on successful load
+        setVideoError(null);
+        setRetryCount(0);
+      });
+
+      hls.on(Hls.Events.LEVEL_SWITCHED, (event, data) => {
+        console.log('Quality switched to level', data.level);
+        setHlsStats(prev => ({ ...prev, currentLevel: data.level }));
+      });
+
+      hls.on(Hls.Events.FRAG_LOADED, (event, data) => {
+        setHlsStats(prev => ({
+          ...prev,
+          loadedBytes: prev.loadedBytes + (data.frag.byteLength || 0)
+        }));
+      });
+
+      hls.on(Hls.Events.ERROR, (event, data) => {
+        console.error('HLS Error:', data);
+        
+        if (data.fatal) {
+          switch (data.type) {
+            case Hls.ErrorTypes.NETWORK_ERROR:
+              console.log('Fatal network error encountered, trying to recover');
+              if (retryCount < maxRetries) {
+                setRetryCount(prev => prev + 1);
+                hls.startLoad();
+              } else {
+                setVideoError('Network error: Failed to load video after multiple attempts');
+              }
+              break;
+            case Hls.ErrorTypes.MEDIA_ERROR:
+              console.log('Fatal media error encountered, trying to recover');
+              if (retryCount < maxRetries) {
+                setRetryCount(prev => prev + 1);
+                hls.recoverMediaError();
+              } else {
+                setVideoError('Media error: Unable to decode video');
+              }
+              break;
+            default:
+              console.log('Fatal error, cannot recover');
+              setVideoError(`HLS Error: ${data.details}`);
+              break;
+          }
+        }
+      });
+
+      // Load HLS stream
+      const hlsUrl = getAuthenticatedStreamUrl(true);
+      console.log('Loading HLS stream:', hlsUrl);
+      hls.loadSource(hlsUrl);
+      hls.attachMedia(video);
+
+    } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+      // Native HLS support (Safari)
+      setIsHLSSupported(true);
+      const hlsUrl = getAuthenticatedStreamUrl(true);
+      console.log('Using native HLS support:', hlsUrl);
+      video.src = hlsUrl;
+    } else {
+      // Fallback to regular MP4 streaming
+      console.log('HLS not supported, falling back to MP4');
+      setIsHLSSupported(false);
+      const mp4Url = getAuthenticatedStreamUrl(false);
+      video.src = mp4Url;
+    }
+  };
+
+  // Initialize regular MP4 player
+  const initializeMP4 = () => {
+    const video = videoRef.current;
+    if (!video) return;
+
+    const authenticatedUrl = getAuthenticatedStreamUrl(false);
+    video.src = authenticatedUrl;
+    console.log('Loading MP4 stream:', authenticatedUrl);
+  };
+
+  // Handle quality change
+  const handleQualityChange = (quality: string) => {
+    if (!hlsRef.current) return;
+
+    if (quality === 'auto') {
+      hlsRef.current.currentLevel = -1; // Auto quality
+    } else {
+      const qualityIndex = availableQualities.indexOf(quality) - 1; // -1 because 'auto' is first
+      if (qualityIndex >= 0) {
+        hlsRef.current.currentLevel = qualityIndex;
+      }
+    }
+    
+    setCurrentQuality(quality);
+    setShowQualityMenu(false);
+  };
+
+  // Video event handlers
   const handleTimeUpdate = () => {
     const video = videoRef.current;
     if (video && video.currentTime > 0) {
@@ -40,29 +235,21 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
     setVideoError(null);
   };
 
-  const retryVideo = () => {
+  const handleLoadedMetadata = () => {
     const video = videoRef.current;
-    if (!video || retryCount >= maxRetries) {
-      setVideoError('Failed to load video after multiple attempts');
-      return;
-    }
+    if (!video) return;
     
-    console.log(`Retrying video load (attempt ${retryCount + 1}/${maxRetries})`);
-    setRetryCount(prev => prev + 1);
+    console.log(`Metadata loaded. Duration: ${video.duration.toFixed(2)}s`);
     
-    const currentTime = video.currentTime;
-    
-    // Set the authenticated URL again
-    const authenticatedUrl = getAuthenticatedStreamUrl();
-    video.src = authenticatedUrl;
-    video.load();
-    
-    // Restore position after a short delay
-    setTimeout(() => {
-      if (video && currentTime > 0) {
-        video.currentTime = currentTime;
+    // Restore saved position
+    const savedPosition = localStorage.getItem(`video-position-${movieId}`);
+    if (savedPosition) {
+      const position = parseFloat(savedPosition);
+      if (position > 0 && position < video.duration) {
+        console.log(`Restoring position: ${position.toFixed(2)}s`);
+        video.currentTime = position;
       }
-    }, 1000);
+    }
   };
 
   const handleError = () => {
@@ -81,67 +268,39 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
       
       const errorType = errorTypes[errorCode as keyof typeof errorTypes] || 'UNKNOWN';
       setVideoError(`${errorType}: ${errorMessage}`);
-      
-      // Handle specific error types with recovery
-      if (errorCode === 2 && retryCount < maxRetries) { // MEDIA_ERR_NETWORK
-        console.log('Network error - will retry in 2 seconds');
-        setTimeout(retryVideo, 2000);
-      }
     }
   };
 
-  const handleLoadedMetadata = () => {
-    const video = videoRef.current;
-    if (!video) return;
-    
-    console.log(`Metadata loaded. Duration: ${video.duration.toFixed(2)}s`);
-    
-    // Clear any previous errors on successful load
-    setVideoError(null);
-    setRetryCount(0);
-    
-    // Validate video source
-    if (!video.duration || video.duration === Infinity || isNaN(video.duration)) {
-      console.log('Invalid video duration detected - source may be corrupted');
-      setVideoError('Invalid video source - duration could not be determined');
+  const retryVideo = () => {
+    if (retryCount >= maxRetries) {
+      setVideoError('Failed to load video after multiple attempts');
       return;
     }
     
-    // Restore saved position
-    const savedPosition = localStorage.getItem(`video-position-${movieId}`);
-    if (savedPosition) {
-      const position = parseFloat(savedPosition);
-      if (position > 0 && position < video.duration) {
-        console.log(`Restoring position: ${position.toFixed(2)}s`);
-        video.currentTime = position;
-      }
-    }
-  };
-
-  // Create authenticated stream URL
-  const getAuthenticatedStreamUrl = () => {
-    const token = localStorage.getItem('token');
-    if (!token) {
-      console.log('No authentication token found');
-      return streamUrl;
+    console.log(`Retrying video load (attempt ${retryCount + 1}/${maxRetries})`);
+    setRetryCount(prev => prev + 1);
+    setVideoError(null);
+    
+    // Clean up existing HLS instance
+    if (hlsRef.current) {
+      hlsRef.current.destroy();
+      hlsRef.current = null;
     }
     
-    const separator = streamUrl.includes('?') ? '&' : '?';
-    return `${streamUrl}${separator}token=${encodeURIComponent(token)}`;
+    // Reinitialize based on settings
+    if (useHLS) {
+      initializeHLS();
+    } else {
+      initializeMP4();
+    }
   };
 
+  // Initialize player on mount
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
 
-    // Set authenticated source
-    const authenticatedUrl = getAuthenticatedStreamUrl();
-    if (video.src !== authenticatedUrl) {
-      video.src = authenticatedUrl;
-      console.log(`Updated video source with auth token`);
-    }
-
-    // Event listeners for native browser buffering
+    // Add video event listeners
     const events = [
       ['loadstart', handleLoadStart],
       ['timeupdate', handleTimeUpdate],
@@ -149,19 +308,32 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
       ['loadedmetadata', handleLoadedMetadata]
     ] as const;
 
-    // Add all event listeners
     events.forEach(([event, handler]) => video.addEventListener(event, handler));
+
+    // Initialize player based on settings
+    if (useHLS) {
+      initializeHLS();
+    } else {
+      initializeMP4();
+    }
 
     console.log(`Player initialized: ${movieId}`);
     console.log(`Stream: ${streamUrl}`);
+    console.log(`HLS enabled: ${useHLS}`);
     subtitlesUrl && console.log('Subtitles available');
 
     return () => {
-      // Remove all event listeners
+      // Cleanup
       events.forEach(([event, handler]) => video.removeEventListener(event, handler));
+      
+      if (hlsRef.current) {
+        hlsRef.current.destroy();
+        hlsRef.current = null;
+      }
+      
       console.log('Player unmounted');
     };
-  }, [movieId, streamUrl, subtitlesUrl]);
+  }, [movieId, streamUrl, subtitlesUrl, useHLS]);
 
   const handleBack = () => {
     // Save the current playback position before navigating
@@ -179,17 +351,9 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
       window.location.href = `/movie/${movieId}`;
     }
   };
-  
-  // Format time in MM:SS format
-  const formatTime = (seconds: number) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = Math.floor(seconds % 60);
-    return `${mins}:${secs.toString().padStart(2, '0')}`;
-  };
 
   return (
-    <div className="fixed inset-0 bg-black flex flex-col">{/* Simplified video player with native buffering */}
-
+    <div className="fixed inset-0 bg-black flex flex-col">
       {/* Control buttons container */}
       <div className="absolute top-4 left-4 z-50 flex gap-4">
         <button
@@ -220,7 +384,52 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
             <Subtitles className="w-5 h-5" />
           </button>
         )}
+
+        {/* Quality selector for HLS */}
+        {isHLSSupported && availableQualities.length > 1 && (
+          <div className="relative">
+            <button
+              onClick={() => setShowQualityMenu(!showQualityMenu)}
+              className="flex items-center justify-center w-10 h-10 bg-black/60 hover:bg-black/80 
+                        text-white rounded-lg transition-colors backdrop-blur-sm"
+              title="Quality settings"
+            >
+              <Settings className="w-5 h-5" />
+            </button>
+
+            {showQualityMenu && (
+              <div className="absolute top-12 left-0 bg-black/90 backdrop-blur-sm rounded-lg 
+                            border border-gray-600 min-w-[120px] z-60">
+                <div className="p-2">
+                  <div className="text-white text-sm font-medium mb-2 px-2">Quality</div>
+                  {availableQualities.map((quality) => (
+                    <button
+                      key={quality}
+                      onClick={() => handleQualityChange(quality)}
+                      className={`w-full text-left px-2 py-1 text-sm rounded transition-colors ${
+                        currentQuality === quality
+                          ? 'bg-blue-600 text-white'
+                          : 'text-gray-300 hover:bg-gray-700 hover:text-white'
+                      }`}
+                    >
+                      {quality}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
       </div>
+
+      {/* HLS Stats (only show for admins) */}
+      {isAdmin && isHLSSupported && (
+        <div className="absolute top-4 right-4 z-50 bg-black/60 backdrop-blur-sm rounded-lg p-2 text-white text-xs">
+          <div>Level: {hlsStats.currentLevel >= 0 ? hlsStats.currentLevel : 'Auto'}</div>
+          <div>Loaded: {(hlsStats.loadedBytes / 1024 / 1024).toFixed(1)}MB</div>
+          <div>HLS: {isHLSSupported ? 'Yes' : 'No'}</div>
+        </div>
+      )}
 
       <div className="flex-1 relative bg-slate-900">
         <video
@@ -248,8 +457,6 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
           )}
         </video>
 
-        {/* Native browser loading indicator is used instead of custom overlay */}
-
         {/* Error overlay */}
         {videoError && (
           <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/80">
@@ -268,11 +475,27 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
               >
                 Retry
               </button>
+              {useHLS && (
+                <button
+                  onClick={() => {
+                    setVideoError(null);
+                    setRetryCount(0);
+                    // Fallback to MP4
+                    if (hlsRef.current) {
+                      hlsRef.current.destroy();
+                      hlsRef.current = null;
+                    }
+                    initializeMP4();
+                  }}
+                  className="px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded-lg transition-colors"
+                >
+                  Use MP4
+                </button>
+              )}
             </div>
           </div>
         )}
       </div>
-
     </div>
   );
 };

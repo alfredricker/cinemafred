@@ -197,11 +197,11 @@ export class HLSR2Manager {
 
   /**
    * Generate authenticated HLS URLs for a complete movie
-   * This creates a temporary master playlist with signed URLs
+   * This creates a master playlist with API URLs
    */
   async generateAuthenticatedHLSUrls(
     movieId: string,
-    expiresIn: number = 3600
+    token: string
   ): Promise<{
     masterPlaylistUrl: string;
     authenticatedMasterPlaylist: string;
@@ -226,7 +226,7 @@ export class HLSR2Manager {
     }
     const originalContent = Buffer.concat(chunks).toString('utf-8');
 
-    // Parse and replace bitrate playlist URLs with signed URLs
+    // Parse and replace bitrate playlist URLs with API URLs
     const lines = originalContent.split('\n');
     const authenticatedLines: string[] = [];
 
@@ -234,8 +234,8 @@ export class HLSR2Manager {
       if (line.endsWith('/playlist.m3u8')) {
         // This is a bitrate playlist reference
         const bitrate = line.replace('/playlist.m3u8', '');
-        const signedUrl = await this.getBitratePlaylistUrl(movieId, bitrate, expiresIn);
-        authenticatedLines.push(signedUrl);
+        const apiUrl = `/api/hls/${movieId}/${bitrate}/playlist.m3u8?token=${encodeURIComponent(token)}`;
+        authenticatedLines.push(apiUrl);
       } else {
         authenticatedLines.push(line);
       }
@@ -243,8 +243,8 @@ export class HLSR2Manager {
 
     const authenticatedMasterPlaylist = authenticatedLines.join('\n');
 
-    // Get signed URL for the master playlist itself
-    const masterPlaylistUrl = await this.getHLSPlaylistUrl(movieId, expiresIn);
+    // Master playlist URL is served through our API
+    const masterPlaylistUrl = `/api/hls/${movieId}?token=${encodeURIComponent(token)}`;
 
     return {
       masterPlaylistUrl,
@@ -297,6 +297,51 @@ export class HLSR2Manager {
       totalSize,
       estimatedDuration
     };
+  }
+
+  /**
+   * Generate authenticated bitrate playlist with API segment URLs
+   */
+  async generateAuthenticatedBitratePlaylist(
+    movieId: string,
+    bitrate: string,
+    token: string
+  ): Promise<string> {
+    // Get the original bitrate playlist
+    const bitrateKey = `hls/${movieId}/${bitrate}/playlist.m3u8`;
+    const getCommand = new GetObjectCommand({
+      Bucket: BUCKET_NAME,
+      Key: bitrateKey
+    });
+
+    const response = await r2Client.send(getCommand);
+    if (!response.Body) {
+      throw new Error(`Bitrate playlist not found: ${bitrate}`);
+    }
+
+    // Read the bitrate playlist content
+    const chunks: Buffer[] = [];
+    const stream = response.Body as any;
+    for await (const chunk of stream) {
+      chunks.push(chunk);
+    }
+    const originalContent = Buffer.concat(chunks).toString('utf-8');
+
+    // Parse and replace segment URLs with API URLs
+    const lines = originalContent.split('\n');
+    const authenticatedLines: string[] = [];
+
+    for (const line of lines) {
+      if (line.endsWith('.ts')) {
+        // This is a segment file reference - replace with API URL
+        const apiUrl = `/api/hls/${movieId}/${bitrate}/${line}?token=${encodeURIComponent(token)}`;
+        authenticatedLines.push(apiUrl);
+      } else {
+        authenticatedLines.push(line);
+      }
+    }
+
+    return authenticatedLines.join('\n');
   }
 
   /**
