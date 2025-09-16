@@ -33,6 +33,8 @@ model Movie {
   r2_image_path     String
   r2_video_path     String
   r2_subtitles_path String?   // Optional
+  r2_hls_path       String?   // HLS master playlist path (e.g., "hls/movie-id/playlist.m3u8")
+  hls_ready         Boolean   @default(false) // Whether HLS segments are ready for streaming
   description       String
   streaming_url     String?   // Optional
   cloudflare_video_id String? // Optional
@@ -42,6 +44,7 @@ model Movie {
   ratings           Rating[]
 
   @@index([title])
+  @@index([hls_ready])
 }
 
 model Review {

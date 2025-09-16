@@ -15,7 +15,14 @@
     "add-movie": "tsx scripts/add-movie.ts",
     "cleanup-blobs": "tsx scripts/cleanup-blobs.ts",
     "view-movies": "tsx scripts/view-movies.ts",
-    "delete-movie": "tsx scripts/delete-movie.ts"
+    "delete-movie": "tsx scripts/delete-movie.ts",
+    "convert-to-hls": "tsx scripts/convert-existing-movies.ts",
+    "convert-to-hls:stats": "tsx scripts/convert-existing-movies.ts --stats",
+    "convert-to-hls:force": "tsx scripts/convert-existing-movies.ts --force",
+    "convert-to-hls:delete": "tsx scripts/convert-existing-movies.ts --delete-original",
+    "convert-to-hls:force-delete": "tsx scripts/convert-existing-movies.ts --force --delete-original",
+    "segment-video": "tsx scripts/hls-segmenter.ts",
+    "test-hls": "tsx scripts/test-hls-setup.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.726.1",
