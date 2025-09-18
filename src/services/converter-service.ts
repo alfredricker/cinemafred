@@ -40,6 +40,88 @@ app.get('/health', (req, res) => {
   });
 });
 
+// Database connection test endpoint
+app.get('/test-db', async (req, res) => {
+  try {
+    console.log('🔍 Testing database connection...');
+    
+    // Test basic connection
+    await prisma.$connect();
+    console.log('✅ Database connected successfully');
+    
+    // Test a simple query
+    const movieCount = await prisma.movie.count();
+    console.log(`📊 Found ${movieCount} movies in database`);
+    
+    // Test finding movies that need conversion
+    const moviesNeedingConversion = await prisma.movie.count({
+      where: { hls_ready: false }
+    });
+    console.log(`🎬 ${moviesNeedingConversion} movies need HLS conversion`);
+    
+    // Get a sample movie
+    const sampleMovie = await prisma.movie.findFirst({
+      where: { hls_ready: false },
+      select: { id: true, title: true, r2_video_path: true }
+    });
+    
+    res.json({
+      status: 'success',
+      database: 'connected',
+      timestamp: new Date().toISOString(),
+      stats: {
+        totalMovies: movieCount,
+        needingConversion: moviesNeedingConversion,
+        sampleMovie: sampleMovie
+      }
+    });
+    
+  } catch (error) {
+    console.error('❌ Database test failed:', error);
+    res.status(500).json({
+      status: 'error',
+      database: 'failed',
+      timestamp: new Date().toISOString(),
+      error: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+// R2 connection test endpoint
+app.get('/test-r2', async (req, res) => {
+  try {
+    console.log('🔍 Testing R2 connection...');
+    
+    // Test R2 connection by listing objects (just first few)
+    const { ListObjectsV2Command } = await import('@aws-sdk/client-s3');
+    const command = new ListObjectsV2Command({
+      Bucket: BUCKET_NAME,
+      MaxKeys: 5
+    });
+    
+    const response = await r2Client.send(command);
+    console.log(`✅ R2 connected successfully. Found ${response.KeyCount || 0} objects`);
+    
+    res.json({
+      status: 'success',
+      r2: 'connected',
+      timestamp: new Date().toISOString(),
+      bucket: BUCKET_NAME,
+      objectCount: response.KeyCount || 0,
+      sampleObjects: response.Contents?.map(obj => obj.Key).slice(0, 3) || []
+    });
+    
+  } catch (error) {
+    console.error('❌ R2 test failed:', error);
+    res.status(500).json({
+      status: 'error',
+      r2: 'failed',
+      timestamp: new Date().toISOString(),
+      error: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
 // Convert uploaded file endpoint (for new uploads)
 app.post('/convert/upload', upload.single('video'), async (req, res) => {
   const startTime = Date.now();
@@ -126,6 +208,10 @@ async function processUploadedVideo(
       movieId: movieId
     });
 
+    // Reconnect to database before update (in case connection timed out during conversion)
+    console.log(`🔄 Updating database for uploaded movie: ${movieId}`);
+    await prisma.$connect();
+    
     // Update database
     await prisma.movie.update({
       where: { id: movieId },
@@ -150,6 +236,13 @@ async function processUploadedVideo(
 
   } catch (error) {
     console.error(`❌ Upload conversion failed: ${movieId}`, error);
+    
+    // Try to reconnect to database for error logging
+    try {
+      await prisma.$connect();
+    } catch (reconnectError) {
+      console.error('Failed to reconnect to database for error logging:', reconnectError);
+    }
     
     // Send failure webhook
     await sendWebhook(webhookUrl, {
@@ -211,6 +304,10 @@ async function processExistingVideo(
       movieId: movieId
     });
 
+    // Reconnect to database before update (in case connection timed out during long operation)
+    console.log(`🔄 Updating database for: ${movie.title}`);
+    await prisma.$connect();
+    
     // Update database
     await prisma.movie.update({
       where: { id: movieId },
@@ -242,6 +339,13 @@ async function processExistingVideo(
 
   } catch (error) {
     console.error(`❌ Existing conversion failed: ${movieId}`, error);
+    
+    // Try to reconnect to database for error logging
+    try {
+      await prisma.$connect();
+    } catch (reconnectError) {
+      console.error('Failed to reconnect to database for error logging:', reconnectError);
+    }
     
     // Send failure webhook
     await sendWebhook(webhookUrl, {

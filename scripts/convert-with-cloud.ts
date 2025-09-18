@@ -22,7 +22,6 @@ async function convertWithCloud() {
     // Get movies that need conversion
     const movies = await prisma.movie.findMany({
       where: {
-        r2_video_path: { not: null },
         hls_ready: false
       },
       select: {

@@ -333,10 +333,12 @@ export const CreateMovieForm: React.FC<CreateMovieFormProps> = ({ isOpen, onClos
         })
       });
 
+      const result = await response.json();
       if (!response.ok) {
-        throw new Error('Failed to create movie');
+        throw new Error(result.error || 'Failed to create movie');
       }
 
+      console.log('Movie created successfully:', result.message);
       handleClose();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create movie');
@@ -507,6 +509,18 @@ export const CreateMovieForm: React.FC<CreateMovieFormProps> = ({ isOpen, onClos
                   className="mt-1 block w-full rounded-md bg-gray-800 border-gray-700 text-white"
                   required
                 />
+              </div>
+            </div>
+
+            {/* Info about HLS conversion */}
+            <div className="flex items-start gap-2 text-blue-400 bg-blue-500/10 p-3 rounded-lg">
+              <AlertCircle className="h-5 w-5 mt-0.5 flex-shrink-0" />
+              <div className="text-sm">
+                <p className="font-medium">Automatic HLS Conversion</p>
+                <p className="text-blue-300 mt-1">
+                  After creating the movie, it will be automatically converted to HLS format for streaming. 
+                  This process happens in the background and may take several minutes depending on video length.
+                </p>
               </div>
             </div>
 

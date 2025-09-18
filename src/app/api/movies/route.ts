@@ -2,7 +2,8 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/db';
 import { Prisma } from '@prisma/client';
-import { validateAdmin } from '@/lib/middleware'
+import { validateAdmin } from '@/lib/middleware';
+import { CloudConverter } from '@/lib/cloud-converter';
 
 // Mark this route as dynamic
 export const dynamic = 'force-dynamic';
@@ -48,11 +49,22 @@ export async function POST(request: Request) {
         r2_image_path: data.r2_image_path,
         r2_subtitles_path: data.r2_subtitles_path || null,
         rating: 0, // Initial rating
+        hls_ready: false, // Will be set to true when conversion completes
       }
     });
 
+    // Trigger cloud HLS conversion in the background
+    try {
+      console.log(`🎬 Triggering HLS conversion for movie: ${movie.title} (${movie.id})`);
+      await CloudConverter.convertExisting(movie.id);
+      console.log(`✅ HLS conversion request sent for: ${movie.title}`);
+    } catch (conversionError) {
+      console.error(`❌ Failed to trigger HLS conversion for ${movie.title}:`, conversionError);
+      // Don't fail the movie creation if conversion fails - it can be retried later
+    }
+
     return NextResponse.json({
-      message: 'Movie created successfully',
+      message: 'Movie created successfully and HLS conversion started',
       movie
     });
   } catch (error) {
