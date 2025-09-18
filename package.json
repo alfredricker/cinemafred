@@ -38,6 +38,8 @@
     "cloud:resources": "./scripts/cloud-manager.sh --resources",
     "cloud:containers": "./scripts/cloud-manager.sh --containers",
     "cloud:billing": "./scripts/cloud-manager.sh --billing",
+    "cloud:cleanup": "./scripts/cloud-manager.sh --cleanup",
+    "cloud:shutdown-all": "./scripts/cloud-manager.sh --shutdown-all",
     "query-movie": "tsx scripts/query-by-name.ts",
     "query-movie:interactive": "tsx scripts/query-by-name.ts --interactive"
   },

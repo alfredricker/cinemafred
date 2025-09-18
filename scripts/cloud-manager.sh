@@ -33,6 +33,8 @@ show_help() {
     echo "  --health             Test health endpoint"
     echo "  --test               Run full deployment test"
     echo "  --delete             Delete the service"
+    echo "  --shutdown-all       Shutdown ALL Cloud Run services (emergency stop)"
+    echo "  --cleanup            Clean up old revisions and unused resources"
     echo "  --setup              Initial setup (enable APIs, create secrets)"
     echo "  --url                Get service URL"
     echo "  --env                Show environment info"
@@ -47,6 +49,7 @@ show_help() {
     echo "  $0 --status --health # Check status and health"
     echo "  $0 --resources       # Show all billable resources"
     echo "  $0 --containers      # Show running container instances"
+    echo "  $0 --shutdown-all    # Emergency: shutdown ALL Cloud Run services"
     echo "  $0 --billing         # Show billing information and costs"
     echo ""
     echo "Environment Variables:"
@@ -277,6 +280,146 @@ delete_service() {
     else
         log_info "Deletion cancelled"
     fi
+}
+
+# Shutdown ALL Cloud Run services (emergency stop)
+shutdown_all_services() {
+    log_warning "🚨 EMERGENCY SHUTDOWN - This will delete ALL Cloud Run services in the project!"
+    echo -e "${RED}This action will:${NC}"
+    echo "  • Delete ALL Cloud Run services in project: $PROJECT_ID"
+    echo "  • Stop ALL running container instances"
+    echo "  • This cannot be undone!"
+    echo ""
+    
+    # Show current services
+    echo -e "${YELLOW}Current Cloud Run services:${NC}"
+    local services=$(gcloud run services list --region=$REGION --format="value(metadata.name)" 2>/dev/null || echo "")
+    
+    if [ -z "$services" ]; then
+        echo "✅ No Cloud Run services found to delete"
+        return 0
+    fi
+    
+    echo "$services" | while read -r service; do
+        if [ -n "$service" ]; then
+            echo "  • $service"
+        fi
+    done
+    
+    echo ""
+    echo -e "${RED}⚠️  WARNING: This will PERMANENTLY DELETE all services above!${NC}"
+    read -p "Type 'DELETE ALL SERVICES' to confirm: " -r
+    echo
+    
+    if [[ "$REPLY" == "DELETE ALL SERVICES" ]]; then
+        log_step "🛑 Shutting down all Cloud Run services..."
+        
+        echo "$services" | while read -r service; do
+            if [ -n "$service" ]; then
+                echo "Deleting service: $service"
+                gcloud run services delete "$service" --region=$REGION --quiet 2>/dev/null || echo "  ⚠️  Could not delete $service"
+            fi
+        done
+        
+        log_success "🛑 All Cloud Run services have been shut down"
+        
+        # Also show remaining resources
+        echo ""
+        echo -e "${YELLOW}Remaining billable resources:${NC}"
+        show_resources
+        
+    else
+        log_info "Emergency shutdown cancelled"
+    fi
+}
+
+# Clean up old revisions and unused resources
+cleanup_resources() {
+    log_step "Cleaning up old revisions and unused resources..."
+    
+    echo -e "${CYAN}=== CLOUD RUN CLEANUP ===${NC}"
+    
+    # Get all revisions for the service
+    echo -e "${YELLOW}Current revisions:${NC}"
+    gcloud run revisions list --service=$SERVICE_NAME --region=$REGION --format="table(
+        metadata.name:label=REVISION,
+        status.conditions[0].status:label=STATUS,
+        metadata.creationTimestamp:label=CREATED,
+        status.traffic[0].percent:label=TRAFFIC%
+    )" --limit=10
+    
+    echo ""
+    echo -e "${YELLOW}Cleaning up old revisions (keeping latest 3)...${NC}"
+    
+    # Get revisions older than the latest 3, excluding those with traffic
+    local old_revisions=$(gcloud run revisions list --service=$SERVICE_NAME --region=$REGION \
+        --format="value(metadata.name)" --sort-by="~metadata.creationTimestamp" \
+        --filter="status.traffic[0].percent=0 OR status.traffic[0].percent=null" \
+        --limit=100 | tail -n +4)
+    
+    if [ -n "$old_revisions" ]; then
+        echo "Found old revisions to delete:"
+        echo "$old_revisions"
+        echo ""
+        read -p "Delete these old revisions? (y/N): " -n 1 -r
+        echo
+        
+        if [[ $REPLY =~ ^[Yy]$ ]]; then
+            echo "$old_revisions" | while read -r revision; do
+                if [ -n "$revision" ]; then
+                    echo "Deleting revision: $revision"
+                    gcloud run revisions delete "$revision" --region=$REGION --quiet 2>/dev/null || echo "  ⚠️  Could not delete $revision (might be serving traffic)"
+                fi
+            done
+            log_success "Old revisions cleanup completed"
+        else
+            log_info "Revision cleanup cancelled"
+        fi
+    else
+        echo "✅ No old revisions to clean up"
+    fi
+    
+    echo ""
+    echo -e "${CYAN}=== CONTAINER IMAGES CLEANUP ===${NC}"
+    
+    # Clean up old container images
+    echo -e "${YELLOW}Container images in Artifact Registry:${NC}"
+    local images=$(gcloud artifacts docker images list $REGION-docker.pkg.dev/$PROJECT_ID/hls \
+        --format="value(IMAGE)" --sort-by="~CREATE_TIME" --limit=20 2>/dev/null || echo "")
+    
+    if [ -n "$images" ]; then
+        local old_images=$(echo "$images" | tail -n +6)  # Keep latest 5 images
+        
+        if [ -n "$old_images" ]; then
+            echo "Found old container images to delete:"
+            echo "$old_images"
+            echo ""
+            read -p "Delete these old images? (y/N): " -n 1 -r
+            echo
+            
+            if [[ $REPLY =~ ^[Yy]$ ]]; then
+                echo "$old_images" | while read -r image; do
+                    if [ -n "$image" ]; then
+                        echo "Deleting image: $image"
+                        gcloud artifacts docker images delete "$image" --quiet 2>/dev/null || echo "  ⚠️  Could not delete $image"
+                    fi
+                done
+                log_success "Old images cleanup completed"
+            else
+                log_info "Images cleanup cancelled"
+            fi
+        else
+            echo "✅ No old images to clean up (keeping latest 5)"
+        fi
+    else
+        echo "✅ No container images found or unable to list"
+    fi
+    
+    echo ""
+    echo -e "${GREEN}💰 Cleanup Summary:${NC}"
+    echo "   • Removed old Cloud Run revisions (keeping latest 3)"
+    echo "   • Removed old container images (keeping latest 5)"
+    echo "   • This helps reduce storage costs and clutter"
 }
 
 # Show environment info
@@ -535,6 +678,14 @@ main() {
                 ;;
             --delete)
                 delete_service
+                shift
+                ;;
+            --shutdown-all)
+                shutdown_all_services
+                shift
+                ;;
+            --cleanup)
+                cleanup_resources
                 shift
                 ;;
             --setup)
