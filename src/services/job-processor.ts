@@ -9,7 +9,6 @@
 
 import { processExistingVideo } from './video-processing';
 import { startJob, endJob, startJobMonitoring } from './container-lifecycle';
-import prisma from '../lib/db';
 
 interface JobConfig {
   movieId: string;
@@ -107,13 +106,8 @@ async function main() {
     console.error('💥 Job processor failed:', error);
     process.exit(1);
   } finally {
-    // Ensure database connection is closed
-    try {
-      await prisma.$disconnect();
-      console.log('📊 Database disconnected');
-    } catch (error) {
-      console.error('❌ Error disconnecting database:', error);
-    }
+    // Database connections are managed by withDatabase function
+    console.log('🔚 Job processor cleanup completed');
   }
 }
 

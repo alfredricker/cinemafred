@@ -256,19 +256,11 @@ check_job_status() {
 show_job_logs() {
     log_info "Showing job execution logs..."
     
-    # Get the latest execution
-    local latest_execution=$(gcloud run jobs executions list --job=$JOB_NAME --region=$REGION \
-        --format="value(metadata.name)" --limit=1 --sort-by="~metadata.creationTimestamp")
-    
-    if [ -n "$latest_execution" ]; then
-        echo -e "${CYAN}Logs for execution: $latest_execution${NC}"
-        gcloud logging read "resource.type=cloud_run_job AND resource.labels.job_name=$JOB_NAME AND resource.labels.execution_name=$latest_execution" \
-            --limit=100 \
-            --format="table(timestamp,severity,textPayload)" \
-            --freshness=1h
-    else
-        log_warning "No job executions found"
-    fi
+    echo -e "${CYAN}Recent job logs:${NC}"
+    gcloud logging read "resource.type=cloud_run_job AND resource.labels.job_name=$JOB_NAME" \
+        --limit=50 \
+        --format="table(timestamp,severity,textPayload)" \
+        --freshness=1h
 }
 
 # Delete job

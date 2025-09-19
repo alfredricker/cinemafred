@@ -1,4 +1,4 @@
-import prisma from '../lib/db';
+// Job lifecycle management for Cloud Run Jobs - no direct database access
 
 // Job lifecycle management for Cloud Run Jobs
 export const JOB_START_TIME = Date.now();
@@ -14,35 +14,21 @@ export function gracefulShutdown(reason: string) {
   if (activeJobs > 0) {
     console.log(`⚠️  ${activeJobs} active job(s) detected - extending shutdown timeout`);
     
-    // Give active jobs more time to complete (10 minutes for large downloads)
-    const shutdownTimeout = activeJobs > 0 ? 600000 : 30000; // 10 minutes vs 30 seconds
-    
-    setTimeout(async () => {
-      console.log(`⏰ Shutdown timeout reached after ${shutdownTimeout / 1000}s`);
-      try {
-        await prisma.$disconnect();
-        console.log('✅ Database disconnected');
-      } catch (error) {
-        console.error('❌ Error disconnecting database:', error);
-      }
-      
-      console.log('👋 Container shutdown complete');
-      process.exit(0);
-    }, shutdownTimeout);
-  } else {
-    // No active jobs, shutdown quickly
-    setTimeout(async () => {
-      try {
-        await prisma.$disconnect();
-        console.log('✅ Database disconnected');
-      } catch (error) {
-        console.error('❌ Error disconnecting database:', error);
-      }
-      
-      console.log('👋 Container shutdown complete');
-      process.exit(0);
-    }, 30000);
-  }
+  // Give active jobs more time to complete (10 minutes for large downloads)
+  const shutdownTimeout = activeJobs > 0 ? 600000 : 30000; // 10 minutes vs 30 seconds
+  
+  setTimeout(() => {
+    console.log(`⏰ Shutdown timeout reached after ${shutdownTimeout / 1000}s`);
+    console.log('👋 Job shutdown complete');
+    process.exit(0);
+  }, shutdownTimeout);
+} else {
+  // No active jobs, shutdown quickly
+  setTimeout(() => {
+    console.log('👋 Job shutdown complete');
+    process.exit(0);
+  }, 30000);
+}
 }
 
 // Job health checker (simplified for Cloud Run Jobs)

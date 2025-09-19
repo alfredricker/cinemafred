@@ -201,8 +201,11 @@ export async function processExistingVideo(
   startJob(`existing-${movieId}`);
   
   try {
+    console.log(`🔌 Connecting to database to fetch movie details...`);
+    
     // Get movie from database
     const movie = await withDatabase(async (db) => {
+      console.log(`📊 Querying database for movie: ${movieId}`);
       return await db.movie.findUnique({
         where: { id: movieId },
         select: {
@@ -214,12 +217,15 @@ export async function processExistingVideo(
       });
     });
 
+    console.log(`✅ Database query completed`);
+
     if (!movie || !movie.r2_video_path) {
       throw new Error('Movie or video file not found');
     }
 
     console.log(`🎬 Processing existing video: "${movie.title}"`);
     console.log(`📋 Job ID: existing-${movieId}`);
+    console.log(`📁 Video path: ${movie.r2_video_path}`);
     
     // Step 1: Download from R2
     tempVideoPath = await downloadVideoFromR2(movie.r2_video_path, movieId);
