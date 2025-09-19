@@ -153,11 +153,11 @@ deploy_job() {
     gcloud run jobs create $JOB_NAME \
         --image $IMAGE_NAME:latest \
         --region $REGION \
-        --memory 8Gi \
-        --cpu 2 \
+        --memory 16Gi \
+        --cpu 4 \
         --max-retries 3 \
         --parallelism 1 \
-        --task-timeout 7200 \
+        --task-timeout 10800 \
         --set-env-vars NODE_ENV=production \
         --set-env-vars DATABASE_URL="$DATABASE_URL" \
         --set-env-vars R2_ACCOUNT_ID="$R2_ACCOUNT_ID" \
@@ -170,11 +170,11 @@ deploy_job() {
         gcloud run jobs update $JOB_NAME \
             --image $IMAGE_NAME:latest \
             --region $REGION \
-            --memory 8Gi \
-            --cpu 2 \
+            --memory 16Gi \
+            --cpu 4 \
             --max-retries 3 \
             --parallelism 1 \
-            --task-timeout 7200 \
+            --task-timeout 10800 \
             --set-env-vars NODE_ENV=production \
             --set-env-vars DATABASE_URL="$DATABASE_URL" \
             --set-env-vars R2_ACCOUNT_ID="$R2_ACCOUNT_ID" \
@@ -198,8 +198,8 @@ show_job_info() {
     echo -e "${GREEN}📋 Job Name: $JOB_NAME${NC}"
     echo -e "${GREEN}🌍 Region: $REGION${NC}"
     echo -e "${GREEN}🖼️  Image: $IMAGE_NAME:latest${NC}"
-    echo -e "${GREEN}💾 Resources: 8GB RAM, 2 CPU${NC}"
-    echo -e "${GREEN}⏱️  Timeout: 2 hours${NC}"
+    echo -e "${GREEN}💾 Resources: 16GB RAM, 4 CPU${NC}"
+    echo -e "${GREEN}⏱️  Timeout: 3 hours${NC}"
 }
 
 # Run a conversion job

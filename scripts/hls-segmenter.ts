@@ -247,10 +247,10 @@ class HLSSegmenter {
         ffmpegArgs.push('-vf', `scale=${bitrate.resolution}`);
       }
 
-      // Enhanced quality settings
+      // Enhanced quality settings - optimized for speed vs quality balance
       ffmpegArgs.push(
-        '-preset', isOriginalQuality ? 'slower' : 'medium', // Even better quality for original
-        '-crf', isOriginalQuality ? '18' : '23', // Constant Rate Factor for quality
+        '-preset', isOriginalQuality ? 'medium' : 'fast', // Balanced speed/quality for original
+        '-crf', isOriginalQuality ? '20' : '23', // Slightly lower quality for faster encoding
         '-profile:v', 'high', // H.264 high profile for better compression
         '-level', '4.1', // H.264 level
         '-pix_fmt', 'yuv420p', // Pixel format for compatibility
