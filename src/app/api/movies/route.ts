@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/db';
 import { Prisma } from '@prisma/client';
 import { validateAdmin } from '@/lib/middleware';
-import { CloudConverter } from '@/lib/cloud-converter';
+import { JobConverter } from '@/lib/job-converter';
 
 // Mark this route as dynamic
 export const dynamic = 'force-dynamic';
@@ -53,11 +53,18 @@ export async function POST(request: Request) {
       }
     });
 
-    // Trigger cloud HLS conversion in the background
+    // Trigger Cloud Run Job for HLS conversion in the background
     try {
-      console.log(`🎬 Triggering HLS conversion for movie: ${movie.title} (${movie.id})`);
-      await CloudConverter.convertExisting(movie.id);
-      console.log(`✅ HLS conversion request sent for: ${movie.title}`);
+      console.log(`🎬 Triggering HLS conversion job for movie: ${movie.title} (${movie.id})`);
+      const result = await JobConverter.convertExisting(movie.id);
+      if (result.success) {
+        console.log(`✅ HLS conversion job started for: ${movie.title}`);
+        if (result.executionName) {
+          console.log(`📋 Job execution: ${result.executionName}`);
+        }
+      } else {
+        console.error(`❌ Failed to start HLS conversion job for ${movie.title}: ${result.message}`);
+      }
     } catch (conversionError) {
       console.error(`❌ Failed to trigger HLS conversion for ${movie.title}:`, conversionError);
       // Don't fail the movie creation if conversion fails - it can be retried later

@@ -56,8 +56,9 @@ class HLSSegmenter {
       bitrates = DEFAULT_BITRATES
     } = options;
 
-    console.log(`Starting HLS segmentation for movie: ${movieId}`);
-    console.log(`Input: ${inputPath}`);
+    console.log(`🎬 Starting HLS segmentation for movie: ${movieId}`);
+    console.log(`📁 Input: ${inputPath}`);
+    console.log(`⏱️  This may take several minutes for large videos...`);
 
     // Create temporary directory
     this.tempDir = path.join(outputDir, `hls_${movieId}_${Date.now()}`);
@@ -65,24 +66,35 @@ class HLSSegmenter {
 
     try {
       // Get video info first
+      console.log(`🔍 [STEP 2A/4] Analyzing video properties...`);
       const videoInfo = await this.getVideoInfo(inputPath);
-      console.log('Video info:', videoInfo);
+      console.log(`   Duration: ${(videoInfo.duration / 60).toFixed(1)} minutes`);
+      console.log(`   Resolution: ${videoInfo.width}x${videoInfo.height}`);
+      console.log(`   Bitrate: ${(videoInfo.bitrate / 1000000).toFixed(1)} Mbps`);
 
       // Create bitrate configurations including original quality
       const bitrateConfigs = this.createBitrateConfigs(bitrates, videoInfo);
-      console.log(`Creating ${bitrateConfigs.length} quality levels:`, bitrateConfigs.map(b => `${b.name} (${b.resolution})`));
+      console.log(`🎯 [STEP 2B/4] Creating ${bitrateConfigs.length} quality levels:`);
+      bitrateConfigs.forEach(b => console.log(`   - ${b.name} (${b.resolution}) @ ${b.videoBitrate}`));
       
       // Generate segments for each bitrate
+      console.log(`⚙️  [STEP 2C/4] Processing video segments...`);
       const playlistPaths: string[] = [];
       
-      for (const bitrate of bitrateConfigs) {
-        console.log(`Processing ${bitrate.name} (${bitrate.resolution})...`);
+      for (let i = 0; i < bitrateConfigs.length; i++) {
+        const bitrate = bitrateConfigs[i];
+        console.log(`   Processing ${bitrate.name} (${i + 1}/${bitrateConfigs.length})...`);
+        const segmentStartTime = Date.now();
+        
         const playlistPath = await this.generateBitrateSegments(
           inputPath,
           bitrate,
           segmentDuration,
           movieId
         );
+        
+        const segmentTime = Date.now() - segmentStartTime;
+        console.log(`   ✅ ${bitrate.name} completed in ${(segmentTime / 1000).toFixed(1)}s`);
         playlistPaths.push(playlistPath);
       }
 
@@ -93,9 +105,11 @@ class HLSSegmenter {
       );
 
       // Upload all files to R2
+      console.log(`📤 [STEP 3/4] Uploading HLS files to R2...`);
       await this.uploadToR2(movieId, masterPlaylistPath, playlistPaths);
 
-      console.log(`HLS segmentation completed for movie: ${movieId}`);
+      console.log(`✅ HLS segmentation completed for movie: ${movieId}`);
+      console.log(`📁 Final structure: hls/${movieId}/playlist.m3u8`);
       return `hls/${movieId}/playlist.m3u8`;
 
     } finally {
@@ -310,19 +324,25 @@ class HLSSegmenter {
     masterPlaylistPath: string,
     bitratePlaylistPaths: string[]
   ): Promise<void> {
-    console.log('Uploading HLS files to R2...');
+    console.log(`   📤 Uploading to R2 structure: hls/${movieId}/`);
 
     // Upload master playlist
+    console.log(`   📄 Uploading master playlist...`);
     await this.uploadFileToR2(
       masterPlaylistPath,
       `hls/${movieId}/playlist.m3u8`,
       'application/vnd.apple.mpegurl'
     );
 
+    let totalSegments = 0;
+    
     // Upload bitrate playlists and segments
-    for (const playlistPath of bitratePlaylistPaths) {
+    for (let i = 0; i < bitratePlaylistPaths.length; i++) {
+      const playlistPath = bitratePlaylistPaths[i];
       const bitrateName = path.basename(path.dirname(playlistPath));
       const segmentDir = path.dirname(playlistPath);
+
+      console.log(`   📁 Uploading ${bitrateName} folder (${i + 1}/${bitratePlaylistPaths.length})...`);
 
       // Upload bitrate playlist
       await this.uploadFileToR2(
@@ -344,10 +364,17 @@ class HLSSegmenter {
         );
       }
 
-      console.log(`Uploaded ${segmentFiles.length} segments for ${bitrateName}`);
+      totalSegments += segmentFiles.length;
+      console.log(`   ✅ ${bitrateName}: ${segmentFiles.length} segments uploaded`);
     }
 
-    console.log('All HLS files uploaded successfully');
+    console.log(`✅ Upload complete: ${totalSegments} total segments + ${bitratePlaylistPaths.length + 1} playlists`);
+    console.log(`📁 Final structure:`);
+    console.log(`   hls/${movieId}/playlist.m3u8 (master)`);
+    for (const playlistPath of bitratePlaylistPaths) {
+      const bitrateName = path.basename(path.dirname(playlistPath));
+      console.log(`   hls/${movieId}/${bitrateName}/playlist.m3u8`);
+    }
   }
 
   /**

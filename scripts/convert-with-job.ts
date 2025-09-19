@@ -1,8 +1,7 @@
 #!/usr/bin/env tsx
 
 import prisma from '../src/lib/db';
-import { CloudConverter } from '../src/lib/cloud-converter';
-import { r2Client, BUCKET_NAME } from '../src/lib/r2';
+import { spawn } from 'child_process';
 
 /**
  * Strip API prefix from database paths to get actual R2 path
@@ -18,6 +17,7 @@ function stripApiPrefix(path: string): string {
 async function checkOriginalVideoExists(videoPath: string): Promise<boolean> {
   try {
     const { HeadObjectCommand } = await import('@aws-sdk/client-s3');
+    const { r2Client, BUCKET_NAME } = await import('../src/lib/r2');
     
     // Strip the API prefix to get actual R2 path
     const actualR2Path = stripApiPrefix(videoPath);
@@ -39,21 +39,67 @@ async function checkOriginalVideoExists(videoPath: string): Promise<boolean> {
 }
 
 /**
- * Script to convert existing movies using Cloud Run service
+ * Execute Cloud Run Job for video conversion
  */
-async function convertWithCloud(movieId?: string, convertAll: boolean = false, force: boolean = false) {
-  console.log('🌩️ Converting movies with Cloud Run service...\n');
+async function executeConversionJob(movieId: string, webhookUrl: string, deleteOriginal: boolean = false): Promise<boolean> {
+  return new Promise((resolve, reject) => {
+    console.log(`🚀 Executing Cloud Run Job for movie: ${movieId}`);
+    
+      const args = [
+        'run', 'jobs', 'execute', 'hls-converter-job',
+        '--region', 'us-central1',
+        '--update-env-vars', `MOVIE_ID=${movieId}`,
+        '--update-env-vars', `JOB_TYPE=existing`,
+        '--update-env-vars', `WEBHOOK_URL=${webhookUrl}`,
+        '--update-env-vars', `DELETE_ORIGINAL=${deleteOriginal}`,
+        '--wait'
+      ];
+    
+    console.log(`📋 Command: gcloud ${args.join(' ')}`);
+    
+    const gcloud = spawn('gcloud', args, {
+      stdio: ['inherit', 'pipe', 'pipe']
+    });
+    
+    let stdout = '';
+    let stderr = '';
+    
+    gcloud.stdout.on('data', (data) => {
+      const output = data.toString();
+      stdout += output;
+      process.stdout.write(output);
+    });
+    
+    gcloud.stderr.on('data', (data) => {
+      const output = data.toString();
+      stderr += output;
+      process.stderr.write(output);
+    });
+    
+    gcloud.on('close', (code) => {
+      if (code === 0) {
+        console.log(`✅ Job executed successfully for movie: ${movieId}`);
+        resolve(true);
+      } else {
+        console.error(`❌ Job execution failed for movie: ${movieId} (exit code: ${code})`);
+        resolve(false);
+      }
+    });
+    
+    gcloud.on('error', (error) => {
+      console.error(`💥 Failed to execute gcloud command:`, error);
+      reject(error);
+    });
+  });
+}
+
+/**
+ * Script to convert existing movies using Cloud Run Jobs
+ */
+async function convertWithJob(movieId?: string, convertAll: boolean = false, force: boolean = false) {
+  console.log('🎬 Converting movies with Cloud Run Jobs...\n');
 
   try {
-    // Check if converter service is healthy
-    const isHealthy = await CloudConverter.healthCheck();
-    if (!isHealthy) {
-      console.error('❌ Converter service is not healthy');
-      console.log('Make sure the service is deployed and running');
-      return;
-    }
-    console.log('✅ Converter service is healthy\n');
-
     let movies;
 
     if (movieId) {
@@ -176,13 +222,13 @@ async function convertWithCloud(movieId?: string, convertAll: boolean = false, f
       console.log('');
 
       console.log('💡 Usage:');
-      console.log(`  npm run convert-cloud -- <movie-id>     # Convert specific movie by ID`);
-      console.log(`  npm run convert-cloud -- --all         # Convert ALL movies (be careful!)`);
-      console.log(`  npm run convert-cloud -- --force       # Force reconvert already converted movies`);
-      console.log(`  npm run convert-cloud -- --help        # Show help`);
+      console.log(`  npm run convert-job -- <movie-id>     # Convert specific movie by ID`);
+      console.log(`  npm run convert-job -- --all         # Convert ALL movies (be careful!)`);
+      console.log(`  npm run convert-job -- --force       # Force reconvert already converted movies`);
+      console.log(`  npm run convert-job -- --help        # Show help`);
       console.log('');
       console.log('💡 To convert a specific movie, copy its ID from above and run:');
-      console.log(`   npm run convert-cloud -- <paste-id-here>`);
+      console.log(`   npm run convert-job -- <paste-id-here>`);
       
       return;
     }
@@ -192,24 +238,35 @@ async function convertWithCloud(movieId?: string, convertAll: boolean = false, f
       return;
     }
 
-    console.log(`📽️ Converting ${movies.length} movie(s):\n`);
+    console.log(`📽️ Converting ${movies.length} movie(s) using Cloud Run Jobs:\n`);
+
+    const webhookUrl = `${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/api/webhooks/conversion`;
+    let successCount = 0;
+    let failureCount = 0;
 
     for (const movie of movies) {
-      console.log(`🎬 Starting conversion: ${movie.title} (${movie.id})`);
+      console.log(`🎬 Starting job for: ${movie.title} (${movie.id})`);
       
       try {
-        const result = await CloudConverter.convertExisting(movie.id);
-        console.log(`✅ ${movie.title}: ${result.message}`);
+        const success = await executeConversionJob(movie.id, webhookUrl, false);
+        if (success) {
+          successCount++;
+          console.log(`✅ ${movie.title}: Job completed successfully`);
+        } else {
+          failureCount++;
+          console.log(`❌ ${movie.title}: Job failed`);
+        }
       } catch (error) {
+        failureCount++;
         console.error(`❌ ${movie.title}: ${error instanceof Error ? error.message : 'Unknown error'}`);
       }
       
-      // Small delay between requests
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      console.log(''); // Add spacing between jobs
     }
 
-    console.log('\n🏁 All conversion requests sent!');
-    console.log('📡 Check webhooks and logs for completion status');
+    console.log('\n🏁 All conversion jobs completed!');
+    console.log(`📊 Results: ${successCount} successful, ${failureCount} failed`);
+    console.log('📡 Check job logs for detailed status: npm run cloud -- --job-logs');
 
   } catch (error) {
     console.error('💥 Script failed:', error);
@@ -223,9 +280,9 @@ if (require.main === module) {
   const args = process.argv.slice(2);
   
   if (args.includes('--help') || args.includes('-h')) {
-    console.log('Usage: npm run convert-cloud [-- <options>]');
+    console.log('Usage: npm run convert-job [-- <options>]');
     console.log('');
-    console.log('Converts existing movies to HLS using Cloud Run service');
+    console.log('Converts existing movies to HLS using Cloud Run Jobs');
     console.log('');
     console.log('Options:');
     console.log('  <movie-id>           Convert specific movie by ID');
@@ -234,12 +291,11 @@ if (require.main === module) {
     console.log('  --help, -h           Show this help message');
     console.log('');
     console.log('Examples:');
-    console.log('  npm run convert-cloud                                    # List available movies');
-    console.log('  npm run convert-cloud -- abc123-def456-ghi789           # Convert specific movie');
-    console.log('  npm run convert-cloud -- --all                          # Convert all movies');
+    console.log('  npm run convert-job                                    # List available movies');
+    console.log('  npm run convert-job -- abc123-def456-ghi789           # Convert specific movie');
+    console.log('  npm run convert-job -- --all                          # Convert all movies');
     console.log('');
     console.log('Environment variables:');
-    console.log('  CONVERTER_SERVICE_URL - URL of the Cloud Run service');
     console.log('  NEXT_PUBLIC_BASE_URL  - Base URL for webhooks');
     process.exit(0);
   }
@@ -248,10 +304,10 @@ if (require.main === module) {
   const force = args.includes('--force');
   const movieId = args.find(arg => !arg.startsWith('--'));
 
-  convertWithCloud(movieId, convertAll, force).catch((error) => {
+  convertWithJob(movieId, convertAll, force).catch((error) => {
     console.error('💥 Conversion failed:', error);
     process.exit(1);
   });
 }
 
-export { convertWithCloud };
+export { convertWithJob };

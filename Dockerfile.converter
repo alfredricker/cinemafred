@@ -1,8 +1,8 @@
-# Use Alpine for smaller image size
+# Cloud Run Job for Video Conversion
 FROM node:18-alpine
 
-# Install FFmpeg, curl, and required libraries for Prisma
-RUN apk add --no-cache ffmpeg curl openssl libc6-compat
+# Install FFmpeg and required libraries for Prisma
+RUN apk add --no-cache ffmpeg openssl libc6-compat
 
 WORKDIR /app
 
@@ -10,7 +10,7 @@ WORKDIR /app
 COPY package*.json ./
 RUN npm ci
 
-# Copy converter service and dependencies
+# Copy job processor and dependencies
 COPY src/ ./src/
 COPY scripts/ ./scripts/
 COPY prisma/ ./prisma/
@@ -22,12 +22,8 @@ RUN npx prisma generate
 # Create uploads directory
 RUN mkdir -p /tmp/uploads
 
-# Expose port
-EXPOSE 8080
+# Set environment for job execution
+ENV NODE_ENV=production
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:8080/health || exit 1
-
-# Start the converter service
-CMD ["node", "--import", "tsx", "src/services/converter-service.ts"]
+# Entry point for Cloud Run Job
+CMD ["node", "--import", "tsx", "src/services/job-processor.ts"]
