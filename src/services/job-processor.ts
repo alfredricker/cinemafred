@@ -14,6 +14,7 @@ interface JobConfig {
   movieId: string;
   jobType: 'existing'; // Only supporting existing video conversion for jobs
   deleteOriginal?: boolean;
+  force?: boolean;
   videoPath?: string;
 }
 
@@ -22,6 +23,7 @@ async function parseJobConfig(): Promise<JobConfig> {
   const movieId = process.env.MOVIE_ID;
   const jobType = process.env.JOB_TYPE;
   const deleteOriginal = process.env.DELETE_ORIGINAL === 'true';
+  const force = process.env.FORCE === 'true';
 
   if (!movieId) {
     throw new Error('Missing required job parameters: MOVIE_ID');
@@ -34,7 +36,8 @@ async function parseJobConfig(): Promise<JobConfig> {
   return {
     movieId,
     jobType: 'existing',
-    deleteOriginal
+    deleteOriginal,
+    force
   };
 }
 
@@ -47,6 +50,7 @@ async function executeJob(config: JobConfig): Promise<void> {
     movieId: config.movieId,
     jobType: config.jobType,
     deleteOriginal: config.deleteOriginal,
+    force: config.force,
     videoPath: config.videoPath ? 'provided' : 'none'
   });
 
@@ -58,7 +62,8 @@ async function executeJob(config: JobConfig): Promise<void> {
     await processExistingVideo(
       config.movieId,
       config.deleteOriginal || false,
-      startTime
+      startTime,
+      config.force || false
     );
 
     const totalTime = Date.now() - startTime;

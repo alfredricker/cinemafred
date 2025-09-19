@@ -139,7 +139,8 @@ export async function deleteOriginalFromR2(r2VideoPath: string, movieTitle: stri
 export async function processExistingVideo(
   movieId: string,
   deleteOriginal: boolean,
-  startTime: number
+  startTime: number,
+  force: boolean = false
 ) {
   let tempVideoPath: string | null = null;
   
@@ -158,6 +159,7 @@ export async function processExistingVideo(
           id: true,
           title: true,
           r2_video_path: true,
+          r2_hls_path: true,
           hls_ready: true
         }
       });
@@ -167,6 +169,15 @@ export async function processExistingVideo(
 
     if (!movie || !movie.r2_video_path) {
       throw new Error('Movie or video file not found');
+    }
+
+    // Check if HLS already exists
+    if (movie.r2_hls_path && !force) {
+      throw new Error(`Movie "${movie.title}" already has HLS conversion (${movie.r2_hls_path}). Use --force flag to reconvert.`);
+    }
+
+    if (force && movie.r2_hls_path) {
+      console.log(`🔄 Force mode enabled - reconverting "${movie.title}"`);
     }
 
     console.log(`🎬 Processing existing video: "${movie.title}"`);
@@ -186,7 +197,8 @@ export async function processExistingVideo(
     const hlsPath = await segmenter.segmentVideo({
       inputPath: tempVideoPath,
       movieId: movieId,
-      include480p: false // Default to original quality only for Cloud Run jobs
+      include480p: false, // Default to original quality only for Cloud Run jobs
+      force
     });
     const conversionTime = Date.now() - conversionStartTime;
     console.log(`✅ HLS conversion completed in ${(conversionTime / 1000).toFixed(1)}s`);

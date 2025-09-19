@@ -41,7 +41,7 @@ async function checkOriginalVideoExists(videoPath: string): Promise<boolean> {
 /**
  * Execute Cloud Run Job for video conversion
  */
-async function executeConversionJob(movieId: string, deleteOriginal: boolean = false): Promise<boolean> {
+async function executeConversionJob(movieId: string, deleteOriginal: boolean = true): Promise<boolean> {
   return new Promise((resolve, reject) => {
     console.log(`🚀 Executing Cloud Run Job for movie: ${movieId}`);
     
@@ -95,7 +95,7 @@ async function executeConversionJob(movieId: string, deleteOriginal: boolean = f
 /**
  * Script to convert existing movies using Cloud Run Jobs
  */
-async function convertWithJob(movieId?: string, convertAll: boolean = false, force: boolean = false) {
+async function convertWithJob(movieId?: string, convertAll: boolean = false, force: boolean = false, deleteOriginal: boolean = true) {
   console.log('🎬 Converting movies with Cloud Run Jobs...\n');
 
   try {
@@ -132,10 +132,7 @@ async function convertWithJob(movieId?: string, convertAll: boolean = false, for
 
       // Check if already converted (has HLS URL in database)
       if (movie.r2_hls_path && !force) {
-        console.log(`⚠️ Movie "${movie.title}" is already converted (has HLS URL in database)`);
-        console.log(`   HLS path: ${movie.r2_hls_path}`);
-        console.log('Use --force flag to reconvert anyway');
-        return;
+        throw new Error(`Movie "${movie.title}" already has HLS conversion (${movie.r2_hls_path}). Use --force flag to reconvert.`);
       }
 
       // Check if original video exists before attempting conversion
@@ -237,7 +234,8 @@ async function convertWithJob(movieId?: string, convertAll: boolean = false, for
       return;
     }
 
-    console.log(`📽️ Converting ${movies.length} movie(s) using Cloud Run Jobs:\n`);
+    console.log(`📽️ Converting ${movies.length} movie(s) using Cloud Run Jobs:`);
+    console.log(`🗑️  Delete original MP4s: ${deleteOriginal ? 'Yes' : 'No'}\n`);
 
     let successCount = 0;
     let failureCount = 0;
@@ -246,7 +244,7 @@ async function convertWithJob(movieId?: string, convertAll: boolean = false, for
       console.log(`🎬 Starting job for: ${movie.title} (${movie.id})`);
       
       try {
-        const success = await executeConversionJob(movie.id, false);
+        const success = await executeConversionJob(movie.id, deleteOriginal);
         if (success) {
           successCount++;
           console.log(`✅ ${movie.title}: Job completed successfully`);
@@ -286,12 +284,15 @@ if (require.main === module) {
     console.log('  <movie-id>           Convert specific movie by ID');
     console.log('  --all                Convert ALL movies that need conversion');
     console.log('  --force              Force reconvert even if already converted');
+    console.log('  --delete-original    Delete original MP4 after conversion (default: true)');
+    console.log('  --keep-original      Keep original MP4 after conversion');
     console.log('  --help, -h           Show this help message');
     console.log('');
     console.log('Examples:');
     console.log('  npm run convert-job                                    # List available movies');
-    console.log('  npm run convert-job -- abc123-def456-ghi789           # Convert specific movie');
-    console.log('  npm run convert-job -- --all                          # Convert all movies');
+    console.log('  npm run convert-job -- abc123-def456-ghi789           # Convert specific movie (deletes original)');
+    console.log('  npm run convert-job -- abc123-def456-ghi789 --keep-original  # Convert and keep original');
+    console.log('  npm run convert-job -- --all                          # Convert all movies (deletes originals)');
     console.log('');
     console.log('Environment variables:');
     console.log('  DATABASE_URL          - Database connection string');
@@ -300,9 +301,11 @@ if (require.main === module) {
 
   const convertAll = args.includes('--all');
   const force = args.includes('--force');
+  const keepOriginal = args.includes('--keep-original');
+  const deleteOriginal = !keepOriginal; // Default to delete unless --keep-original is specified
   const movieId = args.find(arg => !arg.startsWith('--'));
 
-  convertWithJob(movieId, convertAll, force).catch((error) => {
+  convertWithJob(movieId, convertAll, force, deleteOriginal).catch((error) => {
     console.error('💥 Conversion failed:', error);
     process.exit(1);
   });

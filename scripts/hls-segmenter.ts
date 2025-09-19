@@ -46,20 +46,53 @@ class HLSSegmenter {
   }
 
   /**
+   * Check if HLS files already exist in R2 for this movie
+   */
+  private async checkHLSExists(movieId: string): Promise<boolean> {
+    try {
+      const { ListObjectsV2Command } = await import('@aws-sdk/client-s3');
+      
+      const command = new ListObjectsV2Command({
+        Bucket: BUCKET_NAME,
+        Prefix: `hls/${movieId}/`,
+        MaxKeys: 1
+      });
+
+      const response = await r2Client.send(command);
+      return (response.Contents && response.Contents.length > 0) || false;
+    } catch (error) {
+      console.warn('Warning: Could not check existing HLS files:', error);
+      return false;
+    }
+  }
+
+  /**
    * Main segmentation function
    */
-  async segmentVideo(options: SegmentationOptions): Promise<string> {
+  async segmentVideo(options: SegmentationOptions & { force?: boolean }): Promise<string> {
     const {
       inputPath,
       movieId,
       outputDir = os.tmpdir(),
       segmentDuration = 6,
       bitrates = DEFAULT_BITRATES,
-      include480p = false
+      include480p = false,
+      force = false
     } = options;
 
     console.log(`🎬 Starting HLS segmentation for movie: ${movieId}`);
     console.log(`📁 Input: ${inputPath}`);
+
+    // Check if HLS already exists
+    const hlsExists = await this.checkHLSExists(movieId);
+    if (hlsExists && !force) {
+      throw new Error(`HLS files already exist for movie ${movieId}. Use --force flag to overwrite.`);
+    }
+
+    if (force && hlsExists) {
+      console.log(`🔄 Force mode enabled - overwriting existing HLS files`);
+    }
+
     console.log(`⏱️  This may take several minutes for large videos...`);
 
     // Create temporary directory
@@ -422,20 +455,23 @@ if (require.main === module) {
   const args = process.argv.slice(2);
   
   if (args.length < 2) {
-    console.log('Usage: tsx hls-segmenter.ts <input-file> <movie-id> [segment-duration] [--include-480p]');
+    console.log('Usage: tsx hls-segmenter.ts <input-file> <movie-id> [segment-duration] [--include-480p] [--force]');
     console.log('');
     console.log('Options:');
     console.log('  --include-480p    Include 480p quality in addition to original quality');
+    console.log('  --force           Overwrite existing HLS files if they exist');
     console.log('');
     console.log('Examples:');
     console.log('  tsx hls-segmenter.ts video.mp4 movie-123                    # Original quality only');
     console.log('  tsx hls-segmenter.ts video.mp4 movie-123 6 --include-480p  # Original + 480p quality');
+    console.log('  tsx hls-segmenter.ts video.mp4 movie-123 6 --force         # Force overwrite existing');
     process.exit(1);
   }
 
   // Parse arguments
   const include480p = args.includes('--include-480p');
-  const filteredArgs = args.filter(arg => arg !== '--include-480p');
+  const force = args.includes('--force');
+  const filteredArgs = args.filter(arg => arg !== '--include-480p' && arg !== '--force');
   
   const [inputPath, movieId, segmentDurationStr] = filteredArgs;
   const segmentDuration = segmentDurationStr ? parseInt(segmentDurationStr) : 6;
@@ -445,6 +481,7 @@ if (require.main === module) {
   console.log(`   Movie ID: ${movieId}`);
   console.log(`   Segment Duration: ${segmentDuration}s`);
   console.log(`   Include 480p: ${include480p ? 'Yes' : 'No'}`);
+  console.log(`   Force overwrite: ${force ? 'Yes' : 'No'}`);
   console.log('');
 
   const segmenter = new HLSSegmenter();
@@ -453,7 +490,8 @@ if (require.main === module) {
     inputPath,
     movieId,
     segmentDuration,
-    include480p
+    include480p,
+    force
   }).then((hlsPath) => {
     console.log(`\nHLS segmentation completed!`);
     console.log(`Master playlist: ${hlsPath}`);

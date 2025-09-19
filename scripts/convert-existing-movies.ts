@@ -32,8 +32,9 @@ class ExistingMovieConverter {
     skipExisting?: boolean;
     deleteOriginal?: boolean;
     include480p?: boolean;
+    force?: boolean;
   } = {}): Promise<void> {
-    const { batchSize = 5, skipExisting = true, deleteOriginal = false, include480p = false } = options;
+    const { batchSize = 5, skipExisting = true, deleteOriginal = false, include480p = false, force = false } = options;
 
     console.log('🎬 Starting conversion of existing movies to HLS format...\n');
 
@@ -57,7 +58,7 @@ class ExistingMovieConverter {
         console.log(`🔄 Processing batch ${Math.floor(i / batchSize) + 1}/${Math.ceil(movies.length / batchSize)}`);
         
         await Promise.allSettled(
-          batch.map(movie => this.convertSingleMovie(movie, deleteOriginal, include480p))
+          batch.map(movie => this.convertSingleMovie(movie, deleteOriginal, include480p, force))
         );
 
         // Show progress
@@ -85,7 +86,7 @@ class ExistingMovieConverter {
   /**
    * Convert a single movie by ID
    */
-  async convertMovieById(movieId: string, deleteOriginal: boolean = false, include480p: boolean = false): Promise<void> {
+  async convertMovieById(movieId: string, deleteOriginal: boolean = false, include480p: boolean = false, force: boolean = false): Promise<void> {
     console.log(`🎬 Converting movie: ${movieId}`);
 
     const movie = await prisma.movie.findUnique({
@@ -96,7 +97,16 @@ class ExistingMovieConverter {
       throw new Error(`Movie not found: ${movieId}`);
     }
 
-    await this.convertSingleMovie(movie, deleteOriginal, include480p);
+    // Check if HLS already exists
+    if (movie.r2_hls_path && !force) {
+      throw new Error(`Movie "${movie.title}" already has HLS conversion (${movie.r2_hls_path}). Use --force flag to reconvert.`);
+    }
+
+    if (force && movie.r2_hls_path) {
+      console.log(`🔄 Force reconverting "${movie.title}" (--force flag used)`);
+    }
+
+    await this.convertSingleMovie(movie, deleteOriginal, include480p, force);
     console.log(`✅ Movie conversion completed: ${movie.title}`);
   }
 
@@ -137,7 +147,7 @@ class ExistingMovieConverter {
   /**
    * Convert a single movie to HLS
    */
-  private async convertSingleMovie(movie: any, deleteOriginal: boolean = false, include480p: boolean = false): Promise<void> {
+  private async convertSingleMovie(movie: any, deleteOriginal: boolean = false, include480p: boolean = false, force: boolean = false): Promise<void> {
     this.progress.current = movie.title;
     
     try {
@@ -152,7 +162,8 @@ class ExistingMovieConverter {
         const hlsPath = await segmenter.segmentVideo({
           inputPath: tempVideoPath,
           movieId: movie.id,
-          include480p
+          include480p,
+          force
         });
 
         // Update database with HLS path
@@ -358,6 +369,7 @@ if (require.main === module) {
 
         const deleteOriginal = args.includes('--delete-original');
         const include480p = args.includes('--include-480p');
+        const force = args.includes('--force');
         
         if (deleteOriginal) {
           console.log('⚠️  WARNING: Original MP4 will be deleted after conversion!');
@@ -369,7 +381,11 @@ if (require.main === module) {
           console.log('📺 Converting to original quality only (use --include-480p to add 480p)');
         }
 
-        await converter.convertMovieById(movieId, deleteOriginal, include480p);
+        if (force) {
+          console.log('🔄 Force mode enabled - will reconvert even if HLS already exists');
+        }
+
+        await converter.convertMovieById(movieId, deleteOriginal, include480p, force);
         return;
       }
 
@@ -378,7 +394,8 @@ if (require.main === module) {
         ? parseInt(args[args.indexOf('--batch-size') + 1]) || 5
         : 5;
       
-      const skipExisting = !args.includes('--force');
+      const force = args.includes('--force');
+      const skipExisting = !force;
       const deleteOriginal = args.includes('--delete-original');
       const include480p = args.includes('--include-480p');
 
@@ -404,7 +421,8 @@ if (require.main === module) {
         batchSize,
         skipExisting,
         deleteOriginal,
-        include480p
+        include480p,
+        force
       });
 
     } catch (error) {

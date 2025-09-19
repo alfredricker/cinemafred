@@ -48,10 +48,8 @@ export async function POST(request: Request) {
     // Check if already processed and not forcing reprocess
     if (movie.hls_ready && movie.r2_hls_path && !forceReprocess) {
       return NextResponse.json({ 
-        message: 'Movie already has HLS segments',
-        hlsPath: movie.r2_hls_path,
-        alreadyProcessed: true
-      });
+        error: `Movie "${movie.title}" already has HLS conversion (${movie.r2_hls_path}). Use forceReprocess: true to reconvert.`
+      }, { status: 409 });
     }
 
     console.log(`Starting HLS processing for movie: ${movie.title} (${movieId})`);
@@ -65,7 +63,8 @@ export async function POST(request: Request) {
       const hlsPath = await segmenter.segmentVideo({
         inputPath: tempVideoPath,
         movieId: movieId,
-        include480p: false // Default to original quality only for API processing
+        include480p: false, // Default to original quality only for API processing
+        force: forceReprocess
       });
 
       // Update database

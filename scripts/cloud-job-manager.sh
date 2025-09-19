@@ -38,7 +38,7 @@ show_help() {
     echo ""
     echo "Examples:"
     echo "  $0 --build --deploy                    # Build and deploy job"
-    echo "  $0 --run movie-id                      # Run conversion job"
+    echo "  $0 --run movie-id [delete] [force]     # Run conversion job"
     echo "  $0 --logs                              # View job logs"
     echo "  $0 --status                            # Check job status"
     echo ""
@@ -206,9 +206,10 @@ show_job_info() {
 run_conversion_job() {
     local movie_id="$1"
     local delete_original="${2:-false}"
+    local force="${3:-false}"
     
     if [ -z "$movie_id" ]; then
-        log_error "Usage: $0 --run <movie_id> [delete_original]"
+        log_error "Usage: $0 --run <movie_id> [delete_original] [force]"
         return 1
     fi
     
@@ -220,6 +221,7 @@ run_conversion_job() {
         --update-env-vars MOVIE_ID="$movie_id" \
         --update-env-vars JOB_TYPE="existing" \
         --update-env-vars DELETE_ORIGINAL="$delete_original" \
+        --update-env-vars FORCE="$force" \
         --wait
     
     if [ $? -eq 0 ]; then
@@ -357,13 +359,14 @@ main() {
                 shift
                 movie_id="$1"
                 delete_original="$2"
+                force="$3"
                 if [ -z "$movie_id" ]; then
-                    log_error "Usage: $0 --run <movie_id> [delete_original]"
+                    log_error "Usage: $0 --run <movie_id> [delete_original] [force]"
                     exit 1
                 fi
-                run_conversion_job "$movie_id" "$delete_original"
-                shift 2
-                [ -n "$3" ] && shift
+                run_conversion_job "$movie_id" "$delete_original" "$force"
+                shift 3
+                [ -n "$4" ] && shift
                 ;;
             --logs)
                 show_job_logs
