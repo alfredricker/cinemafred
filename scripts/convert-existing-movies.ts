@@ -116,16 +116,22 @@ class ExistingMovieConverter {
   private async getMoviesForConversion(skipExisting: boolean) {
     const whereClause = skipExisting 
       ? {
-          // Only convert movies that don't have HLS paths yet
-          OR: [
-            { r2_hls_path: null },
-            { r2_hls_path: '' }
-          ],
-          // And have a valid video path
-          r2_video_path: { not: '' }
+          // Only movies that need conversion (robust check)
+          AND: [
+            // Have a valid video path
+            { r2_video_path: { not: '' } },
+            // AND either no HLS path OR HLS not ready (failed conversion)
+            {
+              OR: [
+                { r2_hls_path: null },
+                { r2_hls_path: '' },
+                { hls_ready: false }
+              ]
+            }
+          ]
         }
       : {
-          // Convert all movies with video paths
+          // Convert all movies with video paths (force mode)
           r2_video_path: { not: '' }
         };
 

@@ -159,7 +159,19 @@ async function convertWithJob(movieId?: string, convertAll: boolean = false, for
       
       movies = await prisma.movie.findMany({
         where: {
-          r2_hls_path: null  // Only movies without HLS URL (not converted yet)
+          // Only movies that need conversion (robust check)
+          AND: [
+            // Have a valid video path
+            { r2_video_path: { not: '' } },
+            // AND either no HLS path OR HLS not ready (failed conversion)
+            {
+              OR: [
+                { r2_hls_path: null },
+                { r2_hls_path: '' },
+                { hls_ready: false }
+              ]
+            }
+          ]
         },
         select: {
           id: true,
@@ -168,7 +180,7 @@ async function convertWithJob(movieId?: string, convertAll: boolean = false, for
           r2_hls_path: true,
           hls_ready: true
         },
-        take: 50 // Process up to 50 at a time
+        take: 200 // Process up to 200 at a time
       });
     } else {
       // Show available movies but don't convert
@@ -177,13 +189,37 @@ async function convertWithJob(movieId?: string, convertAll: boolean = false, for
       // Get total count first
       const totalCount = await prisma.movie.count({
         where: {
-          r2_hls_path: null  // Only movies without HLS URL
+          // Only movies that need conversion (robust check)
+          AND: [
+            // Have a valid video path
+            { r2_video_path: { not: '' } },
+            // AND either no HLS path OR HLS not ready (failed conversion)
+            {
+              OR: [
+                { r2_hls_path: null },
+                { r2_hls_path: '' },
+                { hls_ready: false }
+              ]
+            }
+          ]
         }
       });
       
       const availableMovies = await prisma.movie.findMany({
         where: {
-          r2_hls_path: null  // Only movies without HLS URL
+          // Only movies that need conversion (robust check)
+          AND: [
+            // Have a valid video path
+            { r2_video_path: { not: '' } },
+            // AND either no HLS path OR HLS not ready (failed conversion)
+            {
+              OR: [
+                { r2_hls_path: null },
+                { r2_hls_path: '' },
+                { hls_ready: false }
+              ]
+            }
+          ]
         },
         select: {
           id: true,

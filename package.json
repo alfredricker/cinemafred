@@ -38,7 +38,8 @@
     "job:setup": "./scripts/cloud-job-manager.sh --setup",
     "query-movie": "tsx scripts/query-by-name.ts",
     "query-movie:interactive": "tsx scripts/query-by-name.ts --interactive",
-    "check-storage": "tsx scripts/check-hls-storage.ts"
+    "check-storage": "tsx scripts/check-hls-storage.ts",
+    "conversion-status": "tsx scripts/conversion-status.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.726.1",

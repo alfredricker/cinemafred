@@ -258,7 +258,7 @@ show_job_logs() {
     
     echo -e "${CYAN}Recent job logs:${NC}"
     gcloud logging read "resource.type=cloud_run_job AND resource.labels.job_name=$JOB_NAME" \
-        --limit=50 \
+        --limit=200 \
         --format="table(timestamp,severity,textPayload)" \
         --freshness=1h
 }

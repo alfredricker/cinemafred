@@ -1,9 +1,9 @@
 #!/usr/bin/env tsx
 
-import { prisma } from '../src/lib/prisma';
+import prisma from '../src/lib/db';
 import { DeleteObjectCommand } from '@aws-sdk/client-s3';
 import { r2Client, BUCKET_NAME } from '../src/lib/r2';
-import { hlsR2Manager } from '../src/lib/hls-r2';
+import { hlsR2Manager } from '../src/lib/hls/r2';
 
 interface DeletionSummary {
   movieId: string;

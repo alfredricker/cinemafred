@@ -80,7 +80,7 @@ export default function MoviePage() {
     : undefined;
 
   // Determine if HLS should be used
-  const useHLS = movie.hls_ready && movie.r2_hls_path;
+  const useHLS = Boolean(movie.hls_ready && movie.r2_hls_path);
   const streamUrl = useHLS ? `/api/hls/${movieId}` : `/api/stream/${movieId}`;
 
   return (

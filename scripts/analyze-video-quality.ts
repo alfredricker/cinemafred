@@ -1,8 +1,8 @@
 #!/usr/bin/env tsx
 
 import { spawn } from 'child_process';
-import { prisma } from '../src/lib/prisma';
-import { hlsR2Manager } from '../src/lib/hls-r2';
+import prisma from '../src/lib/db';
+import { hlsR2Manager } from '../src/lib/hls/r2';
 
 interface VideoAnalysis {
   movieId: string;
