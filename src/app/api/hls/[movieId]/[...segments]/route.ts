@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { GetObjectCommand } from '@aws-sdk/client-s3';
 import { r2Client, BUCKET_NAME } from '@/lib/r2';
-import { prisma } from '@/lib/prisma';
+import prisma from '@/lib/db';
 
 // Add CORS headers for OPTIONS requests
 export async function OPTIONS(request: Request) {

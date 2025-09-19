@@ -1,5 +1,18 @@
 import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { withDatabase } from '@/lib/db';
+
+// Add CORS headers for OPTIONS requests
+export async function OPTIONS(request: Request) {
+  return new Response(null, {
+    status: 200,
+    headers: {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'POST, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+      'Access-Control-Max-Age': '86400',
+    },
+  });
+}
 
 export async function POST(request: Request) {
   try {
@@ -15,13 +28,15 @@ export async function POST(request: Request) {
 
     if (status === 'completed') {
       // Update movie as HLS ready
-      await prisma.movie.update({
-        where: { id: movieId },
-        data: {
-          r2_hls_path: hlsPath,
-          hls_ready: true,
-          updated_at: new Date()
-        }
+      await withDatabase(async (db) => {
+        return await db.movie.update({
+          where: { id: movieId },
+          data: {
+            r2_hls_path: hlsPath,
+            hls_ready: true,
+            updated_at: new Date()
+          }
+        });
       });
 
       console.log(`✅ Movie ${movieId} conversion completed (${processingTime}ms)`);
@@ -30,12 +45,14 @@ export async function POST(request: Request) {
       
     } else if (status === 'failed') {
       // Mark conversion as failed
-      await prisma.movie.update({
-        where: { id: movieId },
-        data: {
-          hls_ready: false,
-          updated_at: new Date()
-        }
+      await withDatabase(async (db) => {
+        return await db.movie.update({
+          where: { id: movieId },
+          data: {
+            hls_ready: false,
+            updated_at: new Date()
+          }
+        });
       });
 
       console.error(`❌ Movie ${movieId} conversion failed: ${error}`);
@@ -47,13 +64,26 @@ export async function POST(request: Request) {
       message: 'Webhook processed successfully',
       movieId,
       status 
+    }, {
+      headers: {
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'POST, OPTIONS',
+        'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+      }
     });
 
   } catch (error) {
     console.error('Webhook processing error:', error);
     return NextResponse.json(
       { error: 'Failed to process webhook' },
-      { status: 500 }
+      { 
+        status: 500,
+        headers: {
+          'Access-Control-Allow-Origin': '*',
+          'Access-Control-Allow-Methods': 'POST, OPTIONS',
+          'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+        }
+      }
     );
   }
 }

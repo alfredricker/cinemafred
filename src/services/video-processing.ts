@@ -239,7 +239,8 @@ export async function processExistingVideo(
     const segmenter = new HLSSegmenter();
     const hlsPath = await segmenter.segmentVideo({
       inputPath: tempVideoPath,
-      movieId: movieId
+      movieId: movieId,
+      include480p: false // Default to original quality only for Cloud Run jobs
     });
     const conversionTime = Date.now() - conversionStartTime;
     console.log(`✅ HLS conversion completed in ${(conversionTime / 1000).toFixed(1)}s`);

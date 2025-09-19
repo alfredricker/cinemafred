@@ -157,7 +157,7 @@ deploy_job() {
         --cpu 4 \
         --max-retries 3 \
         --parallelism 1 \
-        --task-timeout 10800 \
+        --task-timeout 18000 \
         --set-env-vars NODE_ENV=production \
         --set-env-vars DATABASE_URL="$DATABASE_URL" \
         --set-env-vars R2_ACCOUNT_ID="$R2_ACCOUNT_ID" \
@@ -174,7 +174,7 @@ deploy_job() {
             --cpu 4 \
             --max-retries 3 \
             --parallelism 1 \
-            --task-timeout 10800 \
+            --task-timeout 18000 \
             --set-env-vars NODE_ENV=production \
             --set-env-vars DATABASE_URL="$DATABASE_URL" \
             --set-env-vars R2_ACCOUNT_ID="$R2_ACCOUNT_ID" \
@@ -199,7 +199,7 @@ show_job_info() {
     echo -e "${GREEN}🌍 Region: $REGION${NC}"
     echo -e "${GREEN}🖼️  Image: $IMAGE_NAME:latest${NC}"
     echo -e "${GREEN}💾 Resources: 16GB RAM, 4 CPU${NC}"
-    echo -e "${GREEN}⏱️  Timeout: 3 hours${NC}"
+    echo -e "${GREEN}⏱️  Timeout: 5 hours${NC}"
 }
 
 # Run a conversion job

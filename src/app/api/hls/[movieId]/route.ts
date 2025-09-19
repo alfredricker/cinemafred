@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { headers } from 'next/headers';
-import { prisma } from '@/lib/prisma';
+import prisma from '@/lib/db';
 import { hlsR2Manager } from '@/lib/hls/r2';
 import { hlsHybridManager, HLSHybridManager } from '@/lib/hls/hybrid';
 

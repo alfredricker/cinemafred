@@ -13,6 +13,7 @@ interface SegmentationOptions {
   outputDir?: string;
   segmentDuration?: number;
   bitrates?: BitrateConfig[];
+  include480p?: boolean; // Optional flag to include 480p quality
 }
 
 interface BitrateConfig {
@@ -53,7 +54,8 @@ class HLSSegmenter {
       movieId,
       outputDir = os.tmpdir(),
       segmentDuration = 6,
-      bitrates = DEFAULT_BITRATES
+      bitrates = DEFAULT_BITRATES,
+      include480p = false
     } = options;
 
     console.log(`🎬 Starting HLS segmentation for movie: ${movieId}`);
@@ -73,7 +75,7 @@ class HLSSegmenter {
       console.log(`   Bitrate: ${(videoInfo.bitrate / 1000000).toFixed(1)} Mbps`);
 
       // Create bitrate configurations including original quality
-      const bitrateConfigs = this.createBitrateConfigs(bitrates, videoInfo);
+      const bitrateConfigs = this.createBitrateConfigs(bitrates, videoInfo, include480p);
       console.log(`🎯 [STEP 2B/4] Creating ${bitrateConfigs.length} quality levels:`);
       bitrateConfigs.forEach(b => console.log(`   - ${b.name} (${b.resolution}) @ ${b.videoBitrate}`));
       
@@ -161,18 +163,21 @@ class HLSSegmenter {
   }
 
   /**
-   * Create bitrate configurations: 480p (if source is higher) + original quality
+   * Create bitrate configurations: original quality only (unless 480p is explicitly requested)
    */
-  private createBitrateConfigs(baseBitrates: BitrateConfig[], videoInfo: any): BitrateConfig[] {
+  private createBitrateConfigs(baseBitrates: BitrateConfig[], videoInfo: any, include480p: boolean = false): BitrateConfig[] {
     const configs: BitrateConfig[] = [];
     const { width, height, bitrate: sourceBitrate } = videoInfo;
 
-    // Add 480p if source resolution is higher than 480p
-    if (height > 480) {
+    // Add 480p only if explicitly requested and source resolution is higher than 480p
+    if (include480p && height > 480) {
       const config480p = baseBitrates.find(b => b.name === '480p');
       if (config480p) {
         configs.push(config480p);
+        console.log(`📺 Including 480p quality as requested`);
       }
+    } else if (!include480p) {
+      console.log(`📺 Skipping 480p quality (use --include-480p flag to enable)`);
     }
 
     // Always add original quality with better bitrate calculation
@@ -417,19 +422,38 @@ if (require.main === module) {
   const args = process.argv.slice(2);
   
   if (args.length < 2) {
-    console.log('Usage: tsx hls-segmenter.ts <input-file> <movie-id> [segment-duration]');
+    console.log('Usage: tsx hls-segmenter.ts <input-file> <movie-id> [segment-duration] [--include-480p]');
+    console.log('');
+    console.log('Options:');
+    console.log('  --include-480p    Include 480p quality in addition to original quality');
+    console.log('');
+    console.log('Examples:');
+    console.log('  tsx hls-segmenter.ts video.mp4 movie-123                    # Original quality only');
+    console.log('  tsx hls-segmenter.ts video.mp4 movie-123 6 --include-480p  # Original + 480p quality');
     process.exit(1);
   }
 
-  const [inputPath, movieId, segmentDurationStr] = args;
+  // Parse arguments
+  const include480p = args.includes('--include-480p');
+  const filteredArgs = args.filter(arg => arg !== '--include-480p');
+  
+  const [inputPath, movieId, segmentDurationStr] = filteredArgs;
   const segmentDuration = segmentDurationStr ? parseInt(segmentDurationStr) : 6;
+
+  console.log(`🎬 HLS Segmentation Configuration:`);
+  console.log(`   Input: ${inputPath}`);
+  console.log(`   Movie ID: ${movieId}`);
+  console.log(`   Segment Duration: ${segmentDuration}s`);
+  console.log(`   Include 480p: ${include480p ? 'Yes' : 'No'}`);
+  console.log('');
 
   const segmenter = new HLSSegmenter();
   
   segmenter.segmentVideo({
     inputPath,
     movieId,
-    segmentDuration
+    segmentDuration,
+    include480p
   }).then((hlsPath) => {
     console.log(`\nHLS segmentation completed!`);
     console.log(`Master playlist: ${hlsPath}`);

@@ -519,7 +519,7 @@ export const CreateMovieForm: React.FC<CreateMovieFormProps> = ({ isOpen, onClos
                 <p className="font-medium">Automatic HLS Conversion</p>
                 <p className="text-blue-300 mt-1">
                   After creating the movie, it will be automatically converted to HLS format for streaming. 
-                  This process happens in the background and may take several minutes depending on video length.
+                  This process happens in the background and may take several hours depending on video length.
                 </p>
               </div>
             </div>

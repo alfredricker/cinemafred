@@ -21,6 +21,8 @@
     "convert-to-hls:force": "tsx scripts/convert-existing-movies.ts --force",
     "convert-to-hls:delete": "tsx scripts/convert-existing-movies.ts --delete-original",
     "convert-to-hls:force-delete": "tsx scripts/convert-existing-movies.ts --force --delete-original",
+    "convert-to-hls:480p": "tsx scripts/convert-existing-movies.ts --include-480p",
+    "convert-to-hls:480p-delete": "tsx scripts/convert-existing-movies.ts --include-480p --delete-original",
     "segment-video": "tsx scripts/hls-segmenter.ts",
     "test-hls": "tsx scripts/test-hls-setup.ts",
     "analyze-quality": "tsx scripts/analyze-video-quality.ts",
@@ -35,7 +37,8 @@
     "job:cleanup": "./scripts/cloud-job-manager.sh --cleanup",
     "job:setup": "./scripts/cloud-job-manager.sh --setup",
     "query-movie": "tsx scripts/query-by-name.ts",
-    "query-movie:interactive": "tsx scripts/query-by-name.ts --interactive"
+    "query-movie:interactive": "tsx scripts/query-by-name.ts --interactive",
+    "check-storage": "tsx scripts/check-hls-storage.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.726.1",

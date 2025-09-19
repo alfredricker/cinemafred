@@ -4,7 +4,7 @@ import { validateAdmin } from '@/lib/middleware';
 import { HLSSegmenter } from '../../../../../scripts/hls-segmenter';
 import { GetObjectCommand } from '@aws-sdk/client-s3';
 import { r2Client, BUCKET_NAME } from '@/lib/r2';
-import { prisma } from '@/lib/prisma';
+import { withDatabase } from '@/lib/db';
 import { promises as fs } from 'fs';
 import path from 'path';
 import os from 'os';
@@ -24,15 +24,17 @@ export async function POST(request: Request) {
     }
 
     // Get movie from database
-    const movie = await prisma.movie.findUnique({
-      where: { id: movieId },
-      select: {
-        id: true,
-        title: true,
-        r2_video_path: true,
-        r2_hls_path: true,
-        hls_ready: true
-      }
+    const movie = await withDatabase(async (db) => {
+      return await db.movie.findUnique({
+        where: { id: movieId },
+        select: {
+          id: true,
+          title: true,
+          r2_video_path: true,
+          r2_hls_path: true,
+          hls_ready: true
+        }
+      });
     });
 
     if (!movie) {
@@ -62,17 +64,20 @@ export async function POST(request: Request) {
       const segmenter = new HLSSegmenter();
       const hlsPath = await segmenter.segmentVideo({
         inputPath: tempVideoPath,
-        movieId: movieId
+        movieId: movieId,
+        include480p: false // Default to original quality only for API processing
       });
 
       // Update database
-      await prisma.movie.update({
-        where: { id: movieId },
-        data: {
-          r2_hls_path: hlsPath,
-          hls_ready: true,
-          updated_at: new Date()
-        }
+      await withDatabase(async (db) => {
+        return await db.movie.update({
+          where: { id: movieId },
+          data: {
+            r2_hls_path: hlsPath,
+            hls_ready: true,
+            updated_at: new Date()
+          }
+        });
       });
 
       // Delete original MP4 if requested
@@ -101,9 +106,11 @@ export async function POST(request: Request) {
     try {
       const { movieId } = await request.json();
       if (movieId) {
-        await prisma.movie.update({
-          where: { id: movieId },
-          data: { hls_ready: false }
+        await withDatabase(async (db) => {
+          return await db.movie.update({
+            where: { id: movieId },
+            data: { hls_ready: false }
+          });
         });
       }
     } catch (dbError) {

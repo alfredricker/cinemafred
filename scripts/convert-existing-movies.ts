@@ -31,8 +31,9 @@ class ExistingMovieConverter {
     batchSize?: number;
     skipExisting?: boolean;
     deleteOriginal?: boolean;
+    include480p?: boolean;
   } = {}): Promise<void> {
-    const { batchSize = 5, skipExisting = true, deleteOriginal = false } = options;
+    const { batchSize = 5, skipExisting = true, deleteOriginal = false, include480p = false } = options;
 
     console.log('🎬 Starting conversion of existing movies to HLS format...\n');
 
@@ -56,7 +57,7 @@ class ExistingMovieConverter {
         console.log(`🔄 Processing batch ${Math.floor(i / batchSize) + 1}/${Math.ceil(movies.length / batchSize)}`);
         
         await Promise.allSettled(
-          batch.map(movie => this.convertSingleMovie(movie, deleteOriginal))
+          batch.map(movie => this.convertSingleMovie(movie, deleteOriginal, include480p))
         );
 
         // Show progress
@@ -84,7 +85,7 @@ class ExistingMovieConverter {
   /**
    * Convert a single movie by ID
    */
-  async convertMovieById(movieId: string, deleteOriginal: boolean = false): Promise<void> {
+  async convertMovieById(movieId: string, deleteOriginal: boolean = false, include480p: boolean = false): Promise<void> {
     console.log(`🎬 Converting movie: ${movieId}`);
 
     const movie = await prisma.movie.findUnique({
@@ -95,7 +96,7 @@ class ExistingMovieConverter {
       throw new Error(`Movie not found: ${movieId}`);
     }
 
-    await this.convertSingleMovie(movie, deleteOriginal);
+    await this.convertSingleMovie(movie, deleteOriginal, include480p);
     console.log(`✅ Movie conversion completed: ${movie.title}`);
   }
 
@@ -136,7 +137,7 @@ class ExistingMovieConverter {
   /**
    * Convert a single movie to HLS
    */
-  private async convertSingleMovie(movie: any, deleteOriginal: boolean = false): Promise<void> {
+  private async convertSingleMovie(movie: any, deleteOriginal: boolean = false, include480p: boolean = false): Promise<void> {
     this.progress.current = movie.title;
     
     try {
@@ -150,7 +151,8 @@ class ExistingMovieConverter {
         const segmenter = new HLSSegmenter();
         const hlsPath = await segmenter.segmentVideo({
           inputPath: tempVideoPath,
-          movieId: movie.id
+          movieId: movie.id,
+          include480p
         });
 
         // Update database with HLS path
@@ -355,11 +357,19 @@ if (require.main === module) {
         }
 
         const deleteOriginal = args.includes('--delete-original');
+        const include480p = args.includes('--include-480p');
+        
         if (deleteOriginal) {
           console.log('⚠️  WARNING: Original MP4 will be deleted after conversion!');
         }
+        
+        if (include480p) {
+          console.log('📺 Including 480p quality in addition to original quality');
+        } else {
+          console.log('📺 Converting to original quality only (use --include-480p to add 480p)');
+        }
 
-        await converter.convertMovieById(movieId, deleteOriginal);
+        await converter.convertMovieById(movieId, deleteOriginal, include480p);
         return;
       }
 
@@ -370,6 +380,7 @@ if (require.main === module) {
       
       const skipExisting = !args.includes('--force');
       const deleteOriginal = args.includes('--delete-original');
+      const include480p = args.includes('--include-480p');
 
       if (deleteOriginal) {
         console.log('⚠️  WARNING: Original MP4 files will be deleted after conversion!');
@@ -383,10 +394,17 @@ if (require.main === module) {
         console.log('\n');
       }
 
+      if (include480p) {
+        console.log('📺 Including 480p quality in addition to original quality');
+      } else {
+        console.log('📺 Converting to original quality only (use --include-480p to add 480p)');
+      }
+
       await converter.convertAllMovies({
         batchSize,
         skipExisting,
-        deleteOriginal
+        deleteOriginal,
+        include480p
       });
 
     } catch (error) {

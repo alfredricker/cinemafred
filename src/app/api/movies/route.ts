@@ -54,9 +54,11 @@ export async function POST(request: Request) {
     });
 
     // Trigger Cloud Run Job for HLS conversion in the background
+    // Delete original MP4 by default for UI uploads to save storage
     try {
       console.log(`🎬 Triggering HLS conversion job for movie: ${movie.title} (${movie.id})`);
-      const result = await JobConverter.convertExisting(movie.id);
+      console.log(`🗑️  Original MP4 will be deleted after HLS conversion to save storage`);
+      const result = await JobConverter.convertExisting(movie.id, true); // Delete original by default
       if (result.success) {
         console.log(`✅ HLS conversion job started for: ${movie.title}`);
         if (result.executionName) {
@@ -71,7 +73,7 @@ export async function POST(request: Request) {
     }
 
     return NextResponse.json({
-      message: 'Movie created successfully and HLS conversion started',
+      message: 'Movie created successfully and HLS conversion started (original MP4 will be deleted after conversion)',
       movie
     });
   } catch (error) {
