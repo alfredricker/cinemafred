@@ -195,11 +195,18 @@ export const MovieDetailsModal: React.FC<MovieDetailsModalProps> = ({
                 </div>
 
                 {/* Genres */}
-                {movie.genre && (
+                {movie.genre && movie.genre.length > 0 && (
                   <div className="mb-6">
-                    <span className="inline-block px-3 py-1 bg-blue-600/20 text-blue-300 text-xs rounded-full border border-blue-600/30">
-                      {movie.genre}
-                    </span>
+                    <div className="flex flex-wrap gap-2">
+                      {movie.genre.map((genre: string, index: number) => (
+                        <span 
+                          key={index}
+                          className="inline-block px-3 py-1 bg-blue-600/20 text-blue-300 text-xs rounded-full border border-blue-600/30"
+                        >
+                          {genre.trim()}
+                        </span>
+                      ))}
+                    </div>
                   </div>
                 )}
               </div>

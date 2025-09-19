@@ -91,7 +91,7 @@ npm run convert-to-hls -- --all --force
 
 ### 5. Convert Existing Movie with Cloud Job
 
-Convert movies using Google Cloud Run (better for long-running jobs):
+Convert movies using Google Cloud Run (better for long-running jobs, runs asynchronously):
 
 ```bash
 # Convert specific movie (deletes original MP4 by default)
@@ -103,7 +103,7 @@ npm run convert-job -- <movie-id> --keep-original
 # Force reconvert existing HLS
 npm run convert-job -- <movie-id> --force
 
-# Convert all movies that need conversion
+# Convert all movies that need conversion (up to 200 at once)
 npm run convert-job -- --all
 
 # Examples:
@@ -112,13 +112,18 @@ npm run convert-job -- abc123-def456-ghi789 --keep-original
 npm run convert-job -- abc123-def456-ghi789 --force
 ```
 
+**⚠️ Note**: Cloud jobs run asynchronously in the background. Use monitoring commands to track progress.
+
 **Cloud Job Management:**
 ```bash
 # Check job status
 npm run job:status
 
-# View job logs
+# View job logs (shows recent activity)
 npm run job:logs
+
+# Check conversion progress
+npm run conversion-status
 
 # Deploy updated job
 npm run job:deploy

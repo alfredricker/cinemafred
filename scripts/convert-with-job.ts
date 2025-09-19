@@ -51,7 +51,7 @@ async function executeConversionJob(movieId: string, deleteOriginal: boolean = t
         '--update-env-vars', `MOVIE_ID=${movieId}`,
         '--update-env-vars', `JOB_TYPE=existing`,
         '--update-env-vars', `DELETE_ORIGINAL=${deleteOriginal}`,
-        '--wait'
+        '--async'  // Don't wait for completion - start all jobs in parallel
       ];
     
     console.log(`📋 Command: gcloud ${args.join(' ')}`);
@@ -77,10 +77,10 @@ async function executeConversionJob(movieId: string, deleteOriginal: boolean = t
     
     gcloud.on('close', (code) => {
       if (code === 0) {
-        console.log(`✅ Job executed successfully for movie: ${movieId}`);
+        console.log(`✅ Job started successfully for movie: ${movieId}`);
         resolve(true);
       } else {
-        console.error(`❌ Job execution failed for movie: ${movieId} (exit code: ${code})`);
+        console.error(`❌ Job start failed for movie: ${movieId} (exit code: ${code})`);
         resolve(false);
       }
     });
@@ -276,29 +276,40 @@ async function convertWithJob(movieId?: string, convertAll: boolean = false, for
     let successCount = 0;
     let failureCount = 0;
 
-    for (const movie of movies) {
-      console.log(`🎬 Starting job for: ${movie.title} (${movie.id})`);
+    for (let i = 0; i < movies.length; i++) {
+      const movie = movies[i];
+      console.log(`🎬 Starting job ${i + 1}/${movies.length}: ${movie.title} (${movie.id})`);
       
       try {
         const success = await executeConversionJob(movie.id, deleteOriginal);
         if (success) {
           successCount++;
-          console.log(`✅ ${movie.title}: Job completed successfully`);
+          console.log(`✅ ${movie.title}: Job started successfully`);
         } else {
           failureCount++;
-          console.log(`❌ ${movie.title}: Job failed`);
+          console.log(`❌ ${movie.title}: Job start failed`);
         }
       } catch (error) {
         failureCount++;
         console.error(`❌ ${movie.title}: ${error instanceof Error ? error.message : 'Unknown error'}`);
       }
       
-      console.log(''); // Add spacing between jobs
+      // Add small delay between job starts to avoid overwhelming the API
+      if (i < movies.length - 1) {
+        console.log('⏳ Waiting 10 seconds before next job...\n');
+        await new Promise(resolve => setTimeout(resolve, 10000));
+      }
     }
 
-    console.log('\n🏁 All conversion jobs completed!');
-    console.log(`📊 Results: ${successCount} successful, ${failureCount} failed`);
-    console.log('📡 Check job logs for detailed status: npm run cloud -- --job-logs');
+    console.log('\n🏁 All conversion jobs started!');
+    console.log(`📊 Results: ${successCount} jobs started successfully, ${failureCount} failed to start`);
+    console.log('');
+    console.log('💡 Jobs are now running in the background. To monitor progress:');
+    console.log('   npm run job:logs     # View job logs');
+    console.log('   npm run job:status   # Check job status');
+    console.log('   npm run conversion-status  # Check conversion progress');
+    console.log('');
+    console.log('⏱️  Jobs may take several hours to complete depending on video sizes.');
 
   } catch (error) {
     console.error('💥 Script failed:', error);
