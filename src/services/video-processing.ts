@@ -130,60 +130,7 @@ export async function deleteOriginalFromR2(r2VideoPath: string, movieTitle: stri
   console.log(`✅ Original video deleted: ${movieTitle}`);
 }
 
-// Send webhook notification with retry logic
-export async function sendWebhook(webhookUrl: string, data: any): Promise<void> {
-  const maxRetries = 3;
-  
-  console.log(`📡 Sending webhook to: ${webhookUrl}`);
-  console.log(`📦 Webhook data:`, JSON.stringify(data, null, 2));
-  
-  for (let attempt = 1; attempt <= maxRetries; attempt++) {
-    try {
-      console.log(`   Webhook attempt ${attempt}/${maxRetries}...`);
-      
-      // Create AbortController for timeout
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
-      
-      const response = await fetch(webhookUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'User-Agent': 'CinemaFred-Converter/1.0',
-        },
-        body: JSON.stringify(data),
-        signal: controller.signal,
-      });
-      
-      clearTimeout(timeoutId);
-
-      console.log(`   Response status: ${response.status} ${response.statusText}`);
-      
-      if (!response.ok) {
-        const responseText = await response.text();
-        console.error(`   Response body: ${responseText}`);
-        throw new Error(`Webhook failed: ${response.status} ${response.statusText} - ${responseText}`);
-      }
-
-      const responseData = await response.json();
-      console.log(`✅ Webhook sent successfully:`, responseData);
-      return; // Success, exit retry loop
-      
-    } catch (error: any) {
-      console.error(`❌ Webhook attempt ${attempt} failed:`, error.message);
-      
-      if (attempt === maxRetries) {
-        console.error(`💥 Webhook failed after ${maxRetries} attempts - continuing without webhook`);
-        return; // Don't throw, just log and continue
-      }
-      
-      // Wait before retry
-      const waitTime = Math.pow(2, attempt) * 1000;
-      console.log(`   ⏳ Retrying webhook in ${waitTime / 1000}s...`);
-      await new Promise(resolve => setTimeout(resolve, waitTime));
-    }
-  }
-}
+// Webhook functionality removed - database is updated directly in the conversion process
 
 // Note: Upload processing removed - Cloud Run Jobs focus on existing video conversion
 // For new uploads, videos should be uploaded to R2 first, then processed as "existing" videos
@@ -191,7 +138,6 @@ export async function sendWebhook(webhookUrl: string, data: any): Promise<void> 
 // Process existing video from R2
 export async function processExistingVideo(
   movieId: string,
-  webhookUrl: string,
   deleteOriginal: boolean,
   startTime: number
 ) {
@@ -280,18 +226,8 @@ export async function processExistingVideo(
     console.log(`   Quality levels: Original + ${movie.title.includes('480p') ? '480p' : 'auto-detected'}`);
     console.log(`   Folder structure: hls/${movieId}/[quality]/`);
 
-    // Send success webhook
-    console.log(`📡 Sending completion webhook...`);
-    await sendWebhook(webhookUrl, {
-      movieId,
-      title: movie.title,
-      status: 'completed',
-      hlsPath,
-      processingTime,
-      originalDeleted: deleteOriginal,
-      type: 'existing'
-    });
-    console.log(`✅ Webhook sent successfully`);
+    // Database already updated above - no webhook needed
+    console.log(`✅ Database updated successfully - conversion complete`);
 
     // End job tracking on success
     endJob(`existing-${movieId}`);
@@ -315,14 +251,8 @@ export async function processExistingVideo(
     console.error(`💥 CONVERSION FAILED: ${error instanceof Error ? error.message : 'Unknown error'}`);
     logCriticalError(error, `Existing conversion for ${movieId}`);
     
-    // Send failure webhook
-    await sendWebhook(webhookUrl, {
-      movieId,
-      status: 'failed',
-      error: error instanceof Error ? error.message : 'Unknown error',
-      processingTime: Date.now() - startTime,
-      type: 'existing'
-    });
+    // Log failure - database connection will be cleaned up automatically
+    console.log(`❌ Conversion failed - database state preserved`);
     
     // End job tracking on error
     endJob(`existing-${movieId}`);

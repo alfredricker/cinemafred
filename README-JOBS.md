@@ -37,7 +37,7 @@ npm run convert-job -- --all
 
 **Using job manager directly:**
 ```bash
-npm run job:run <movie-id> <webhook-url>
+npm run job:run <movie-id>
 ```
 
 ## 📋 Available Commands
@@ -46,7 +46,7 @@ npm run job:run <movie-id> <webhook-url>
 |---------|-------------|
 | `npm run job:build` | Build and push container image |
 | `npm run job:deploy` | Deploy job to Cloud Run Jobs |
-| `npm run job:run <movie-id> <webhook-url>` | Execute conversion job |
+| `npm run job:run <movie-id>` | Execute conversion job |
 | `npm run job:logs` | Show recent job execution logs |
 | `npm run job:status` | Check job status and recent executions |
 | `npm run job:cleanup` | Clean up old container images |
@@ -139,6 +139,5 @@ npm run job:deploy  # Redeploy with new settings
 - Check database connectivity
 
 **Webhook not received:**
-- Verify webhook URL is accessible
-- Check Next.js app logs
-- Ensure `/api/webhooks/conversion` endpoint is working
+- Check Next.js app logs for any issues
+- Verify database connectivity and R2 storage access

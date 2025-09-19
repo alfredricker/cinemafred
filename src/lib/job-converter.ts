@@ -18,10 +18,8 @@ export class JobConverter {
    */
   static async convertExisting(
     movieId: string, 
-    deleteOriginal: boolean = false
+    deleteOriginal: boolean = true
   ): Promise<ConversionResponse> {
-    const webhookUrl = `${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/api/webhooks/conversion`;
-    
     return new Promise((resolve, reject) => {
       console.log(`🚀 Triggering Cloud Run Job for movie: ${movieId}`);
       
@@ -30,7 +28,6 @@ export class JobConverter {
         '--region', 'us-central1',
         '--update-env-vars', `MOVIE_ID=${movieId}`,
         '--update-env-vars', `JOB_TYPE=existing`,
-        '--update-env-vars', `WEBHOOK_URL=${webhookUrl}`,
         '--update-env-vars', `DELETE_ORIGINAL=${deleteOriginal}`,
         '--async' // Don't wait for completion
       ];

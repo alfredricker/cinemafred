@@ -13,7 +13,6 @@ import { startJob, endJob, startJobMonitoring } from './container-lifecycle';
 interface JobConfig {
   movieId: string;
   jobType: 'existing'; // Only supporting existing video conversion for jobs
-  webhookUrl: string;
   deleteOriginal?: boolean;
   videoPath?: string;
 }
@@ -22,11 +21,10 @@ async function parseJobConfig(): Promise<JobConfig> {
   // Job parameters are passed via environment variables
   const movieId = process.env.MOVIE_ID;
   const jobType = process.env.JOB_TYPE;
-  const webhookUrl = process.env.WEBHOOK_URL;
   const deleteOriginal = process.env.DELETE_ORIGINAL === 'true';
 
-  if (!movieId || !webhookUrl) {
-    throw new Error('Missing required job parameters: MOVIE_ID, WEBHOOK_URL');
+  if (!movieId) {
+    throw new Error('Missing required job parameters: MOVIE_ID');
   }
 
   if (jobType && jobType !== 'existing') {
@@ -36,7 +34,6 @@ async function parseJobConfig(): Promise<JobConfig> {
   return {
     movieId,
     jobType: 'existing',
-    webhookUrl,
     deleteOriginal
   };
 }
@@ -49,7 +46,6 @@ async function executeJob(config: JobConfig): Promise<void> {
   console.log(`📋 Job Config:`, {
     movieId: config.movieId,
     jobType: config.jobType,
-    webhookUrl: config.webhookUrl,
     deleteOriginal: config.deleteOriginal,
     videoPath: config.videoPath ? 'provided' : 'none'
   });
@@ -61,7 +57,6 @@ async function executeJob(config: JobConfig): Promise<void> {
     console.log(`🔄 Processing existing video: ${config.movieId}`);
     await processExistingVideo(
       config.movieId,
-      config.webhookUrl,
       config.deleteOriginal || false,
       startTime
     );

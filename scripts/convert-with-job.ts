@@ -41,7 +41,7 @@ async function checkOriginalVideoExists(videoPath: string): Promise<boolean> {
 /**
  * Execute Cloud Run Job for video conversion
  */
-async function executeConversionJob(movieId: string, webhookUrl: string, deleteOriginal: boolean = false): Promise<boolean> {
+async function executeConversionJob(movieId: string, deleteOriginal: boolean = false): Promise<boolean> {
   return new Promise((resolve, reject) => {
     console.log(`🚀 Executing Cloud Run Job for movie: ${movieId}`);
     
@@ -50,7 +50,6 @@ async function executeConversionJob(movieId: string, webhookUrl: string, deleteO
         '--region', 'us-central1',
         '--update-env-vars', `MOVIE_ID=${movieId}`,
         '--update-env-vars', `JOB_TYPE=existing`,
-        '--update-env-vars', `WEBHOOK_URL=${webhookUrl}`,
         '--update-env-vars', `DELETE_ORIGINAL=${deleteOriginal}`,
         '--wait'
       ];
@@ -240,7 +239,6 @@ async function convertWithJob(movieId?: string, convertAll: boolean = false, for
 
     console.log(`📽️ Converting ${movies.length} movie(s) using Cloud Run Jobs:\n`);
 
-    const webhookUrl = `${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/api/webhooks/conversion`;
     let successCount = 0;
     let failureCount = 0;
 
@@ -248,7 +246,7 @@ async function convertWithJob(movieId?: string, convertAll: boolean = false, for
       console.log(`🎬 Starting job for: ${movie.title} (${movie.id})`);
       
       try {
-        const success = await executeConversionJob(movie.id, webhookUrl, false);
+        const success = await executeConversionJob(movie.id, false);
         if (success) {
           successCount++;
           console.log(`✅ ${movie.title}: Job completed successfully`);
@@ -296,7 +294,7 @@ if (require.main === module) {
     console.log('  npm run convert-job -- --all                          # Convert all movies');
     console.log('');
     console.log('Environment variables:');
-    console.log('  NEXT_PUBLIC_BASE_URL  - Base URL for webhooks');
+    console.log('  DATABASE_URL          - Database connection string');
     process.exit(0);
   }
 

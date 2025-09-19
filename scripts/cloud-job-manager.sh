@@ -38,7 +38,7 @@ show_help() {
     echo ""
     echo "Examples:"
     echo "  $0 --build --deploy                    # Build and deploy job"
-    echo "  $0 --run movie-id webhook-url          # Run conversion job"
+    echo "  $0 --run movie-id                      # Run conversion job"
     echo "  $0 --logs                              # View job logs"
     echo "  $0 --status                            # Check job status"
     echo ""
@@ -205,11 +205,10 @@ show_job_info() {
 # Run a conversion job
 run_conversion_job() {
     local movie_id="$1"
-    local webhook_url="$2"
-    local delete_original="${3:-false}"
+    local delete_original="${2:-false}"
     
-    if [ -z "$movie_id" ] || [ -z "$webhook_url" ]; then
-        log_error "Usage: $0 --run <movie_id> <webhook_url> [delete_original]"
+    if [ -z "$movie_id" ]; then
+        log_error "Usage: $0 --run <movie_id> [delete_original]"
         return 1
     fi
     
@@ -220,7 +219,6 @@ run_conversion_job() {
         --region $REGION \
         --update-env-vars MOVIE_ID="$movie_id" \
         --update-env-vars JOB_TYPE="existing" \
-        --update-env-vars WEBHOOK_URL="$webhook_url" \
         --update-env-vars DELETE_ORIGINAL="$delete_original" \
         --wait
     
@@ -358,13 +356,12 @@ main() {
             --run)
                 shift
                 movie_id="$1"
-                webhook_url="$2"
-                delete_original="$3"
-                if [ -z "$movie_id" ] || [ -z "$webhook_url" ]; then
-                    log_error "Usage: $0 --run <movie_id> <webhook_url> [delete_original]"
+                delete_original="$2"
+                if [ -z "$movie_id" ]; then
+                    log_error "Usage: $0 --run <movie_id> [delete_original]"
                     exit 1
                 fi
-                run_conversion_job "$movie_id" "$webhook_url" "$delete_original"
+                run_conversion_job "$movie_id" "$delete_original"
                 shift 2
                 [ -n "$3" ] && shift
                 ;;
