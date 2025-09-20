@@ -1,0 +1,1 @@
+{"timestamp":"2025-09-20T01:01:45.579Z","movieId":"4d0a54bb-0566-4048-b6e7-1f96f09bdf87","movieTitle":"9","videoPath":"api/movie/9_2009.mp4","error":"aborted","stack":"Error: aborted\n    at TLSSocket.socketCloseListener (node:_http_client:534:19)\n    at TLSSocket.emit (node:events:520:35)\n    at node:net:346:12\n    at TCP.done (node:_tls_wrap:649:7)"}

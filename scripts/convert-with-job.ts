@@ -41,7 +41,7 @@ async function checkOriginalVideoExists(videoPath: string): Promise<boolean> {
 /**
  * Execute Cloud Run Job for video conversion
  */
-async function executeConversionJob(movieId: string, deleteOriginal: boolean = true): Promise<boolean> {
+async function executeConversionJob(movieId: string, deleteOriginal: boolean = true, force: boolean = false): Promise<boolean> {
   return new Promise((resolve, reject) => {
     console.log(`🚀 Executing Cloud Run Job for movie: ${movieId}`);
     
@@ -51,6 +51,7 @@ async function executeConversionJob(movieId: string, deleteOriginal: boolean = t
         '--update-env-vars', `MOVIE_ID=${movieId}`,
         '--update-env-vars', `JOB_TYPE=existing`,
         '--update-env-vars', `DELETE_ORIGINAL=${deleteOriginal}`,
+        '--update-env-vars', `FORCE=${force}`,
         '--async'  // Don't wait for completion - start all jobs in parallel
       ];
     
@@ -281,7 +282,7 @@ async function convertWithJob(movieId?: string, convertAll: boolean = false, for
       console.log(`🎬 Starting job ${i + 1}/${movies.length}: ${movie.title} (${movie.id})`);
       
       try {
-        const success = await executeConversionJob(movie.id, deleteOriginal);
+        const success = await executeConversionJob(movie.id, deleteOriginal, force);
         if (success) {
           successCount++;
           console.log(`✅ ${movie.title}: Job started successfully`);

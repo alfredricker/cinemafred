@@ -153,10 +153,10 @@ deploy_job() {
     gcloud run jobs create $JOB_NAME \
         --image $IMAGE_NAME:latest \
         --region $REGION \
-        --memory 16Gi \
-        --cpu 4 \
-        --max-retries 3 \
-        --parallelism 1 \
+        --memory 32Gi \
+        --cpu 8 \
+        --max-retries 2 \
+        --parallelism 8 \
         --task-timeout 18000 \
         --set-env-vars NODE_ENV=production \
         --set-env-vars DATABASE_URL="$DATABASE_URL" \
@@ -170,10 +170,10 @@ deploy_job() {
         gcloud run jobs update $JOB_NAME \
             --image $IMAGE_NAME:latest \
             --region $REGION \
-            --memory 16Gi \
-            --cpu 4 \
-            --max-retries 3 \
-            --parallelism 1 \
+            --memory 32Gi \
+            --cpu 8 \
+            --max-retries 2 \
+            --parallelism 8 \
             --task-timeout 18000 \
             --set-env-vars NODE_ENV=production \
             --set-env-vars DATABASE_URL="$DATABASE_URL" \
@@ -198,7 +198,8 @@ show_job_info() {
     echo -e "${GREEN}📋 Job Name: $JOB_NAME${NC}"
     echo -e "${GREEN}🌍 Region: $REGION${NC}"
     echo -e "${GREEN}🖼️  Image: $IMAGE_NAME:latest${NC}"
-    echo -e "${GREEN}💾 Resources: 16GB RAM, 4 CPU${NC}"
+    echo -e "${GREEN}💾 Resources: 32GB RAM, 8 CPU${NC}"
+    echo -e "${GREEN}⚡ Parallelism: 8 concurrent executions${NC}"
     echo -e "${GREEN}⏱️  Timeout: 5 hours${NC}"
 }
 
