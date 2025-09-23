@@ -86,10 +86,10 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
         manifestLoadingMaxRetry: 1,
         manifestLoadingRetryDelay: 1000,
         // Limit fragment retry behavior to prevent request storms
-        fragLoadingMaxRetry: 1, // Only retry failed segments 1 time (reduced from 2)
-        fragLoadingMaxRetryTimeout: 2000, // Max 2s timeout per retry (reduced from 3s)
-        fragLoadingRetryDelay: 2000, // 2s delay between retries (increased from 1s)
-        fragLoadingTimeOut: 3000, // 3s timeout for fragment loading (reduced from 5s)
+        fragLoadingMaxRetry: 3, // Allow 3 retries for a failed segment
+        fragLoadingMaxRetryTimeout: 5000, // Give up after 5s for a single retry
+        fragLoadingRetryDelay: 1000, // 1s delay between retries
+        fragLoadingTimeOut: 10000, // 10s timeout for fragment loading
         levelLoadingMaxRetry: 3,
         levelLoadingRetryDelay: 1000,
         levelLoadingTimeOut: 10000,
@@ -171,6 +171,19 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
         console.log('Environment:', process.env.NODE_ENV);
         console.log('Current URL:', window.location.href);
         
+        // Handle buffer stalled errors first
+        if (data.details === Hls.ErrorDetails.BUFFER_STALLED_ERROR) {
+          console.log('🔄 Buffer stalled, attempting to resume playback');
+          if (video && !data.fatal) {
+            // Try to nudge playback forward slightly
+            video.currentTime += 0.1;
+            if (video.paused) {
+              video.play().catch(err => console.log('Play failed after buffer stall:', err));
+            }
+          }
+          return;
+        }
+        
         // Handle fragment errors (both fatal and non-fatal) - ANY error type
         if (data.type === Hls.ErrorTypes.NETWORK_ERROR || data.type === Hls.ErrorTypes.MEDIA_ERROR) {
           if (data.details === Hls.ErrorDetails.FRAG_LOAD_ERROR || 
@@ -200,15 +213,52 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
               }
             }
             
-            // CRITICAL: Prevent HLS.js from doing ANY recovery that would retry segments
-            console.log('🛑 Blocking HLS recovery to prevent retry storm');
-            return; // Exit immediately, don't let HLS handle this
+            // CRITICAL: Tell HLS to continue loading from the new position, but don't retry the failed segment
+            console.log('🔄 Telling HLS to continue loading from new position');
+            if (video) {
+              // Start loading from the new position we just seeked to
+              hls.startLoad(video.currentTime);
+            }
+            return; // Exit immediately, don't let HLS handle this error
           }
         }
+        
+        // Let hls.js handle retries internally. We will only intervene on fatal errors.
         
         if (data.fatal) {
           switch (data.type) {
             case Hls.ErrorTypes.NETWORK_ERROR:
+              // Specific handling for fatal fragment load errors after retries
+              if (
+                data.details === Hls.ErrorDetails.FRAG_LOAD_ERROR ||
+                data.details === Hls.ErrorDetails.FRAG_LOAD_TIMEOUT
+              ) {
+                const segmentUrl = data.frag?.url || 'unknown';
+                const segmentName = segmentUrl.split('/').pop() || 'unknown';
+                
+                console.log(`⚠️ Fragment ${segmentName} failed to load after all retries. Skipping.`);
+                failedSegments.add(segmentUrl);
+
+                // Skip the faulty segment
+                if (video) {
+                  const currentTime = video.currentTime;
+                  const segmentDuration = data.frag?.duration || 6; // Use actual duration or fallback
+                  const nextSegmentTime = Math.ceil(currentTime / segmentDuration) * segmentDuration;
+                  
+                  console.log(`🚀 Force skipping from ${currentTime.toFixed(2)}s to ${nextSegmentTime.toFixed(2)}s`);
+                  video.currentTime = nextSegmentTime + 0.1;
+                  
+                  if (video.paused) {
+                    video.play().catch(err => console.log('Play failed after force skip:', err));
+                  }
+                  
+                  // Tell HLS to continue loading from the new position
+                  hls.startLoad(video.currentTime);
+                }
+                return; // Prevent further generic error handling for this case
+              }
+
+              // Generic fatal network error
               console.log('Fatal network error encountered, trying to recover');
               if (retryCount < maxRetries) {
                 setRetryCount(prev => prev + 1);
@@ -217,6 +267,7 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
                 setVideoError('Network error: Failed to load video after multiple attempts');
               }
               break;
+
             case Hls.ErrorTypes.MEDIA_ERROR:
               console.log('Fatal media error encountered, trying to recover');
               if (retryCount < maxRetries) {
@@ -226,6 +277,7 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
                 setVideoError('Media error: Unable to decode video');
               }
               break;
+
             default:
               console.log('Fatal error, cannot recover');
               setVideoError(`HLS Error: ${data.details}`);
