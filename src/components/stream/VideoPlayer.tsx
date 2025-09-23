@@ -171,70 +171,38 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
         console.log('Environment:', process.env.NODE_ENV);
         console.log('Current URL:', window.location.href);
         
-        // Handle fragment errors (both fatal and non-fatal)
-        if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
+        // Handle fragment errors (both fatal and non-fatal) - ANY error type
+        if (data.type === Hls.ErrorTypes.NETWORK_ERROR || data.type === Hls.ErrorTypes.MEDIA_ERROR) {
           if (data.details === Hls.ErrorDetails.FRAG_LOAD_ERROR || 
               data.details === Hls.ErrorDetails.FRAG_LOAD_TIMEOUT ||
-              data.details === Hls.ErrorDetails.FRAG_PARSING_ERROR) {
+              data.details === Hls.ErrorDetails.FRAG_PARSING_ERROR ||
+              data.details === Hls.ErrorDetails.BUFFER_APPEND_ERROR) {
             
             // Track this failed segment
             const segmentUrl = data.frag?.url || 'unknown';
             const segmentName = segmentUrl.split('/').pop() || 'unknown';
             
-            // Increment retry count for this segment
-            const currentRetries = segmentRetryCount.get(segmentName) || 0;
-            segmentRetryCount.set(segmentName, currentRetries + 1);
+            // IMMEDIATE skip on ANY fragment error - no retries allowed
+            console.log(`⚠️ Fragment error (${data.details}) for ${segmentName} - IMMEDIATELY skipping`);
+            failedSegments.add(segmentUrl);
             
-            console.log(`Fragment error (${data.details}) for ${segmentName}, retry #${currentRetries + 1}`);
-            
-            // If we've tried this segment too many times, permanently skip it
-            if (currentRetries >= 1) { // Reduced from 2 to 1 - skip after first retry
-              console.log(`⚠️ Segment ${segmentName} failed ${currentRetries + 1} times, permanently skipping`);
-              failedSegments.add(segmentUrl);
-              
-              // Force skip to next segment immediately
-              if (video) {
-                const currentTime = video.currentTime;
-                const segmentDuration = 6;
-                const nextSegmentTime = Math.ceil(currentTime / segmentDuration) * segmentDuration;
-                
-                console.log(`🚀 Force skipping from ${currentTime.toFixed(2)}s to ${nextSegmentTime.toFixed(2)}s`);
-                video.currentTime = nextSegmentTime + 0.1;
-                
-                if (!video.paused) {
-                  video.play().catch(err => console.log('Play failed after force skip:', err));
-                }
-              }
-              
-              // Tell HLS to recover and continue
-              if (data.fatal) {
-                hls.startLoad();
-              }
-              return;
-            }
-            
-            // Always try to skip to next segment, regardless of fatal flag
+            // Force skip to next segment immediately
             if (video) {
               const currentTime = video.currentTime;
-              const segmentDuration = 6; // Our segments are 6 seconds
+              const segmentDuration = 6;
               const nextSegmentTime = Math.ceil(currentTime / segmentDuration) * segmentDuration;
               
-              console.log(`Skipping from ${currentTime.toFixed(2)}s to ${nextSegmentTime.toFixed(2)}s`);
-              video.currentTime = nextSegmentTime + 0.1; // Small offset to ensure we're in next segment
+              console.log(`🚀 Force skipping from ${currentTime.toFixed(2)}s to ${nextSegmentTime.toFixed(2)}s`);
+              video.currentTime = nextSegmentTime + 0.1;
               
-              // If video was playing, continue playback
               if (!video.paused) {
-                video.play().catch(err => console.log('Play failed after segment skip:', err));
+                video.play().catch(err => console.log('Play failed after force skip:', err));
               }
-              
-              // If this is a fatal error, recover by restarting from current position
-              if (data.fatal) {
-                console.log('Recovering from fatal fragment error by restarting HLS');
-                hls.startLoad(currentTime);
-              }
-              
-              return; // Don't treat as fatal
             }
+            
+            // CRITICAL: Prevent HLS.js from doing ANY recovery that would retry segments
+            console.log('🛑 Blocking HLS recovery to prevent retry storm');
+            return; // Exit immediately, don't let HLS handle this
           }
         }
         
