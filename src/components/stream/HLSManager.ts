@@ -4,10 +4,12 @@ import { HLSManagerConfig, HLSStats, QualityLevel } from './types';
 export class HLSManager {
   private hls: Hls | null = null;
   private config: HLSManagerConfig;
-  private failedSegments = new Set<string>();
-  private segmentRetryCount = new Map<string, number>();
+  // Store the time ranges of failed segments
+  private failedSegmentRanges = new Map<string, { start: number; end: number }>();
   private maxRetries = 3;
   private retryCount = 0;
+  private playbackMonitorInterval: NodeJS.Timeout | null = null;
+  private lastPlaybackTime = -1;
 
   constructor(config: HLSManagerConfig) {
     this.config = config;
@@ -90,8 +92,53 @@ export class HLSManager {
     this.hls.on(Hls.Events.MANIFEST_PARSED, this.handleManifestParsed.bind(this));
     this.hls.on(Hls.Events.LEVEL_SWITCHED, this.handleLevelSwitched.bind(this));
     this.hls.on(Hls.Events.FRAG_LOADED, this.handleFragLoaded.bind(this));
-    this.hls.on(Hls.Events.FRAG_LOADING, this.handleFragLoading.bind(this));
+    // No longer need a special FRAG_LOADING handler
     this.hls.on(Hls.Events.ERROR, this.handleError.bind(this));
+    
+    // Set up a periodic check for when playback gets stuck
+    this.setupPlaybackMonitoring();
+  }
+
+  private setupPlaybackMonitoring(): void {
+    // Clear any existing interval
+    if (this.playbackMonitorInterval) {
+      clearInterval(this.playbackMonitorInterval);
+    }
+
+    // Check every 500ms if playback is stuck
+    this.playbackMonitorInterval = setInterval(() => {
+      this.monitorPlaybackStall();
+    }, 500);
+  }
+
+  private monitorPlaybackStall(): void {
+    const video = this.config.videoRef.current;
+    if (!video || !this.hls || video.paused) {
+      // If paused, reset the time tracker
+      if (video) this.lastPlaybackTime = video.currentTime;
+      return;
+    }
+
+    const currentTime = video.currentTime;
+    const isStalled = currentTime === this.lastPlaybackTime;
+    
+    if (isStalled) {
+      // Playback is stalled, check if we are near a known bad segment
+      for (const [url, range] of this.failedSegmentRanges.entries()) {
+        // Check if the current time is stuck right before or inside a failed segment range
+        if (currentTime >= range.start - 0.5 && currentTime <= range.end) {
+          console.log(`🚨 Playback stalled at a known bad segment (${(range.start).toFixed(2)}s). Jumping to ${(range.end + 0.1).toFixed(2)}s.`);
+          
+          // Jump over the bad segment
+          video.currentTime = range.end + 0.1;
+          
+          // We've handled the stall, no need to check other ranges
+          break;
+        }
+      }
+    }
+
+    this.lastPlaybackTime = currentTime;
   }
 
   private handleManifestParsed(event: any, data: any): void {
@@ -143,163 +190,70 @@ export class HLSManager {
     });
   }
 
-  private handleFragLoading(event: any, data: any): void {
-    const segmentUrl = data.frag?.url || '';
-    const segmentName = segmentUrl.split('/').pop() || '';
-    
-    if (this.failedSegments.has(segmentUrl)) {
-      console.log(`🚫 Preventing load of known bad segment: ${segmentName}`);
-      this.skipAndRestart(data.frag);
-      return;
-    }
-  }
-
   private handleError(event: any, data: any): void {
-    console.error('HLS Error:', data);
-    console.log('Environment:', process.env.NODE_ENV);
-    console.log('Current URL:', window.location.href);
-    
+    if (!data.fatal) {
+      return; // Let hls.js handle non-fatal errors
+    }
+
     const video = this.config.videoRef.current;
     if (!video) return;
-
-    // Handle buffer stalled errors first
-    if (data.details === Hls.ErrorDetails.BUFFER_STALLED_ERROR) {
-      console.log('🔄 Buffer stalled, attempting to resume playback');
-      if (!data.fatal) {
-        video.currentTime += 0.1;
-        if (video.paused) {
-          video.play().catch(err => console.log('Play failed after buffer stall:', err));
-        }
-      }
-      return;
-    }
-    
-    // Handle fragment errors with immediate skip
-    if (this.isFragmentError(data)) {
-      this.handleFragmentError(data);
-      return;
-    }
-    
-    // Handle fatal errors
-    if (data.fatal) {
-      this.handleFatalError(data);
-    }
-  }
-
-  private isFragmentError(data: any): boolean {
-    return (data.type === Hls.ErrorTypes.NETWORK_ERROR || data.type === Hls.ErrorTypes.MEDIA_ERROR) &&
-           (data.details === Hls.ErrorDetails.FRAG_LOAD_ERROR || 
-            data.details === Hls.ErrorDetails.FRAG_LOAD_TIMEOUT ||
-            data.details === Hls.ErrorDetails.FRAG_PARSING_ERROR ||
-            data.details === Hls.ErrorDetails.BUFFER_APPEND_ERROR);
-  }
-
-  private handleFragmentError(data: any): void {
-    const video = this.config.videoRef.current;
-    if (!video) return;
-
-    const segmentUrl = data.frag?.url || 'unknown';
-    const segmentName = segmentUrl.split('/').pop() || 'unknown';
-    
-    console.log(`⚠️ Fragment error (${data.details}) for ${segmentName} - IMMEDIATELY skipping`);
-    this.failedSegments.add(segmentUrl);
-    
-    // Force skip to next segment immediately
-    const currentTime = video.currentTime;
-    const segmentDuration = 6;
-    const nextSegmentTime = Math.ceil(currentTime / segmentDuration) * segmentDuration;
-    
-    console.log(`🚀 Force skipping from ${currentTime.toFixed(2)}s to ${nextSegmentTime.toFixed(2)}s`);
-    video.currentTime = nextSegmentTime + 0.1;
-    
-    if (!video.paused) {
-      video.play().catch(err => console.log('Play failed after force skip:', err));
-    }
-    
-    // Tell HLS to continue loading from the new position
-    if (this.hls) {
-      this.hls.startLoad(video.currentTime);
-    }
-  }
-
-  private handleFatalError(data: any): void {
-    if (!this.hls) return;
 
     switch (data.type) {
       case Hls.ErrorTypes.NETWORK_ERROR:
-        if (data.details === Hls.ErrorDetails.FRAG_LOAD_ERROR ||
-            data.details === Hls.ErrorDetails.FRAG_LOAD_TIMEOUT) {
-          const segmentUrl = data.frag?.url || 'unknown';
-          const segmentName = segmentUrl.split('/').pop() || 'unknown';
-          
-          console.log(`⚠️ Fragment ${segmentName} failed to load after all retries. Skipping.`);
-          this.failedSegments.add(segmentUrl);
-          this.skipAndRestart(data.frag);
-          return;
-        }
+        // Focus only on fragment load errors, which are the most common issue.
+        if (
+          data.details === Hls.ErrorDetails.FRAG_LOAD_ERROR ||
+          data.details === Hls.ErrorDetails.FRAG_LOAD_TIMEOUT
+        ) {
+          const frag = data.frag;
+          if (frag) {
+            const segmentUrl = frag.url;
+            const segmentName = segmentUrl.split('/').pop() || 'unknown';
+            const startTime = frag.start;
+            const endTime = startTime + frag.duration;
 
-        console.log('Fatal network error encountered, trying to recover');
-        if (this.retryCount < this.maxRetries) {
-          this.retryCount++;
-          this.hls.startLoad();
+            if (!this.failedSegmentRanges.has(segmentUrl)) {
+              console.log(`⚠️ Fragment ${segmentName} failed after all retries. Marking range [${startTime.toFixed(2)}s - ${endTime.toFixed(2)}s] as bad.`);
+              this.failedSegmentRanges.set(segmentUrl, { start: startTime, end: endTime });
+            }
+          }
+          // Do not stop the loader. Let it continue trying to load the next segments.
         } else {
-          this.config.onError('Network error: Failed to load video after multiple attempts');
+          // Handle other fatal network errors
+          this.handleGenericFatalError(data);
         }
         break;
 
       case Hls.ErrorTypes.MEDIA_ERROR:
-        console.log('Fatal media error encountered, trying to recover');
-        if (this.retryCount < this.maxRetries) {
-          this.retryCount++;
-          this.hls.recoverMediaError();
-        } else {
-          this.config.onError('Media error: Unable to decode video');
-        }
+        this.handleGenericFatalError(data);
         break;
 
       default:
-        console.log('Fatal error, cannot recover');
+        console.log('Unhandled fatal error', data);
         this.config.onError(`HLS Error: ${data.details}`);
         break;
     }
   }
 
-  private skipAndRestart(frag: Fragment | undefined): void {
+  private handleGenericFatalError(data: any): void {
     if (!this.hls) return;
-
-    const video = this.config.videoRef.current;
-    if (!video) return;
-
-    this.hls.stopLoad();
     
-    const currentTime = video.currentTime;
-    let skipTo: number;
-
-    if (frag?.start !== undefined && frag?.duration !== undefined) {
-      // Precise skip to the end of the failed fragment
-      skipTo = frag.start + frag.duration + 0.1;
-    } else {
-      // Fallback: jump forward by a segment duration
-      skipTo = currentTime + (frag?.duration || 6);
-    }
-
-    // Only seek if we're moving forward to prevent getting stuck
-    if (skipTo > currentTime) {
-      console.log(`🚀 Force skipping from ${currentTime.toFixed(2)}s to ${skipTo.toFixed(2)}s`);
-      video.currentTime = skipTo;
-      
-      if (video.paused) {
-        video.play().catch(err => console.log('Play failed after force skip:', err));
+    console.log(`Encountered a fatal ${data.type}. Attempting to recover.`);
+    if (this.retryCount < this.maxRetries) {
+      this.retryCount++;
+      switch (data.type) {
+        case Hls.ErrorTypes.NETWORK_ERROR:
+          this.hls.startLoad();
+          break;
+        case Hls.ErrorTypes.MEDIA_ERROR:
+          this.hls.recoverMediaError();
+          break;
       }
-      
-      // Resume loading from the new position
-      this.hls.startLoad(video.currentTime);
     } else {
-      console.warn(`⚠️ Skip destination ${skipTo.toFixed(2)}s is not ahead of current time ${currentTime.toFixed(2)}s. Restarting load at current position.`);
-      this.hls.startLoad(video.currentTime);
+      this.config.onError(`Failed to recover from ${data.type} after ${this.maxRetries} attempts.`);
     }
   }
-
+  
   private loadStream(): void {
     if (!this.hls) return;
 
@@ -334,8 +288,7 @@ export class HLSManager {
 
   retry(): void {
     this.retryCount = 0;
-    this.failedSegments.clear();
-    this.segmentRetryCount.clear();
+    this.failedSegmentRanges.clear();
     
     if (this.hls) {
       this.hls.destroy();
@@ -345,13 +298,18 @@ export class HLSManager {
   }
 
   destroy(): void {
+    // Clean up monitoring interval
+    if (this.playbackMonitorInterval) {
+      clearInterval(this.playbackMonitorInterval);
+      this.playbackMonitorInterval = null;
+    }
+
     if (this.hls) {
       this.hls.destroy();
       this.hls = null;
     }
     
-    this.failedSegments.clear();
-    this.segmentRetryCount.clear();
+    this.failedSegmentRanges.clear();
   }
 
   get instance(): Hls | null {

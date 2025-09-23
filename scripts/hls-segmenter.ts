@@ -125,7 +125,8 @@ class HLSSegmenter {
           inputPath,
           bitrate,
           segmentDuration,
-          movieId
+          movieId,
+          videoInfo
         );
         
         const segmentTime = Date.now() - segmentStartTime;
@@ -154,7 +155,7 @@ class HLSSegmenter {
   }
 
   /**
-   * Get video information using ffprobe
+   * Get video information using ffprobe with enhanced error handling
    */
   private async getVideoInfo(inputPath: string): Promise<any> {
     return new Promise((resolve, reject) => {
@@ -163,36 +164,126 @@ class HLSSegmenter {
         '-print_format', 'json',
         '-show_format',
         '-show_streams',
+        '-show_error',
         inputPath
       ]);
 
       let output = '';
+      let errorOutput = '';
+      
       ffprobe.stdout.on('data', (data) => {
         output += data.toString();
       });
 
+      ffprobe.stderr.on('data', (data) => {
+        errorOutput += data.toString();
+      });
+
       ffprobe.on('close', (code) => {
         if (code !== 0) {
-          reject(new Error(`ffprobe failed with code ${code}`));
+          reject(new Error(`ffprobe failed with code ${code}. Error: ${errorOutput}`));
           return;
         }
 
         try {
           const info = JSON.parse(output);
+          
+          // Check for errors in the probe result
+          if (info.error) {
+            reject(new Error(`Video file error: ${info.error.string}`));
+            return;
+          }
+
           const videoStream = info.streams.find((s: any) => s.codec_type === 'video');
-          resolve({
-            duration: parseFloat(info.format.duration),
-            width: videoStream?.width || 0,
-            height: videoStream?.height || 0,
-            bitrate: parseInt(info.format.bit_rate) || 0
-          });
+          const audioStream = info.streams.find((s: any) => s.codec_type === 'audio');
+          
+          if (!videoStream) {
+            reject(new Error('No video stream found in the input file'));
+            return;
+          }
+
+          // Enhanced video info with codec details
+          const videoInfo = {
+            duration: parseFloat(info.format.duration) || 0,
+            width: videoStream.width || 0,
+            height: videoStream.height || 0,
+            bitrate: parseInt(info.format.bit_rate) || 0,
+            videoCodec: videoStream.codec_name,
+            audioCodec: audioStream?.codec_name || 'none',
+            pixelFormat: videoStream.pix_fmt,
+            frameRate: this.parseFrameRate(videoStream.r_frame_rate),
+            hasAudio: !!audioStream
+          };
+
+          // Validate video properties
+          this.validateVideoProperties(videoInfo);
+
+          resolve(videoInfo);
         } catch (error) {
-          reject(error);
+          reject(new Error(`Failed to parse video info: ${error instanceof Error ? error.message : String(error)}`));
         }
       });
 
-      ffprobe.on('error', reject);
+      ffprobe.on('error', (error) => {
+        reject(new Error(`ffprobe process error: ${error.message}`));
+      });
     });
+  }
+
+  /**
+   * Parse frame rate from FFprobe format (e.g., "24000/1001" -> 23.976)
+   */
+  private parseFrameRate(frameRateStr: string): number {
+    if (!frameRateStr || frameRateStr === '0/0') return 0;
+    
+    const parts = frameRateStr.split('/');
+    if (parts.length === 2) {
+      const numerator = parseInt(parts[0]);
+      const denominator = parseInt(parts[1]);
+      return denominator > 0 ? numerator / denominator : 0;
+    }
+    
+    return parseFloat(frameRateStr) || 0;
+  }
+
+  /**
+   * Validate video properties and warn about potential issues
+   */
+  private validateVideoProperties(videoInfo: any): void {
+    const issues: string[] = [];
+
+    if (videoInfo.duration <= 0) {
+      issues.push('Invalid or missing duration');
+    }
+
+    if (videoInfo.width <= 0 || videoInfo.height <= 0) {
+      issues.push('Invalid video dimensions');
+    }
+
+    if (!videoInfo.hasAudio) {
+      console.log('⚠️  Warning: No audio stream detected - will encode video-only HLS');
+    }
+
+    // Check for problematic codecs
+    const problematicVideoCodecs = ['rv40', 'rv30', 'wmv3', 'vc1'];
+    if (problematicVideoCodecs.includes(videoInfo.videoCodec)) {
+      console.log(`⚠️  Warning: Video codec '${videoInfo.videoCodec}' may require special handling`);
+    }
+
+    // Check for unusual pixel formats
+    const supportedPixelFormats = ['yuv420p', 'yuv422p', 'yuv444p', 'yuvj420p', 'yuvj422p', 'yuvj444p'];
+    if (videoInfo.pixelFormat && !supportedPixelFormats.includes(videoInfo.pixelFormat)) {
+      console.log(`⚠️  Warning: Unusual pixel format '${videoInfo.pixelFormat}' detected`);
+    }
+
+    // Check for very high frame rates
+    if (videoInfo.frameRate > 60) {
+      console.log(`⚠️  Warning: High frame rate detected (${videoInfo.frameRate.toFixed(2)} fps) - may increase encoding time`);
+    }
+
+    if (issues.length > 0) {
+      throw new Error(`Video validation failed: ${issues.join(', ')}`);
+    }
   }
 
   /**
@@ -253,13 +344,14 @@ class HLSSegmenter {
   }
 
   /**
-   * Generate segments for a specific bitrate
+   * Generate segments for a specific bitrate with fallback options
    */
   private async generateBitrateSegments(
     inputPath: string,
     bitrate: BitrateConfig,
     segmentDuration: number,
-    movieId: string
+    movieId: string,
+    videoInfo?: any
   ): Promise<string> {
     const outputDir = path.join(this.tempDir, bitrate.name);
     await fs.mkdir(outputDir, { recursive: true });
@@ -267,37 +359,133 @@ class HLSSegmenter {
     const playlistPath = path.join(outputDir, 'playlist.m3u8');
     const segmentPattern = path.join(outputDir, 'segment_%03d.ts');
 
+    // Try multiple encoding strategies if the first one fails
+    const strategies = [
+      () => this.generateWithStrategy(inputPath, bitrate, segmentDuration, playlistPath, segmentPattern, 'optimal', videoInfo),
+      () => this.generateWithStrategy(inputPath, bitrate, segmentDuration, playlistPath, segmentPattern, 'compatible', videoInfo),
+      () => this.generateWithStrategy(inputPath, bitrate, segmentDuration, playlistPath, segmentPattern, 'fallback', videoInfo)
+    ];
+
+    for (let i = 0; i < strategies.length; i++) {
+      try {
+        console.log(`Attempting encoding strategy ${i + 1}/${strategies.length} for ${bitrate.name}...`);
+        return await strategies[i]();
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        console.log(`Strategy ${i + 1} failed for ${bitrate.name}:`, errorMessage);
+        if (i === strategies.length - 1) {
+          throw new Error(`All encoding strategies failed for ${bitrate.name}. Last error: ${errorMessage}`);
+        }
+        console.log(`Trying fallback strategy ${i + 2}...`);
+      }
+    }
+
+    throw new Error(`Unexpected error in generateBitrateSegments for ${bitrate.name}`);
+  }
+
+  /**
+   * Generate segments with a specific encoding strategy
+   */
+  private async generateWithStrategy(
+    inputPath: string,
+    bitrate: BitrateConfig,
+    segmentDuration: number,
+    playlistPath: string,
+    segmentPattern: string,
+    strategy: 'optimal' | 'compatible' | 'fallback',
+    videoInfo?: any
+  ): Promise<string> {
     return new Promise((resolve, reject) => {
       const isOriginalQuality = bitrate.name.startsWith('original');
       
-      const ffmpegArgs = [
+      let ffmpegArgs = [
         '-i', inputPath,
-        '-c:v', 'libx264',
-        '-c:a', 'aac',
-        '-b:v', bitrate.videoBitrate,
-        '-b:a', bitrate.audioBitrate,
-        '-maxrate', bitrate.maxrate,
-        '-bufsize', bitrate.bufsize
+        '-c:v', 'libx264'
       ];
 
-      // Only scale if not original quality
-      if (!isOriginalQuality) {
-        ffmpegArgs.push('-vf', `scale=${bitrate.resolution}`);
+      // Handle audio encoding based on whether audio stream exists
+      if (videoInfo?.hasAudio !== false) {
+        ffmpegArgs.push('-c:a', 'aac');
+      } else {
+        ffmpegArgs.push('-an'); // No audio
       }
 
-      // Enhanced quality settings - optimized for speed vs quality balance
+      // Strategy-specific parameters
+      switch (strategy) {
+        case 'optimal':
+          ffmpegArgs.push(
+            '-b:v', bitrate.videoBitrate,
+            '-b:a', bitrate.audioBitrate,
+            '-maxrate', bitrate.maxrate,
+            '-bufsize', bitrate.bufsize
+          );
+
+          // Only scale if not original quality
+          if (!isOriginalQuality) {
+            ffmpegArgs.push('-vf', `scale=${bitrate.resolution}`);
+          }
+
+          // Enhanced quality settings
+          ffmpegArgs.push(
+            '-preset', isOriginalQuality ? 'medium' : 'fast',
+            '-crf', isOriginalQuality ? '20' : '23',
+            '-profile:v', 'high',
+            '-level', '4.1',
+            '-pix_fmt', 'yuv420p',
+            '-g', '48',
+            '-keyint_min', '48',
+            '-sc_threshold', '0',
+            '-b_strategy', '1',
+            '-bf', '3',
+            '-refs', '3'
+          );
+          break;
+
+        case 'compatible':
+          // More compatible settings, remove some advanced options
+          ffmpegArgs.push(
+            '-b:v', bitrate.videoBitrate,
+            '-b:a', bitrate.audioBitrate
+          );
+
+          if (!isOriginalQuality) {
+            ffmpegArgs.push('-vf', `scale=${bitrate.resolution}`);
+          }
+
+          ffmpegArgs.push(
+            '-preset', 'fast',
+            '-crf', '23',
+            '-profile:v', 'main', // Use main profile instead of high
+            '-level', '3.1', // Lower level for compatibility
+            '-pix_fmt', 'yuv420p',
+            '-g', '30', // Smaller GOP
+            '-keyint_min', '30'
+          );
+          break;
+
+        case 'fallback':
+          // Minimal settings for maximum compatibility
+          ffmpegArgs.push(
+            '-b:v', bitrate.videoBitrate,
+            '-b:a', '128k' // Lower audio bitrate
+          );
+
+          if (!isOriginalQuality) {
+            ffmpegArgs.push('-vf', `scale=${bitrate.resolution}`);
+          }
+
+          ffmpegArgs.push(
+            '-preset', 'ultrafast', // Fastest encoding
+            '-crf', '28', // Lower quality but more compatible
+            '-profile:v', 'baseline', // Most compatible profile
+            '-level', '3.0',
+            '-pix_fmt', 'yuv420p'
+          );
+          break;
+      }
+
+      // Common HLS settings
       ffmpegArgs.push(
-        '-preset', isOriginalQuality ? 'medium' : 'fast', // Balanced speed/quality for original
-        '-crf', isOriginalQuality ? '20' : '23', // Slightly lower quality for faster encoding
-        '-profile:v', 'high', // H.264 high profile for better compression
-        '-level', '4.1', // H.264 level
-        '-pix_fmt', 'yuv420p', // Pixel format for compatibility
-        '-g', '48', // GOP size (2 seconds at 24fps)
-        '-keyint_min', '48', // Minimum keyframe interval
-        '-sc_threshold', '0', // Disable scene change detection
-        '-b_strategy', '1', // B-frame strategy
-        '-bf', '3', // Max B-frames
-        '-refs', '3', // Reference frames
         '-f', 'hls',
         '-hls_time', segmentDuration.toString(),
         '-hls_playlist_type', 'vod',
@@ -305,28 +493,36 @@ class HLSSegmenter {
         playlistPath
       );
 
-      console.log(`Running FFmpeg for ${bitrate.name}:`, 'ffmpeg', ffmpegArgs.join(' '));
+      console.log(`Running FFmpeg (${strategy}) for ${bitrate.name}:`, 'ffmpeg', ffmpegArgs.join(' '));
 
       const ffmpeg = spawn('ffmpeg', ffmpegArgs);
+      let errorOutput = '';
 
       ffmpeg.stderr.on('data', (data) => {
-        // Log FFmpeg progress
         const output = data.toString();
+        errorOutput += output;
+        
+        // Log FFmpeg progress
         if (output.includes('time=')) {
-          process.stdout.write(`\r${bitrate.name}: ${output.match(/time=(\S+)/)?.[1] || ''}`);
+          process.stdout.write(`\r${bitrate.name} (${strategy}): ${output.match(/time=(\S+)/)?.[1] || ''}`);
         }
       });
 
       ffmpeg.on('close', (code) => {
-        console.log(`\n${bitrate.name} encoding finished with code ${code}`);
+        console.log(`\n${bitrate.name} encoding (${strategy}) finished with code ${code}`);
         if (code !== 0) {
-          reject(new Error(`FFmpeg failed for ${bitrate.name} with code ${code}`));
+          // Include stderr output in error for debugging
+          const errorMsg = `FFmpeg failed for ${bitrate.name} (${strategy}) with code ${code}`;
+          const detailedError = errorOutput.split('\n').slice(-10).join('\n'); // Last 10 lines
+          reject(new Error(`${errorMsg}\nFFmpeg output:\n${detailedError}`));
           return;
         }
         resolve(playlistPath);
       });
 
-      ffmpeg.on('error', reject);
+      ffmpeg.on('error', (error) => {
+        reject(new Error(`FFmpeg process error for ${bitrate.name} (${strategy}): ${error.message}`));
+      });
     });
   }
 
