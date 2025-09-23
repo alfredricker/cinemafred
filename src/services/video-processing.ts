@@ -42,7 +42,7 @@ export async function downloadVideoFromR2(r2VideoPath: string, movieId: string):
         Key: actualR2Path
       });
 
-      const response = await r2Client.send(command);
+      const response = await r2Client().send(command);
       
       if (!response.Body) {
         throw new Error('No video data received from R2');
@@ -126,7 +126,7 @@ export async function deleteOriginalFromR2(r2VideoPath: string, movieTitle: stri
     Key: actualR2Path
   });
 
-  await r2Client.send(command);
+  await r2Client().send(command);
   console.log(`✅ Original video deleted: ${movieTitle}`);
 }
 

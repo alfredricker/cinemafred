@@ -17,7 +17,7 @@ async function deleteR2File(key: string): Promise<void> {
       Key: key
     });
     
-    await r2Client.send(command);
+    await r2Client().send(command);
     console.log(`✅ Deleted R2 file: ${key}`);
   } catch (error) {
     console.error(`❌ Failed to delete R2 file: ${key}`, error);

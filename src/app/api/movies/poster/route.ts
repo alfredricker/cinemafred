@@ -40,7 +40,7 @@ export async function POST(request: Request) {
       ContentType: 'image/jpeg'
     });
 
-    await r2Client.send(command);
+    await r2Client().send(command);
 
     return NextResponse.json({ 
       filename,

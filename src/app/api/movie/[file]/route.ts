@@ -55,7 +55,7 @@ export async function GET(req: Request, { params }: { params: { file: string } }
       Key: file,
     });
 
-    const data = await r2Client.send(command);
+    const data = await r2Client().send(command);
     const stream = data.Body as ReadableStream;
 
     // Determine content type based on file extension

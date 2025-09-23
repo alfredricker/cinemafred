@@ -52,7 +52,7 @@ function getRefreshedAgent() {
 }
 
 // Create the S3 client with dynamic agent refresh and robust timeout configuration
-function createR2Client() {
+function creater2Client() {
   return new S3Client({
     endpoint: `https://${ACCOUNT_ID}.r2.cloudflarestorage.com`,
     region: REGION,
@@ -71,16 +71,16 @@ function createR2Client() {
 }
 
 // Create initial client
-let r2Client = createR2Client();
+let r2Client = creater2Client();
 
 // Function to get a fresh client (recreates if needed)
-function getR2Client() {
+function getr2Client() {
   // Recreate client every 10 minutes to refresh connections
   const now = Date.now();
   if (now - agentCreatedAt > AGENT_REFRESH_INTERVAL) {
-    r2Client = createR2Client();
+    r2Client = creater2Client();
   }
   return r2Client;
 }
 
-export { getR2Client as r2Client, BUCKET_NAME };
+export { getr2Client as r2Client, BUCKET_NAME };

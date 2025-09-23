@@ -5,8 +5,10 @@ import prisma from '@/lib/db';
 
 // Rate limiting for HLS requests
 const rateLimitMap = new Map<string, { count: number; resetTime: number }>();
+const segmentRateLimitMap = new Map<string, { count: number; resetTime: number }>();
 const RATE_LIMIT_WINDOW = 60 * 1000; // 1 minute
-const MAX_REQUESTS_PER_MINUTE = 100; // Max 100 requests per minute per IP
+const MAX_REQUESTS_PER_MINUTE = 100; // Max 30 requests per minute per IP (0.5 req/sec)
+const MAX_SEGMENT_REQUESTS_PER_MINUTE = 5; // Max 5 requests per segment per minute per IP
 
 function checkRateLimit(ip: string): boolean {
   const now = Date.now();
@@ -28,12 +30,37 @@ function checkRateLimit(ip: string): boolean {
   return true;
 }
 
+function checkSegmentRateLimit(ip: string, segmentPath: string): boolean {
+  const now = Date.now();
+  const key = `segment_${ip}_${segmentPath}`;
+  
+  const current = segmentRateLimitMap.get(key);
+  
+  if (!current || now > current.resetTime) {
+    // Reset or initialize
+    segmentRateLimitMap.set(key, { count: 1, resetTime: now + RATE_LIMIT_WINDOW });
+    return true;
+  }
+  
+  if (current.count >= MAX_SEGMENT_REQUESTS_PER_MINUTE) {
+    return false; // Rate limited
+  }
+  
+  current.count++;
+  return true;
+}
+
 // Clean up old entries every 5 minutes
 setInterval(() => {
   const now = Date.now();
   for (const [key, value] of rateLimitMap.entries()) {
     if (now > value.resetTime) {
       rateLimitMap.delete(key);
+    }
+  }
+  for (const [key, value] of segmentRateLimitMap.entries()) {
+    if (now > value.resetTime) {
+      segmentRateLimitMap.delete(key);
     }
   }
 }, 5 * 60 * 1000);
@@ -85,12 +112,12 @@ export async function GET(
       console.log(`Rate limited HLS request from IP: ${ip}`);
       return NextResponse.json({ 
         error: "Too many requests",
-        message: "Rate limit exceeded. Max 100 requests per minute."
+        message: "Rate limit exceeded. Max 30 requests per minute."
       }, { 
         status: 429,
         headers: {
           'Retry-After': '60',
-          'X-RateLimit-Limit': '100',
+          'X-RateLimit-Limit': '30',
           'X-RateLimit-Remaining': '0',
           'X-RateLimit-Reset': new Date(Date.now() + RATE_LIMIT_WINDOW).toISOString()
         }
@@ -113,6 +140,26 @@ export async function GET(
     
     // Reconstruct the path from segments
     const segmentPath = segments.join('/');
+    
+    // Additional rate limiting for specific segments to prevent retry storms
+    if (!checkSegmentRateLimit(ip, segmentPath)) {
+      console.log(`🚫 Segment rate limited: ${ip} requesting ${segmentPath} (too many requests)`);
+      return NextResponse.json({ 
+        error: "Too many requests for this segment",
+        message: "Segment rate limit exceeded. Max 5 requests per segment per minute."
+      }, { 
+        status: 429,
+        headers: {
+          'Retry-After': '60',
+          'X-RateLimit-Limit': '5',
+          'X-RateLimit-Remaining': '0',
+          'X-RateLimit-Reset': new Date(Date.now() + RATE_LIMIT_WINDOW).toISOString()
+        }
+      });
+    }
+    
+    // Log segment requests for debugging
+    console.log(`📺 HLS Segment request: ${ip} -> ${movieId}/${segmentPath}`);
     
     console.log(`HLS Segment request: ${movieId}/${segmentPath}`);
 

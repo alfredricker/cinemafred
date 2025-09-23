@@ -60,7 +60,7 @@ export async function POST(request: Request) {
     });
 
     // Generate presigned URL (valid for 30 minutes)
-    const presignedUrl = await getSignedUrl(r2Client, command, { expiresIn: 1800 });
+    const presignedUrl = await getSignedUrl(r2Client(), command, { expiresIn: 1800 });
 
     return NextResponse.json({
       presignedUrl,

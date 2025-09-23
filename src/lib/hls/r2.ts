@@ -28,7 +28,7 @@ export class HLSR2Manager {
       Key: key
     });
 
-    return await getSignedUrl(r2Client, command, { expiresIn });
+    return await getSignedUrl(r2Client(), command, { expiresIn });
   }
 
   /**
@@ -46,7 +46,7 @@ export class HLSR2Manager {
       Key: key
     });
 
-    return await getSignedUrl(r2Client, command, { expiresIn });
+    return await getSignedUrl(r2Client(), command, { expiresIn });
   }
 
   /**
@@ -65,7 +65,7 @@ export class HLSR2Manager {
       Key: key
     });
 
-    return await getSignedUrl(r2Client, command, { expiresIn });
+    return await getSignedUrl(r2Client(), command, { expiresIn });
   }
 
   /**
@@ -83,7 +83,7 @@ export class HLSR2Manager {
       Prefix: prefix
     });
 
-    const response = await r2Client.send(command);
+    const response = await r2Client().send(command);
     const objects = response.Contents || [];
 
     const result = {
@@ -134,7 +134,7 @@ export class HLSR2Manager {
       Prefix: prefix
     });
 
-    const response = await r2Client.send(listCommand);
+    const response = await r2Client().send(listCommand);
     const objects = response.Contents || [];
 
     if (objects.length === 0) {
@@ -151,7 +151,7 @@ export class HLSR2Manager {
         Key: obj.Key
       });
       
-      return r2Client.send(deleteCommand);
+      return r2Client().send(deleteCommand);
     });
 
     await Promise.all(deletePromises);
@@ -177,7 +177,7 @@ export class HLSR2Manager {
       }
     });
 
-    await r2Client.send(command);
+    await r2Client().send(command);
   }
 
   /**
@@ -192,7 +192,7 @@ export class HLSR2Manager {
       CacheControl: 'max-age=31536000', // Segments are immutable, cache for 1 year
     });
 
-    await r2Client.send(command);
+    await r2Client().send(command);
   }
 
   /**
@@ -213,7 +213,7 @@ export class HLSR2Manager {
       Key: masterKey
     });
 
-    const response = await r2Client.send(getCommand);
+    const response = await r2Client().send(getCommand);
     if (!response.Body) {
       throw new Error('Master playlist not found');
     }
@@ -287,7 +287,7 @@ export class HLSR2Manager {
       Prefix: prefix
     });
 
-    const response = await r2Client.send(listCommand);
+    const response = await r2Client().send(listCommand);
     const totalSize = (response.Contents || []).reduce((sum, obj) => sum + (obj.Size || 0), 0);
 
     return {
@@ -314,7 +314,7 @@ export class HLSR2Manager {
       Key: bitrateKey
     });
 
-    const response = await r2Client.send(getCommand);
+    const response = await r2Client().send(getCommand);
     if (!response.Body) {
       throw new Error(`Bitrate playlist not found: ${bitrate}`);
     }

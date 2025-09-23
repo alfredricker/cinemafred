@@ -1,39 +1,9 @@
 // scripts/cleanup-blobs.ts
 import { 
-  S3Client, 
   ListMultipartUploadsCommand,
   AbortMultipartUploadCommand
 } from "@aws-sdk/client-s3";
-import * as dotenv from 'dotenv';
-
-// Load environment variables from .env file
-dotenv.config();
-
-const REGION = "auto";
-const ACCOUNT_ID = process.env.R2_ACCOUNT_ID;
-const ACCESS_KEY_ID = process.env.R2_ACCESS_KEY_ID;
-const SECRET_ACCESS_KEY = process.env.R2_SECRET_ACCESS_KEY;
-const BUCKET_NAME = process.env.R2_BUCKET_NAME;
-
-// Validate environment variables
-if (!ACCOUNT_ID || !ACCESS_KEY_ID || !SECRET_ACCESS_KEY || !BUCKET_NAME) {
-  console.error("Missing required environment variables. Please ensure you have set:");
-  console.error("- R2_ACCOUNT_ID");
-  console.error("- R2_ACCESS_KEY_ID");
-  console.error("- R2_SECRET_ACCESS_KEY");
-  console.error("- R2_BUCKET_NAME");
-  process.exit(1);
-}
-
-// Create R2 client
-const r2Client = new S3Client({
-  endpoint: `https://${ACCOUNT_ID}.r2.cloudflarestorage.com`,
-  region: REGION,
-  credentials: {
-    accessKeyId: ACCESS_KEY_ID,
-    secretAccessKey: SECRET_ACCESS_KEY,
-  },
-});
+import { r2Client, BUCKET_NAME } from '../src/lib/r2';
 
 async function cleanupIncompleteUploads() {
   try {
@@ -45,7 +15,7 @@ async function cleanupIncompleteUploads() {
       Bucket: BUCKET_NAME
     });
 
-    const response = await r2Client.send(listCommand);
+    const response = await r2Client().send(listCommand);
     
     if (!response.Uploads || response.Uploads.length === 0) {
       console.log('No incomplete multipart uploads found');
@@ -71,7 +41,7 @@ async function cleanupIncompleteUploads() {
         UploadId: upload.UploadId
       });
 
-      await r2Client.send(abortCommand);
+      await r2Client().send(abortCommand);
       console.log(`Successfully aborted upload for ${upload.Key}`);
     }
 

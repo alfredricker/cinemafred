@@ -33,7 +33,7 @@ async function getHLSStorageByQuality(movieId: string): Promise<QualityStorageIn
     Prefix: prefix
   });
 
-  const response = await r2Client.send(command);
+  const response = await r2Client().send(command);
   const objects = response.Contents || [];
 
   // Group objects by quality level

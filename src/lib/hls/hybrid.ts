@@ -24,7 +24,7 @@ export class HLSHybridManager {
       Key: bitrateKey
     });
 
-    const response = await r2Client.send(getCommand);
+    const response = await r2Client().send(getCommand);
     if (!response.Body) {
       throw new Error(`Bitrate playlist not found: ${bitrate}`);
     }
@@ -69,7 +69,7 @@ export class HLSHybridManager {
       Key: masterKey
     });
 
-    const response = await r2Client.send(getCommand);
+    const response = await r2Client().send(getCommand);
     if (!response.Body) {
       throw new Error('Master playlist not found');
     }
@@ -109,7 +109,7 @@ export class HLSHybridManager {
       Key: segmentKey
     });
 
-    return await getSignedUrl(r2Client, command, { 
+    return await getSignedUrl(r2Client(), command, { 
       expiresIn,
       // Add CORS headers to signed URL response
       signableHeaders: new Set(['host'])

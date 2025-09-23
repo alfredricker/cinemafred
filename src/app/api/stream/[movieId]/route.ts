@@ -147,7 +147,7 @@ export async function GET(
       Key: videoKey,
     });
 
-    const headResponse = await retryOperation(() => r2Client.send(headCommand), MAX_RETRIES, RETRY_DELAY);
+    const headResponse = await retryOperation(() => r2Client().send(headCommand), MAX_RETRIES, RETRY_DELAY);
     const contentLength = Number(headResponse.ContentLength || 0);
     const contentType = headResponse.ContentType || 'video/mp4';
     const etag = headResponse.ETag;
@@ -177,7 +177,7 @@ export async function GET(
         Range: `bytes=${start}-${end}`
       });
 
-      const data = await retryOperation(() => r2Client.send(command), MAX_RETRIES, RETRY_DELAY);
+      const data = await retryOperation(() => r2Client().send(command), MAX_RETRIES, RETRY_DELAY);
       const stream = data.Body as ReadableStream;
 
       // Record successful operation
@@ -206,7 +206,7 @@ export async function GET(
       Range: `bytes=0-${DEFAULT_CHUNK_SIZE - 1}`
     });
 
-    const data = await retryOperation(() => r2Client.send(command), MAX_RETRIES, RETRY_DELAY);
+    const data = await retryOperation(() => r2Client().send(command), MAX_RETRIES, RETRY_DELAY);
     const stream = data.Body as ReadableStream;
 
     // Record successful operation

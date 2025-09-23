@@ -140,7 +140,7 @@ async function downloadVideoFromR2(r2VideoPath: string, movieId: string): Promis
     Key: r2Key
   });
 
-  const response = await r2Client.send(command);
+  const response = await r2Client().send(command);
   
   if (!response.Body) {
     throw new Error('No video data received from R2');
@@ -185,7 +185,7 @@ async function deleteOriginalFromR2(r2VideoPath: string, movieTitle: string): Pr
       Key: r2Key
     });
 
-    await r2Client.send(command);
+    await r2Client().send(command);
     console.log(`Original MP4 deleted successfully for: ${movieTitle}`);
     
   } catch (error) {
