@@ -164,6 +164,7 @@ class ExistingMovieConverter {
 
       try {
         // Segment the video using HLS segmenter
+        console.log(`📹 [${movie.title}] Starting HLS conversion...`);
         const segmenter = new HLSSegmenter();
         const hlsPath = await segmenter.segmentVideo({
           inputPath: tempVideoPath,
@@ -171,6 +172,7 @@ class ExistingMovieConverter {
           include480p,
           force
         });
+        console.log(`🎯 [${movie.title}] HLS conversion completed successfully`);
 
         // Update database with HLS path
         await prisma.movie.update({
@@ -186,11 +188,15 @@ class ExistingMovieConverter {
           await this.deleteOriginalFromR2(movie.r2_video_path, movie.title);
         }
 
-        console.log(`✅ Converted: ${movie.title} -> ${hlsPath}`);
+        console.log(`✅ [${movie.title}] Conversion complete -> ${hlsPath}`);
         if (deleteOriginal) {
-          console.log(`🗑️  Original MP4 deleted for: ${movie.title}`);
+          console.log(`🗑️  [${movie.title}] Original MP4 deleted`);
         }
         this.progress.completed++;
+        
+        // Show individual movie completion status
+        const processed = this.progress.completed + this.progress.failed;
+        console.log(`📈 Overall: ${processed}/${this.progress.total} movies processed (${this.progress.completed} successful, ${this.progress.failed} failed)`);
 
       } finally {
         // Clean up downloaded file
@@ -198,8 +204,12 @@ class ExistingMovieConverter {
       }
 
     } catch (error) {
-      console.error(`❌ Failed to convert ${movie.title}:`, error);
+      console.error(`❌ [${movie.title}] Conversion failed:`, error);
       this.progress.failed++;
+      
+      // Show individual movie failure status
+      const processed = this.progress.completed + this.progress.failed;
+      console.log(`📈 Overall: ${processed}/${this.progress.total} movies processed (${this.progress.completed} successful, ${this.progress.failed} failed)`);
       
       // Log the error to a file for later review
       await this.logError(movie, error);
@@ -221,7 +231,7 @@ class ExistingMovieConverter {
       Key: r2Key
     });
 
-    const response = await r2Client.send(command);
+    const response = await r2Client().send(command);
     
     if (!response.Body) {
       throw new Error('No video data received from R2');
@@ -266,7 +276,7 @@ class ExistingMovieConverter {
         Key: r2Key
       });
 
-      await r2Client.send(command);
+      await r2Client().send(command);
       console.log(`✅ Original MP4 deleted successfully for: ${movieTitle}`);
       
     } catch (error) {
@@ -314,8 +324,13 @@ class ExistingMovieConverter {
    * Show conversion progress
    */
   private showProgress(): void {
-    const percentage = ((this.progress.completed + this.progress.failed) / this.progress.total * 100).toFixed(1);
-    console.log(`📊 Progress: ${this.progress.completed + this.progress.failed}/${this.progress.total} (${percentage}%) | ✅ ${this.progress.completed} | ❌ ${this.progress.failed}`);
+    const processed = this.progress.completed + this.progress.failed;
+    const percentage = (processed / this.progress.total * 100).toFixed(1);
+    console.log(`📊 Batch Progress: ${processed}/${this.progress.total} (${percentage}%) | ✅ ${this.progress.completed} successful | ❌ ${this.progress.failed} failed`);
+    
+    if (this.progress.current) {
+      console.log(`🎬 Currently processing: ${this.progress.current}`);
+    }
   }
 
   /**

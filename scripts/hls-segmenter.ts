@@ -58,7 +58,7 @@ class HLSSegmenter {
         MaxKeys: 1
       });
 
-      const response = await r2Client.send(command);
+      const response = await r2Client().send(command);
       return (response.Contents && response.Contents.length > 0) || false;
     } catch (error) {
       console.warn('Warning: Could not check existing HLS files:', error);
@@ -389,18 +389,11 @@ class HLSSegmenter {
         'application/vnd.apple.mpegurl'
       );
 
-      // Upload segments
+      // Upload segments in batches for better performance
       const files = await fs.readdir(segmentDir);
       const segmentFiles = files.filter(f => f.endsWith('.ts'));
 
-      for (const segmentFile of segmentFiles) {
-        const segmentPath = path.join(segmentDir, segmentFile);
-        await this.uploadFileToR2(
-          segmentPath,
-          `hls/${movieId}/${bitrateName}/${segmentFile}`,
-          'video/mp2t'
-        );
-      }
+      await this.uploadSegmentsBatch(segmentFiles, segmentDir, movieId, bitrateName);
 
       totalSegments += segmentFiles.length;
       console.log(`   ✅ ${bitrateName}: ${segmentFiles.length} segments uploaded`);
@@ -416,23 +409,145 @@ class HLSSegmenter {
   }
 
   /**
-   * Upload a single file to R2
+   * Upload segments in concurrent batches to improve performance
+   * Now with smart resume capability - checks existing uploads first
+   */
+  private async uploadSegmentsBatch(
+    segmentFiles: string[],
+    segmentDir: string,
+    movieId: string,
+    bitrateName: string
+  ): Promise<void> {
+    // Check what's already uploaded to avoid re-uploading
+    const existingSegments = await this.getExistingSegments(movieId, bitrateName);
+    const segmentsToUpload = segmentFiles.filter(file => !existingSegments.includes(file));
+    
+    if (segmentsToUpload.length === 0) {
+      console.log(`   ✅ All ${segmentFiles.length} segments already uploaded for ${bitrateName}`);
+      return;
+    }
+    
+    if (segmentsToUpload.length < segmentFiles.length) {
+      const alreadyUploaded = segmentFiles.length - segmentsToUpload.length;
+      console.log(`   📤 ${alreadyUploaded} segments already uploaded, uploading ${segmentsToUpload.length} remaining...`);
+    }
+
+    const batchSize = 15; // Upload 15 segments concurrently (reduced to prevent Cloudflare connection limits)
+    const batches = [];
+    
+    for (let i = 0; i < segmentsToUpload.length; i += batchSize) {
+      batches.push(segmentsToUpload.slice(i, i + batchSize));
+    }
+
+    for (let batchIndex = 0; batchIndex < batches.length; batchIndex++) {
+      const batch = batches[batchIndex];
+      
+      try {
+        const uploadPromises = batch.map(segmentFile => {
+          const segmentPath = path.join(segmentDir, segmentFile);
+          return this.uploadFileToR2(
+            segmentPath,
+            `hls/${movieId}/${bitrateName}/${segmentFile}`,
+            'video/mp2t'
+          );
+        });
+
+        const results = await Promise.all(uploadPromises);
+        
+        // Count successful uploads and skipped segments
+        const successful = results.filter(r => r.success).length;
+        const skipped = results.filter(r => r.skipped).length;
+        
+        if (skipped > 0) {
+          console.log(`\n⚠️  Batch ${batchIndex + 1}: ${successful} uploaded, ${skipped} skipped due to persistent failures`);
+        }
+        
+        // Show progress
+        const processed = Math.min((batchIndex + 1) * batchSize, segmentsToUpload.length);
+        process.stdout.write(`\r   📤 Processed ${processed}/${segmentsToUpload.length} segments...`);
+        
+      } catch (error) {
+        console.error(`\n❌ Batch ${batchIndex + 1} failed, continuing with next batch:`, error);
+        // Continue with next batch instead of failing completely
+      }
+      
+      // Small delay between batches to be respectful to Cloudflare
+      if (batchIndex < batches.length - 1) {
+        await new Promise(resolve => setTimeout(resolve, 100)); // 100ms delay
+      }
+    }
+    console.log(''); // New line after progress
+  }
+
+  /**
+   * Get list of existing segments for a quality from R2
+   */
+  private async getExistingSegments(movieId: string, bitrateName: string): Promise<string[]> {
+    try {
+      const { ListObjectsV2Command } = await import('@aws-sdk/client-s3');
+      
+      const command = new ListObjectsV2Command({
+        Bucket: BUCKET_NAME,
+        Prefix: `hls/${movieId}/${bitrateName}/`,
+        MaxKeys: 1000 // Should be enough for most movies
+      });
+
+      const response = await r2Client().send(command);
+      const objects = response.Contents || [];
+      
+      return objects
+        .map(obj => obj.Key || '')
+        .filter(key => key.endsWith('.ts'))
+        .map(key => path.basename(key));
+        
+    } catch (error) {
+      console.warn(`⚠️  Could not check existing segments for ${bitrateName}:`, error);
+      return []; // If we can't check, assume nothing exists and upload all
+    }
+  }
+
+  /**
+   * Upload a single file to R2 with retry logic and skip on persistent failure
    */
   private async uploadFileToR2(
     filePath: string,
     key: string,
     contentType: string
-  ): Promise<void> {
-    const fileContent = await fs.readFile(filePath);
+  ): Promise<{ success: boolean; skipped: boolean }> {
+    const maxRetries = 5; // Increased to 5 retries
+    let lastError: Error | null = null;
     
-    const command = new PutObjectCommand({
-      Bucket: BUCKET_NAME,
-      Key: key,
-      Body: fileContent,
-      ContentType: contentType
-    });
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        const fileContent = await fs.readFile(filePath);
+        
+        const command = new PutObjectCommand({
+          Bucket: BUCKET_NAME,
+          Key: key,
+          Body: fileContent,
+          ContentType: contentType
+        });
 
-    await r2Client.send(command);
+        await r2Client().send(command);
+        return { success: true, skipped: false }; // Success
+        
+      } catch (error) {
+        lastError = error as Error;
+        
+        if (attempt === maxRetries) {
+          // Final attempt failed, skip this segment
+          console.error(`❌ Skipping ${key} after ${maxRetries} failed attempts: ${lastError.message}`);
+          return { success: false, skipped: true };
+        }
+        
+        // Exponential backoff: 1s, 2s, 4s, 8s, 16s
+        const delayMs = Math.pow(2, attempt - 1) * 1000;
+        console.warn(`⚠️  Upload attempt ${attempt} failed for ${key}, retrying in ${delayMs}ms...`);
+        await new Promise(resolve => setTimeout(resolve, delayMs));
+      }
+    }
+    
+    return { success: false, skipped: true };
   }
 
   /**

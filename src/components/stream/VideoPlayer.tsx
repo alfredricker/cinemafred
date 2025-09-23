@@ -152,6 +152,30 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
       hls.on(Hls.Events.ERROR, (event, data) => {
         console.error('HLS Error:', data);
         
+        // Handle non-fatal fragment errors by skipping to next segment
+        if (!data.fatal && data.type === Hls.ErrorTypes.NETWORK_ERROR) {
+          if (data.details === Hls.ErrorDetails.FRAG_LOAD_ERROR || 
+              data.details === Hls.ErrorDetails.FRAG_LOAD_TIMEOUT ||
+              data.details === Hls.ErrorDetails.FRAG_PARSING_ERROR) {
+            
+            console.log(`Non-fatal fragment error (${data.details}), attempting to skip segment`);
+            
+            // Try to skip to next segment by advancing playhead slightly
+            if (video && !video.paused) {
+              const currentTime = video.currentTime;
+              const segmentDuration = 6; // Our segments are 6 seconds
+              const nextSegmentTime = Math.ceil(currentTime / segmentDuration) * segmentDuration;
+              
+              console.log(`Skipping from ${currentTime}s to ${nextSegmentTime}s`);
+              video.currentTime = nextSegmentTime + 0.1; // Small offset to ensure we're in next segment
+              
+              // Continue playback
+              video.play().catch(err => console.log('Play failed after segment skip:', err));
+              return; // Don't treat as fatal
+            }
+          }
+        }
+        
         if (data.fatal) {
           switch (data.type) {
             case Hls.ErrorTypes.NETWORK_ERROR:

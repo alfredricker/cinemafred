@@ -3,6 +3,41 @@ import { GetObjectCommand } from '@aws-sdk/client-s3';
 import { r2Client, BUCKET_NAME } from '@/lib/r2';
 import prisma from '@/lib/db';
 
+// Rate limiting for HLS requests
+const rateLimitMap = new Map<string, { count: number; resetTime: number }>();
+const RATE_LIMIT_WINDOW = 60 * 1000; // 1 minute
+const MAX_REQUESTS_PER_MINUTE = 100; // Max 100 requests per minute per IP
+
+function checkRateLimit(ip: string): boolean {
+  const now = Date.now();
+  const key = `hls_${ip}`;
+  
+  const current = rateLimitMap.get(key);
+  
+  if (!current || now > current.resetTime) {
+    // Reset or initialize
+    rateLimitMap.set(key, { count: 1, resetTime: now + RATE_LIMIT_WINDOW });
+    return true;
+  }
+  
+  if (current.count >= MAX_REQUESTS_PER_MINUTE) {
+    return false; // Rate limited
+  }
+  
+  current.count++;
+  return true;
+}
+
+// Clean up old entries every 5 minutes
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, value] of rateLimitMap.entries()) {
+    if (now > value.resetTime) {
+      rateLimitMap.delete(key);
+    }
+  }
+}, 5 * 60 * 1000);
+
 // Add CORS headers for OPTIONS requests
 export async function OPTIONS(request: Request) {
   return new Response(null, {
@@ -41,6 +76,27 @@ export async function GET(
   { params }: { params: { movieId: string; segments: string[] } }
 ) {
   try {
+    // Rate limiting
+    const ip = request.headers.get('x-forwarded-for') || 
+              request.headers.get('x-real-ip') || 
+              'unknown';
+    
+    if (!checkRateLimit(ip)) {
+      console.log(`Rate limited HLS request from IP: ${ip}`);
+      return NextResponse.json({ 
+        error: "Too many requests",
+        message: "Rate limit exceeded. Max 100 requests per minute."
+      }, { 
+        status: 429,
+        headers: {
+          'Retry-After': '60',
+          'X-RateLimit-Limit': '100',
+          'X-RateLimit-Remaining': '0',
+          'X-RateLimit-Reset': new Date(Date.now() + RATE_LIMIT_WINDOW).toISOString()
+        }
+      });
+    }
+
     const url = new URL(request.url);
     const token = url.searchParams.get('token');
     
@@ -137,7 +193,7 @@ export async function GET(
       ...(rangeHeader && { Range: rangeHeader })
     });
 
-    const response = await r2Client.send(command);
+    const response = await r2Client().send(command);
     
     if (!response.Body) {
       return NextResponse.json({ error: "Segment not found" }, { status: 404 });
