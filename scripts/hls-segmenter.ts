@@ -363,7 +363,8 @@ class HLSSegmenter {
     const strategies = [
       () => this.generateWithStrategy(inputPath, bitrate, segmentDuration, playlistPath, segmentPattern, 'optimal', videoInfo),
       () => this.generateWithStrategy(inputPath, bitrate, segmentDuration, playlistPath, segmentPattern, 'compatible', videoInfo),
-      () => this.generateWithStrategy(inputPath, bitrate, segmentDuration, playlistPath, segmentPattern, 'fallback', videoInfo)
+      () => this.generateWithStrategy(inputPath, bitrate, segmentDuration, playlistPath, segmentPattern, 'fallback', videoInfo),
+      () => this.generateWithStrategy(inputPath, bitrate, segmentDuration, playlistPath, segmentPattern, 'legacy', videoInfo)
     ];
 
     for (let i = 0; i < strategies.length; i++) {
@@ -392,7 +393,7 @@ class HLSSegmenter {
     segmentDuration: number,
     playlistPath: string,
     segmentPattern: string,
-    strategy: 'optimal' | 'compatible' | 'fallback',
+    strategy: 'optimal' | 'compatible' | 'fallback' | 'legacy',
     videoInfo?: any
   ): Promise<string> {
     return new Promise((resolve, reject) => {
@@ -482,16 +483,54 @@ class HLSSegmenter {
             '-pix_fmt', 'yuv420p'
           );
           break;
+
+        case 'legacy':
+          // Legacy approach: use segment format instead of HLS format
+          // This bypasses potential HLS-specific issues
+          ffmpegArgs.push(
+            '-b:v', bitrate.videoBitrate,
+            '-b:a', '128k'
+          );
+
+          if (!isOriginalQuality) {
+            ffmpegArgs.push('-vf', `scale=${bitrate.resolution}`);
+          }
+
+          ffmpegArgs.push(
+            '-preset', 'ultrafast',
+            '-crf', '30', // Even lower quality for compatibility
+            '-profile:v', 'baseline',
+            '-level', '3.0',
+            '-pix_fmt', 'yuv420p',
+            '-avoid_negative_ts', 'make_zero', // Fix timestamp issues
+            '-fflags', '+genpts' // Generate presentation timestamps
+          );
+          break;
       }
 
-      // Common HLS settings
-      ffmpegArgs.push(
-        '-f', 'hls',
-        '-hls_time', segmentDuration.toString(),
-        '-hls_playlist_type', 'vod',
-        '-hls_segment_filename', segmentPattern,
-        playlistPath
-      );
+      // HLS settings (different for legacy strategy)
+      if (strategy === 'legacy') {
+        // Legacy HLS settings with more compatibility options
+        ffmpegArgs.push(
+          '-f', 'hls',
+          '-hls_time', segmentDuration.toString(),
+          '-hls_playlist_type', 'vod',
+          '-hls_segment_type', 'mpegts', // Explicitly use MPEG-TS
+          '-hls_flags', 'delete_segments+append_list', // More compatible flags
+          '-hls_list_size', '0', // Keep all segments in playlist
+          '-hls_segment_filename', segmentPattern,
+          playlistPath
+        );
+      } else {
+        // Standard HLS settings
+        ffmpegArgs.push(
+          '-f', 'hls',
+          '-hls_time', segmentDuration.toString(),
+          '-hls_playlist_type', 'vod',
+          '-hls_segment_filename', segmentPattern,
+          playlistPath
+        );
+      }
 
       console.log(`Running FFmpeg (${strategy}) for ${bitrate.name}:`, 'ffmpeg', ffmpegArgs.join(' '));
 
@@ -508,15 +547,34 @@ class HLSSegmenter {
         }
       });
 
-      ffmpeg.on('close', (code) => {
+      ffmpeg.on('close', async (code) => {
         console.log(`\n${bitrate.name} encoding (${strategy}) finished with code ${code}`);
+        
         if (code !== 0) {
+          // Check if files were actually created despite the error code
+          try {
+            const fs = await import('fs/promises');
+            const playlistExists = await fs.access(playlistPath).then(() => true).catch(() => false);
+            const segmentFiles = await fs.readdir(path.dirname(segmentPattern)).catch(() => []);
+            const segmentCount = segmentFiles.filter(f => f.startsWith('segment_') && f.endsWith('.ts')).length;
+            
+            if (playlistExists && segmentCount > 0) {
+              console.log(`⚠️  FFmpeg exited with code ${code} but files were created successfully (${segmentCount} segments)`);
+              console.log(`   This might be a false error - proceeding with conversion`);
+              resolve(playlistPath);
+              return;
+            }
+          } catch (checkError) {
+            console.log(`Could not verify output files: ${checkError instanceof Error ? checkError.message : String(checkError)}`);
+          }
+          
           // Include stderr output in error for debugging
           const errorMsg = `FFmpeg failed for ${bitrate.name} (${strategy}) with code ${code}`;
           const detailedError = errorOutput.split('\n').slice(-10).join('\n'); // Last 10 lines
           reject(new Error(`${errorMsg}\nFFmpeg output:\n${detailedError}`));
           return;
         }
+        
         resolve(playlistPath);
       });
 

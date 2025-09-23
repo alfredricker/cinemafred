@@ -31,7 +31,8 @@
     "check-storage": "tsx scripts/check-hls-storage.ts",
     "conversion-status": "tsx scripts/conversion-status.ts",
     "resume-uploads": "tsx scripts/resume-hls-uploads.ts",
-    "check-segments": "tsx scripts/check-segment-integrity.ts"
+    "check-segments": "tsx scripts/check-segment-integrity.ts",
+    "missing-hls": "tsx scripts/list-movies-without-hls.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.726.1",
