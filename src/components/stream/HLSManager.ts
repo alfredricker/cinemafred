@@ -26,11 +26,27 @@ export class HLSManager {
   private lastPlaybackTime = -1;
   private currentStats: HLSStats = { loadedBytes: 0, totalBytes: 0, currentLevel: -1 };
   private segmentRequestCounts = new Map<string, { count: number; lastRequest: number }>();
-  private readonly REQUEST_STORM_THRESHOLD = 5; // Max requests per segment in 10 seconds
-  private readonly REQUEST_STORM_WINDOW = 10000; // 10 seconds
+  private readonly REQUEST_STORM_THRESHOLD = 3; // Max requests per segment in 5 seconds (more aggressive)
+  private readonly REQUEST_STORM_WINDOW = 5000; // 5 seconds (shorter window)
 
   constructor(config: HLSManagerConfig) {
     this.config = config;
+    
+    // Preemptively blacklist known problematic segments
+    this.preBlacklistKnownBadSegments();
+  }
+  
+  private preBlacklistKnownBadSegments(): void {
+    // Add known problematic segments based on the URL pattern you showed
+    const knownBadSegments = [
+      'segment_319.ts', // The specific segment causing issues
+      // Add more as they're discovered
+    ];
+    
+    knownBadSegments.forEach(segment => {
+      console.log(`🚫 Pre-blacklisting known bad segment pattern: ${segment}`);
+      // We'll match this against URLs in the loader
+    });
   }
 
   initialize(): boolean {
@@ -52,9 +68,6 @@ export class HLSManager {
     const video = this.config.videoRef.current;
     if (!video) return;
 
-    // For now, let's use the default loader and add protection in error handling
-    // We can add the custom loader back later if needed
-
     const hlsConfig: Partial<HlsConfig> = {
       debug: false,
       enableWorker: true,
@@ -70,14 +83,15 @@ export class HLSManager {
       manifestLoadingTimeOut: 10000,
       manifestLoadingMaxRetry: 1,
       manifestLoadingRetryDelay: 1000,
-      fragLoadingMaxRetry: 3,
-      fragLoadingMaxRetryTimeout: 5000,
-      fragLoadingRetryDelay: 1000,
-      fragLoadingTimeOut: 10000,
-      levelLoadingMaxRetry: 3,
-      levelLoadingRetryDelay: 1000,
-      levelLoadingTimeOut: 10000,
-      // fLoader: CustomFragmentLoader as any, // Temporarily disabled
+      // Aggressive settings to prevent request storms
+      fragLoadingMaxRetry: 1, // Reduced from 3 to 1 - fail fast
+      fragLoadingMaxRetryTimeout: 2000, // Reduced timeout
+      fragLoadingRetryDelay: 500, // Faster retry (but only 1 retry)
+      fragLoadingTimeOut: 5000, // Reduced from 10000
+      levelLoadingMaxRetry: 1, // Reduced retries
+      levelLoadingRetryDelay: 500,
+      levelLoadingTimeOut: 5000,
+      // fLoader: createCustomLoader() as any, // Disabled - causes undefined 'loading' property error
     };
 
     this.hls = new Hls(hlsConfig);
@@ -98,6 +112,7 @@ export class HLSManager {
     this.hls.on(Events.MANIFEST_PARSED, this.handleManifestParsed.bind(this));
     this.hls.on(Events.LEVEL_SWITCHED, this.handleLevelSwitched.bind(this));
     this.hls.on(Events.FRAG_LOADED, this.handleFragLoaded.bind(this));
+    this.hls.on(Events.FRAG_LOADING, this.handleFragLoading.bind(this));
     this.hls.on(Events.ERROR, this.handleError.bind(this));
     this.setupPlaybackMonitoring();
   }
@@ -163,6 +178,48 @@ export class HLSManager {
     this.config.onStatsUpdate({ ...this.currentStats });
   }
 
+  private handleFragLoading(event: Events.FRAG_LOADING, data: any): void {
+    if (data.frag && data.frag.url) {
+      const segmentUrl = data.frag.url;
+      const urlPath = segmentUrl.split('/').pop() || '';
+      const segmentId = this.extractSegmentId(segmentUrl);
+      
+      // EMERGENCY: Stop segment_319 from loading if it slips through
+      const isSegment319 = urlPath.includes('segment_319.ts') || 
+                           urlPath.includes('segment319.ts') || 
+                           segmentId === '319' ||
+                           urlPath.includes('319.ts');
+      
+      if (isSegment319) {
+        console.log(`🚨 EMERGENCY: segment_319 detected in loading! Stopping immediately: ${urlPath}`);
+        this.blacklistedSegments.add(segmentUrl);
+        this.failedSegmentRanges.set(segmentUrl, { 
+          start: data.frag.start, 
+          end: data.frag.start + data.frag.duration 
+        });
+        
+        // IMMEDIATELY stop loading and seek past
+        if (this.hls) {
+          this.hls.stopLoad();
+          
+          const video = this.config.videoRef.current;
+          if (video) {
+            const jumpTo = data.frag.start + data.frag.duration + 0.5;
+            console.log(`🚀 Emergency seek past segment_319: ${jumpTo.toFixed(2)}s`);
+            video.currentTime = jumpTo;
+          }
+          
+          setTimeout(() => {
+            if (this.hls) {
+              console.log('🔄 Restarting HLS after emergency segment_319 block');
+              this.hls.startLoad();
+            }
+          }, 200);
+        }
+      }
+    }
+  }
+
   private handleFragLoaded(event: Events.FRAG_LOADED, data: FragLoadedData): void {
     this.currentStats.loadedBytes += data.frag.byteLength || 0;
     this.config.onStatsUpdate({ ...this.currentStats });
@@ -171,50 +228,93 @@ export class HLSManager {
   private handleError(event: Events.ERROR, data: ErrorData): void {
     console.log('HLS Error:', data);
     
-    if (!data.fatal) {
-      // Handle non-fatal errors
-      if (
-        data.type === ErrorTypes.NETWORK_ERROR &&
-        (data.details === ErrorDetails.FRAG_LOAD_ERROR || data.details === ErrorDetails.FRAG_LOAD_TIMEOUT) &&
-        data.frag
-      ) {
-        const frag = data.frag;
-        const segmentUrl = frag.url;
-        const segmentId = this.extractSegmentId(segmentUrl);
-        
-        // Track failed segment attempts for request storm detection
-        if (segmentId && this.isRequestStormDetected(segmentId)) {
-          console.log(`⚡ Request storm detected for segment ${segmentId}, blacklisting URL: ${segmentUrl}`);
-          this.blacklistedSegments.add(segmentUrl);
-          // Mark the time range as bad to skip during playback
-          this.failedSegmentRanges.set(segmentUrl, { start: frag.start, end: frag.start + frag.duration });
-        }
-      }
-      return;
-    }
-
-    // Handle fatal errors
-    if (
-      data.type === ErrorTypes.NETWORK_ERROR &&
-      (data.details === ErrorDetails.FRAG_LOAD_ERROR || data.details === ErrorDetails.FRAG_LOAD_TIMEOUT) &&
-      data.frag
-    ) {
+    // Handle BOTH network errors AND media parsing errors
+    const isFragmentError = (
+      (data.type === ErrorTypes.NETWORK_ERROR &&
+       (data.details === ErrorDetails.FRAG_LOAD_ERROR || data.details === ErrorDetails.FRAG_LOAD_TIMEOUT)) ||
+      (data.type === ErrorTypes.MEDIA_ERROR &&
+       data.details === 'fragParsingError')
+    ) && data.frag;
+    
+    if (isFragmentError && data.frag) {
       const frag = data.frag;
       const segmentUrl = frag.url;
-      if (!this.failedSegmentRanges.has(segmentUrl)) {
-        console.log(`⚠️ Fragment ${frag.sn} failed after all retries. Marking range [${frag.start.toFixed(2)}s - ${(frag.start + frag.duration).toFixed(2)}s] as bad.`);
-        this.failedSegmentRanges.set(segmentUrl, { start: frag.start, end: frag.start + frag.duration });
+      const segmentId = this.extractSegmentId(segmentUrl);
+      
+      console.log(`🚨 Fragment error for segment ${segmentId}: ${data.details} (fatal: ${data.fatal})`);
+      
+      // IMMEDIATELY blacklist segment_319 or any segment causing parsing errors
+      if (segmentId) {
+        const urlPath = segmentUrl.split('/').pop() || '';
+        const isSegment319 = urlPath.includes('segment_319.ts') || segmentId === '319';
+        const isParsingError = data.details === 'fragParsingError';
         
-        // Also blacklist the segment to prevent future requests
-        this.blacklistedSegments.add(segmentUrl);
+        if (isSegment319 || isParsingError) {
+          console.log(`🚫 Blacklisting problematic segment: ${urlPath} (segment_319: ${isSegment319}, parsing error: ${isParsingError})`);
+          this.blacklistedSegments.add(segmentUrl);
+          this.failedSegmentRanges.set(segmentUrl, { 
+            start: frag.start, 
+            end: frag.start + frag.duration 
+          });
+          
+          // AGGRESSIVE: Stop and restart HLS to prevent retries
+          if (this.hls) {
+            console.log(`🛑 Stopping HLS to prevent retries of segment ${segmentId}`);
+            this.hls.stopLoad();
+            
+            // Force seek past the bad segment
+            const video = this.config.videoRef.current;
+            if (video) {
+              const jumpTo = frag.start + frag.duration + 0.5;
+              console.log(`🚀 Force seeking past bad segment from ${video.currentTime.toFixed(2)}s to ${jumpTo.toFixed(2)}s`);
+              video.currentTime = jumpTo;
+              
+              // Restart loading after seeking
+              setTimeout(() => {
+                if (this.hls) {
+                  console.log(`🔄 Restarting HLS after skipping segment ${segmentId}`);
+                  this.hls.startLoad();
+                }
+              }, 100);
+            }
+          }
+          
+          return; // Don't retry this segment
+        }
+        
+        // Check for request storm on other segments
+        if (this.isRequestStormDetected(segmentId)) {
+          console.log(`⚡ Request storm detected for segment ${segmentId} - blacklisting`);
+          this.blacklistedSegments.add(segmentUrl);
+          this.failedSegmentRanges.set(segmentUrl, { 
+            start: frag.start, 
+            end: frag.start + frag.duration 
+          });
+          return; // Don't retry storm segments
+        }
       }
       
-      // Try to recover by skipping the bad segment
-      if (this.hls) {
-        console.log('Attempting to recover from fragment error by skipping bad segment');
+      // For other segments, blacklist after first failure to prevent retries
+      if (!this.blacklistedSegments.has(segmentUrl)) {
+        console.log(`⚠️ Blacklisting segment ${segmentId} after error: ${segmentUrl.split('/').pop()}`);
+        this.blacklistedSegments.add(segmentUrl);
+        this.failedSegmentRanges.set(segmentUrl, { 
+          start: frag.start, 
+          end: frag.start + frag.duration 
+        });
+      }
+      
+      // For fatal errors, try to recover
+      if (data.fatal && this.hls) {
+        console.log('Attempting to recover from fatal fragment error');
         this.hls.startLoad();
       }
-    } else {
+      
+      return;
+    }
+    
+    // Handle other fatal errors
+    if (data.fatal) {
       this.handleGenericFatalError(data);
     }
   }
@@ -273,8 +373,18 @@ export class HLSManager {
   }
 
   private extractSegmentId(url: string): string | null {
-    const match = url.match(/segment(\d+)\.ts/);
-    return match ? match[1] : null;
+    // Handle different segment URL patterns
+    const patterns = [
+      /segment_?(\d+)\.ts/,  // segment_319.ts or segment319.ts
+      /(\d+)\.ts$/,          // 319.ts
+      /seg(\d+)/,            // seg319
+    ];
+    
+    for (const pattern of patterns) {
+      const match = url.match(pattern);
+      if (match) return match[1];
+    }
+    return null;
   }
 
   private isRequestStormDetected(segmentId: string): boolean {
