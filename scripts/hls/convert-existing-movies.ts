@@ -2,7 +2,7 @@
 
 import { PrismaClient } from '@prisma/client';
 import { GetObjectCommand } from '@aws-sdk/client-s3';
-import { r2Client, BUCKET_NAME } from '../src/lib/r2';
+import { r2Client, BUCKET_NAME } from '../../src/lib/r2';
 import { HLSSegmenter } from './hls-segmenter';
 import { promises as fs } from 'fs';
 import path from 'path';

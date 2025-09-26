@@ -130,7 +130,7 @@ export default function LoginPage() {
           >
             {isLoading ? 'Verifying...' : 'Sign in'}
           </button>
-
+          {/*
           <div className="flex items-center justify-center">
             <button
               type="button"
@@ -141,6 +141,7 @@ export default function LoginPage() {
               Continue as Guest
             </button>
           </div>
+          */}
         </form>
       </div>
 

@@ -11,7 +11,7 @@
  */
 
 import { ListObjectsV2Command, GetObjectCommand } from '@aws-sdk/client-s3';
-import { r2Client, BUCKET_NAME } from '../src/lib/r2';
+import { r2Client, BUCKET_NAME } from '../../src/lib/r2';
 import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();

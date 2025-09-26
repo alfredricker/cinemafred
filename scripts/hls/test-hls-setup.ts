@@ -1,7 +1,7 @@
 #!/usr/bin/env tsx
 
 import { spawn } from 'child_process';
-import { hlsR2Manager } from '../src/lib/hls/r2';
+import { hlsR2Manager } from '../../src/lib/hls/r2';
 import { ExistingMovieConverter } from './convert-existing-movies';
 
 /**

@@ -14,7 +14,7 @@
 
 import { PrismaClient } from '@prisma/client';
 import { ListObjectsV2Command, PutObjectCommand } from '@aws-sdk/client-s3';
-import { r2Client, BUCKET_NAME } from '../src/lib/r2';
+import { r2Client, BUCKET_NAME } from '../../src/lib/r2';
 import { promises as fs } from 'fs';
 import path from 'path';
 import os from 'os';
