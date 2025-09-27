@@ -16,15 +16,36 @@ cargo build
 
 ## Running the Application
 
-To run in development mode:
+### Recommended (Auto-detects Wayland):
+```bash
+npm run start
+```
+
+### Manual Options:
+
+For development mode:
 ```bash
 npm run tauri dev
 ```
 
-To build for production:
+For Wayland systems (if auto-detection doesn't work):
+```bash
+npm run start:wayland
+```
+
+For production build:
 ```bash
 npm run tauri build
 ```
+
+### Linux Graphics Compatibility
+
+The app automatically detects if you're running on Wayland and applies the necessary compatibility settings:
+- Forces X11 backend (`GDK_BACKEND=x11`)
+- Disables WebKit compositing (`WEBKIT_DISABLE_COMPOSITING_MODE=1`)
+- Disables DMA-BUF renderer (`WEBKIT_DISABLE_DMABUF_RENDERER=1`)
+
+If you encounter graphics issues, you can manually use the `npm run start:wayland` command.
 
 ## Features Implemented
 

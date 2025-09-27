@@ -23,3 +23,6 @@ In order for the app to work, you have to configure the .env file in the app dir
 
 ### Downloading
 Can download files from cloudflare
+
+## Wayland
+Right now, these environment settings are required to run on wayland: WAYLAND_DISPLAY= GDK_BACKEND=x11 WEBKIT_DISABLE_COMPOSITING_MODE=1

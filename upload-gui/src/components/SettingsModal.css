@@ -31,7 +31,7 @@
 
 .modal-header h2 {
   margin: 0;
-  font-size: 1.5rem;
+  font-size: 1.25rem; /* Reduced from 1.5rem */
   font-weight: 600;
   color: #1f2937;
 }
@@ -74,8 +74,8 @@
 }
 
 .settings-section h3 {
-  margin: 0 0 16px 0;
-  font-size: 1.25rem;
+  margin: 0 0 12px 0; /* Reduced margin */
+  font-size: 1rem; /* Reduced from 1.25rem */
   font-weight: 600;
   color: #1f2937;
 }

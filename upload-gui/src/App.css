@@ -1,7 +1,7 @@
 :root {
   font-family: Inter, Avenir, Helvetica, Arial, sans-serif;
-  font-size: 16px;
-  line-height: 24px;
+  font-size: 14px; /* Reduced from 16px */
+  line-height: 20px; /* Reduced from 24px */
   font-weight: 400;
 
   color: #0f0f0f;
@@ -12,6 +12,19 @@
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   -webkit-text-size-adjust: 100%;
+}
+
+/* Scale down all UI elements */
+html {
+  zoom: 0.85; /* Scale everything down to 85% */
+}
+
+/* Alternative scaling for better browser compatibility */
+body {
+  transform-origin: 0 0;
+  transform: scale(0.85);
+  width: 117.65%; /* Compensate for the scaling (100/0.85) */
+  height: 117.65%;
 }
 
 #root {
@@ -38,7 +51,7 @@
 
 .app-header h1 {
   margin: 0;
-  font-size: 2rem;
+  font-size: 1.5rem; /* Reduced from 2rem */
   font-weight: 700;
   color: #1f2937;
 }
@@ -47,10 +60,10 @@
   background-color: #6b7280;
   color: white;
   border: none;
-  padding: 0.5rem 1rem;
-  border-radius: 6px;
+  padding: 0.4rem 0.8rem; /* Reduced padding */
+  border-radius: 4px; /* Smaller border radius */
   cursor: pointer;
-  font-size: 0.875rem;
+  font-size: 0.75rem; /* Reduced from 0.875rem */
   font-weight: 500;
   transition: background-color 0.2s;
 }

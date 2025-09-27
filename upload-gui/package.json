@@ -7,7 +7,9 @@
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
-    "tauri": "tauri"
+    "tauri": "tauri",
+    "start": "./scripts/start-app.sh",
+    "start:wayland": "WAYLAND_DISPLAY= GDK_BACKEND=x11 WEBKIT_DISABLE_COMPOSITING_MODE=1 npm run tauri dev"
   },
   "dependencies": {
     "react": "^19.1.0",

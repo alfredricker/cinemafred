@@ -109,6 +109,29 @@ async fn validate_r2_connection(settings: AppSettings) -> Result<bool, String> {
     Ok(true)
 }
 
+#[tauri::command]
+fn detect_display_server() -> HashMap<String, serde_json::Value> {
+    let mut info = HashMap::new();
+    
+    // Check for Wayland
+    let wayland_display = std::env::var("WAYLAND_DISPLAY").unwrap_or_default();
+    let session_type = std::env::var("XDG_SESSION_TYPE").unwrap_or_default();
+    let is_wayland = !wayland_display.is_empty() || session_type == "wayland";
+    
+    info.insert("is_wayland".to_string(), serde_json::Value::Bool(is_wayland));
+    info.insert("session_type".to_string(), serde_json::Value::String(session_type));
+    info.insert("wayland_display".to_string(), serde_json::Value::String(wayland_display));
+    
+    // Check current environment variables
+    let gdk_backend = std::env::var("GDK_BACKEND").unwrap_or_default();
+    let webkit_compositing = std::env::var("WEBKIT_DISABLE_COMPOSITING_MODE").unwrap_or_default();
+    
+    info.insert("gdk_backend".to_string(), serde_json::Value::String(gdk_backend));
+    info.insert("webkit_compositing_disabled".to_string(), serde_json::Value::String(webkit_compositing));
+    
+    info
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -120,7 +143,8 @@ pub fn run() {
             load_settings,
             save_settings,
             test_gpu_capabilities,
-            validate_r2_connection
+            validate_r2_connection,
+            detect_display_server
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
