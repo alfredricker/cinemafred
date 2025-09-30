@@ -115,7 +115,7 @@ export const EditMovieForm: React.FC<EditMovieFormProps> = ({ isOpen, onClose, m
         throw new Error(data.error || `Failed to get upload URL for ${type}`);
       }
   
-      const { presignedUrl, filename } = await presignedResponse.json();
+      const { presignedUrl, filename, organizedPath } = await presignedResponse.json();
   
       const uploadResponse = await fetch(presignedUrl, {
         method: 'PUT',
@@ -129,7 +129,7 @@ export const EditMovieForm: React.FC<EditMovieFormProps> = ({ isOpen, onClose, m
         throw new Error(`Failed to upload ${type}`);
       }
   
-      return type === 'subtitles' ? filename : `api/movie/${filename}`;
+      return organizedPath;
     } catch (error) {
       console.error(`Upload error for ${type}:`, error);
       throw error;
@@ -390,7 +390,7 @@ export const EditMovieForm: React.FC<EditMovieFormProps> = ({ isOpen, onClose, m
                       value={formData.r2_image_path}
                       onChange={(e) => setFormData(prev => ({ ...prev, r2_image_path: e.target.value }))}
                       className="mt-1 block w-full rounded-md bg-gray-800 border-gray-700 text-white"
-                      placeholder="api/movie/image.jpg"
+                      placeholder="images/image.jpg"
                     />
                   </div>
 
@@ -403,7 +403,7 @@ export const EditMovieForm: React.FC<EditMovieFormProps> = ({ isOpen, onClose, m
                       value={formData.r2_video_path}
                       onChange={(e) => setFormData(prev => ({ ...prev, r2_video_path: e.target.value }))}
                       className="mt-1 block w-full rounded-md bg-gray-800 border-gray-700 text-white"
-                      placeholder="api/movie/video.mp4"
+                      placeholder="movies/video.mp4"
                     />
                   </div>
 
@@ -416,7 +416,7 @@ export const EditMovieForm: React.FC<EditMovieFormProps> = ({ isOpen, onClose, m
                       value={formData.r2_subtitles_path || ''}
                       onChange={(e) => setFormData(prev => ({ ...prev, r2_subtitles_path: e.target.value || null }))}
                       className="mt-1 block w-full rounded-md bg-gray-800 border-gray-700 text-white"
-                      placeholder="api/movie/subtitles.vtt"
+                      placeholder="subtitles/subtitles.vtt"
                     />
                   </div>
 

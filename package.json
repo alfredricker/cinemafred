@@ -26,7 +26,11 @@
     "resume-uploads": "tsx scripts/hls/resume-hls-uploads.ts",
     "missing-hls": "tsx scripts/hls/list-movies-without-hls.ts",
     "backup-metadata": "tsx scripts/hls/backup-movie-metadata.ts",
-    "update-hls-path": "tsx scripts/update-hls-path.ts"
+    "update-hls-path": "tsx scripts/update-hls-path.ts",
+    "migrate-structure": "tsx scripts/migrate-file-structure.ts",
+    "check-paths": "tsx scripts/check-file-paths.ts",
+    "cleanup-prefix": "tsx scripts/cleanup-api-prefix.ts",
+    "full-migration": "tsx scripts/full-migration.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.896.0",

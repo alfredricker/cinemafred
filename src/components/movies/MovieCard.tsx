@@ -46,9 +46,9 @@ export const MovieCard: React.FC<MovieCardProps> = ({ movie, priority = false, o
     }
   };
 
-  // Ensure WEBP format by appending `.webp` or adding a query param (if backend supports it)
+  // Use the organized image path directly (database stores: images/filename.jpg)
   const imageUrl = movie.r2_image_path
-    ? `/api/movie/${movie.r2_image_path.split('/').pop()}?format=webp`
+    ? `/api/movie/${movie.r2_image_path}?format=webp`
     : null;
 
   return (

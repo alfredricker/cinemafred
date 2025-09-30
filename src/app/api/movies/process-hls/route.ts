@@ -130,8 +130,8 @@ export async function POST(request: Request) {
  * Download video file from R2 to local temp file
  */
 async function downloadVideoFromR2(r2VideoPath: string, movieId: string): Promise<string> {
-  // Extract the actual R2 key from the path
-  const r2Key = r2VideoPath.replace('api/movie/', '');
+  // Use the path directly from database (e.g., movies/filename.mp4)
+  const r2Key = r2VideoPath;
   
   console.log(`Downloading ${r2Key} from R2 for HLS processing...`);
 

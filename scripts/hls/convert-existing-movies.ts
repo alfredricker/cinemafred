@@ -220,9 +220,8 @@ class ExistingMovieConverter {
    * Download video file from R2 to local temp file
    */
   private async downloadVideoFromR2(r2VideoPath: string, movieId: string): Promise<string> {
-    // Extract the actual R2 key from the path
-    // r2_video_path is stored as "api/movie/filename.mp4"
-    const r2Key = r2VideoPath.replace('api/movie/', '');
+    // Use the path directly from database (e.g., movies/filename.mp4)
+    const r2Key = r2VideoPath;
     
     console.log(`📥 Downloading ${r2Key} from R2...`);
 

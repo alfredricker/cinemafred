@@ -139,7 +139,8 @@ export async function GET(
       return NextResponse.json({ error: "Movie not found" }, { status: 404 });
     }
 
-    const videoKey = movie.r2_video_path.replace(/^api\/movie\//, '');
+    // Use the path directly from database (e.g., movies/filename.mp4)
+    const videoKey = movie.r2_video_path;
 
     // Get video size with retry
     const headCommand = new GetObjectCommand({

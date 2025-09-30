@@ -259,8 +259,8 @@ export const CreateMovieForm: React.FC<CreateMovieFormProps> = ({ isOpen, onClos
       if (!presignedResponse.ok) {
         throw new Error(data.error || `Failed to get upload URL for ${type}`);
       }
-      
-      const { presignedUrl, filename } = data;
+
+      const { presignedUrl, filename, organizedPath } = data;
   
       // Step 2: Upload the file to R2 using XMLHttpRequest to track progress
       return await new Promise<string>((resolve, reject) => {
@@ -282,7 +282,7 @@ export const CreateMovieForm: React.FC<CreateMovieFormProps> = ({ isOpen, onClos
   
         xhr.onload = () => {
           if (xhr.status === 200) {
-            resolve(filename);
+            resolve(organizedPath);
           } else {
             reject(new Error(`Failed to upload ${type}, status code: ${xhr.status}`));
           }
@@ -311,14 +311,14 @@ export const CreateMovieForm: React.FC<CreateMovieFormProps> = ({ isOpen, onClos
         throw new Error('Video and image files are required');
       }
 
-      // Upload files and get filenames
-      const [videoFilename, imageFilename, subtitlesFilename] = await Promise.all([
+      // Upload files and get organized paths
+      const [videoPath, imagePath, subtitlesPath] = await Promise.all([
         uploadFile(files.video, 'video'),
         uploadFile(files.image, 'image'),
         files.subtitles ? uploadFile(files.subtitles, 'subtitles') : Promise.resolve(null)
       ]);
 
-      // Create movie in database with proper path prefixes
+      // Create movie in database with organized paths
       const response = await fetch('/api/movies', {
         method: 'POST',
         headers: {
@@ -327,9 +327,9 @@ export const CreateMovieForm: React.FC<CreateMovieFormProps> = ({ isOpen, onClos
         },
         body: JSON.stringify({
           ...formData,
-          r2_video_path: `api/movie/${videoFilename}`,
-          r2_image_path: `api/movie/${imageFilename}`,
-          r2_subtitles_path: subtitlesFilename,
+          r2_video_path: videoPath,
+          r2_image_path: imagePath,
+          r2_subtitles_path: subtitlesPath,
         })
       });
 

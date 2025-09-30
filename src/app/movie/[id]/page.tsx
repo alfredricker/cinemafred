@@ -74,9 +74,9 @@ export default function MoviePage() {
     );
   }
 
-  // Construct subtitle URL if available
+  // Construct subtitle URL if available (database stores: subtitles/filename.srt)
   const subtitlesUrl = movie.r2_subtitles_path 
-    ? `/api/movie/${movie.r2_subtitles_path.split('/').pop()}`
+    ? `/api/movie/${movie.r2_subtitles_path}`
     : undefined;
 
   // Determine if HLS should be used
@@ -86,7 +86,7 @@ export default function MoviePage() {
   return (
     <VideoPlayer
       streamUrl={streamUrl}
-      poster={movie.r2_image_path ? `/api/movie/${movie.r2_image_path.split('/').pop()}` : undefined}
+      poster={movie.r2_image_path ? `/api/movie/${movie.r2_image_path}` : undefined}
       title={movie.title}
       movieId={movieId}
       subtitlesUrl={subtitlesUrl}

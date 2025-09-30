@@ -32,19 +32,20 @@ export async function POST(request: Request) {
     const randomString = Math.random().toString(36).substring(7);
     const filename = `poster_${timestamp}_${randomString}.jpg`;
 
-    // Upload to R2
+    // Upload to R2 with organized path
+    const organizedPath = `images/${filename}`;
     const command = new PutObjectCommand({
       Bucket: BUCKET_NAME,
-      Key: filename,
+      Key: organizedPath,
       Body: Buffer.from(imageData),
       ContentType: 'image/jpeg'
     });
 
     await r2Client().send(command);
 
-    return NextResponse.json({ 
+    return NextResponse.json({
       filename,
-      path: `api/movie/${filename}` 
+      path: organizedPath
     });
 
   } catch (error) {

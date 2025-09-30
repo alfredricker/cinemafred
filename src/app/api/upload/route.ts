@@ -52,10 +52,26 @@ export async function POST(request: Request) {
       }, { status: 400 });
     }
 
+    // Generate organized file path based on type
+    let organizedPath: string;
+    switch (type) {
+      case 'video':
+        organizedPath = `movies/${filename}`;
+        break;
+      case 'image':
+        organizedPath = `images/${filename}`;
+        break;
+      case 'subtitles':
+        organizedPath = `subtitles/${filename}`;
+        break;
+      default:
+        organizedPath = filename;
+    }
+
     // Create command for presigned URL
     const command = new PutObjectCommand({
       Bucket: BUCKET_NAME,
-      Key: filename,
+      Key: organizedPath,
       ContentType: contentType
     });
 
@@ -64,7 +80,8 @@ export async function POST(request: Request) {
 
     return NextResponse.json({
       presignedUrl,
-      filename
+      filename,
+      organizedPath
     });
 
   } catch (error) {

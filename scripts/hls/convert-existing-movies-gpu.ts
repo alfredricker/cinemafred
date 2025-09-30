@@ -285,7 +285,8 @@ class GPUMovieConverter {
    * Download video file from R2 to local temp file
    */
   private async downloadVideoFromR2(r2VideoPath: string, movieId: string): Promise<string> {
-    const r2Key = r2VideoPath.replace('api/movie/', '');
+    // Use the path directly from database (e.g., movies/filename.mp4)
+    const r2Key = r2VideoPath;
     
     console.log(`📥 Downloading ${r2Key} from R2...`);
 

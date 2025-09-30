@@ -94,8 +94,8 @@ export const MovieDetailsModal: React.FC<MovieDetailsModalProps> = ({
   };
 
   const getOptimizedImageUrl = (path: string) => {
-    // Use the same format as MovieCard for consistency
-    return `/api/movie/${path.split('/').pop()}?format=webp`;
+    // Use the organized path directly (database stores: images/filename.jpg)
+    return `/api/movie/${path}?format=webp`;
   };
 
   if (!isOpen) return null;
