@@ -28,9 +28,12 @@
     "backup-metadata": "tsx scripts/hls/backup-movie-metadata.ts",
     "update-hls-path": "tsx scripts/update-hls-path.ts",
     "migrate-structure": "tsx scripts/migrate-file-structure.ts",
+    "migrate-structure:improved": "tsx scripts/migrate-file-structure-improved.ts",
     "check-paths": "tsx scripts/check-file-paths.ts",
     "cleanup-prefix": "tsx scripts/cleanup-api-prefix.ts",
-    "full-migration": "tsx scripts/full-migration.ts"
+    "cleanup-prefix:improved": "tsx scripts/cleanup-api-prefix-improved.ts",
+    "full-migration": "tsx scripts/full-migration.ts",
+    "full-migration:improved": "tsx scripts/full-migration-improved.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.896.0",

@@ -50,19 +50,19 @@ async function cleanupApiPrefix() {
       try {
         const updateData: any = {};
 
-        // Clean video path and add proper prefix
+        // Clean video path and add proper prefix (files are stored flat in R2)
         if (movie.r2_video_path?.includes('api/movie/')) {
           const filename = movie.r2_video_path.replace('api/movie/', '');
           updateData.r2_video_path = `movies/${filename}`;
         }
 
-        // Clean image path and add proper prefix
+        // Clean image path and add proper prefix (files are stored flat in R2)
         if (movie.r2_image_path?.includes('api/movie/')) {
           const filename = movie.r2_image_path.replace('api/movie/', '');
           updateData.r2_image_path = `images/${filename}`;
         }
 
-        // Clean subtitles path and add proper prefix
+        // Clean subtitles path and add proper prefix (files are stored flat in R2)
         if (movie.r2_subtitles_path?.includes('api/movie/')) {
           const filename = movie.r2_subtitles_path.replace('api/movie/', '');
           updateData.r2_subtitles_path = `subtitles/${filename}`;

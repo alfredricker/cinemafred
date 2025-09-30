@@ -17,8 +17,8 @@
  */
 
 import prisma from '../src/lib/db';
-import { S3Client, ListObjectsV2Command, CopyObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
-import { BUCKET_NAME } from '../src/lib/r2';
+import { ListObjectsV2Command, CopyObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
+import { r2Client, BUCKET_NAME } from '../src/lib/r2';
 
 interface FileMigration {
   movieId: string;
@@ -26,15 +26,6 @@ interface FileMigration {
   newPath: string;
   fileType: 'video' | 'image' | 'subtitles';
 }
-
-const s3Client = new S3Client({
-  region: 'auto',
-  endpoint: process.env.R2_ENDPOINT,
-  credentials: {
-    accessKeyId: process.env.R2_ACCESS_KEY_ID!,
-    secretAccessKey: process.env.R2_SECRET_ACCESS_KEY!,
-  },
-});
 
 async function listR2Objects(prefix?: string): Promise<string[]> {
   const objects: string[] = [];
@@ -47,7 +38,7 @@ async function listR2Objects(prefix?: string): Promise<string[]> {
       ContinuationToken: continuationToken,
     });
 
-    const response = await s3Client.send(command);
+    const response = await r2Client().send(command);
 
     if (response.Contents) {
       objects.push(...response.Contents.map(obj => obj.Key!).filter(key => key));
@@ -190,17 +181,20 @@ async function migrateFileStructure() {
 
     for (const migration of migrations) {
       try {
-        // Copy file to new location
-        await s3Client.send(new CopyObjectCommand({
+        // Since files are stored flat in R2, copy from the flat path to organized path
+        const flatPath = migration.oldPath.replace('api/movie/', '');
+
+        // Copy file from flat location to organized location
+        await r2Client().send(new CopyObjectCommand({
           Bucket: BUCKET_NAME,
-          CopySource: `${BUCKET_NAME}/${migration.oldPath}`,
+          CopySource: `${BUCKET_NAME}/${flatPath}`,
           Key: migration.newPath
         }));
 
-        // Delete old file
-        await s3Client.send(new DeleteObjectCommand({
+        // Delete the flat file
+        await r2Client().send(new DeleteObjectCommand({
           Bucket: BUCKET_NAME,
-          Key: migration.oldPath
+          Key: flatPath
         }));
 
         // Update database
