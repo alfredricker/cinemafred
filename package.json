@@ -20,14 +20,16 @@
     "segment-video": "tsx scripts/hls/hls-segmenter.ts",
     "analyze-quality": "tsx scripts/analyze-video-quality.ts",
     "analyze-quality:movie": "tsx scripts/analyze-video-quality.ts",
-    "query-movie": "tsx scripts/query-by-name.ts",
-    "query-movie:interactive": "tsx scripts/query-by-name.ts --interactive",
+    "query-movie": "tsx scripts/query.ts",
+    "query-movie:interactive": "tsx scripts/query.ts --interactive",
     "conversion-status": "tsx scripts/conversion-status.ts",
     "resume-uploads": "tsx scripts/hls/resume-hls-uploads.ts",
-    "missing-hls": "tsx scripts/hls/list-movies-without-hls.ts"
+    "missing-hls": "tsx scripts/hls/list-movies-without-hls.ts",
+    "backup-metadata": "tsx scripts/hls/backup-movie-metadata.ts",
+    "update-hls-path": "tsx scripts/update-hls-path.ts"
   },
   "dependencies": {
-    "@aws-sdk/client-s3": "^3.726.1",
+    "@aws-sdk/client-s3": "^3.896.0",
     "@aws-sdk/s3-request-presigner": "^3.726.1",
     "@prisma/client": "^5.9.1",
     "@types/express": "^5.0.3",

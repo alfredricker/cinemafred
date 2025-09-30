@@ -53,6 +53,7 @@ npm run job:run <movie-id>
 | `npm run convert-job` | List movies available for conversion |
 | `npm run convert-job -- <movie-id>` | Convert specific movie |
 | `npm run convert-job -- --all` | Convert all movies needing conversion |
+| `npm run backup-metadata` | Backup movie metadata to R2 info.json files |
 
 ## 🏗️ Architecture
 
@@ -141,3 +142,48 @@ npm run job:deploy  # Redeploy with new settings
 **Webhook not received:**
 - Check Next.js app logs for any issues
 - Verify database connectivity and R2 storage access
+
+## 💾 Movie Metadata Backup
+
+The backup system creates `info.json` files in each HLS directory to preserve movie metadata in case of database issues.
+
+**Backup all movies:**
+```bash
+npm run backup-metadata
+```
+
+**Force backup (overwrite existing):**
+```bash
+npm run backup-metadata -- --force
+```
+
+**Backup specific movie:**
+```bash
+npm run backup-metadata -- --movie-id <movie-id>
+```
+
+**Verify backup integrity:**
+```bash
+npm run backup-metadata -- --verify <movie-id>
+```
+
+### Backup Structure
+
+Each backup creates an `info.json` file at `hls/{movieId}/info.json` containing:
+```json
+{
+  "id": "movie-uuid",
+  "title": "Movie Title",
+  "year": 2023,
+  "duration": 7200,
+  "director": "Director Name",
+  "genre": ["Action", "Drama"],
+  "rating": 8.5,
+  "averageRating": 8.2,
+  "description": "Movie description...",
+  "created_at": "2023-01-01T00:00:00.000Z",
+  "updated_at": "2023-01-01T00:00:00.000Z"
+}
+```
+
+**Note**: Cloudflare-specific fields (video IDs, R2 paths) are excluded to focus on core movie data.

@@ -10,6 +10,7 @@ interface MovieInput {
   r2_video_path: string;
   r2_image_path: string;
   r2_subtitles_path?: string;
+  id?: string;
 }
 
 const addMovie = async () => {
@@ -22,7 +23,8 @@ const addMovie = async () => {
     description,
     videoPath,
     imagePath,
-    subtitlesPath
+    subtitlesPath,
+    id
   ] = process.argv.slice(2);
 
   if (!title || !year || !director || !genreString || !description || !videoPath || !imagePath) {
@@ -41,7 +43,8 @@ Example: npm run add-movie "The Matrix" 1999 "Wachowski Sisters" "Action,Sci-Fi"
     description,
     r2_video_path: videoPath,
     r2_image_path: imagePath,
-    r2_subtitles_path: subtitlesPath
+    r2_subtitles_path: subtitlesPath,
+    id
   };
 
   try {
