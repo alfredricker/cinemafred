@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { Loader2, Upload, AlertCircle, Trash2, ChevronRight, AlertTriangle } from 'lucide-react';
 import { Movie } from '@/types/movie';
+import { TMDBPosterSelector } from './TMDBPosterSelector';
 
 interface MovieFormData {
   title: string;
@@ -281,8 +282,8 @@ export const EditMovieForm: React.FC<EditMovieFormProps> = ({ isOpen, onClose, m
     <>
       <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50" onClick={onClose} />
       <div className="fixed inset-0 flex items-center justify-center p-4 z-50">
-        <div className="bg-gray-900 rounded-lg p-6 w-full max-w-2xl" onClick={e => e.stopPropagation()}>
-          <div className="flex justify-between items-center mb-6">
+        <div className="bg-gray-900 rounded-lg w-full max-w-2xl max-h-[90vh] flex flex-col" onClick={e => e.stopPropagation()}>
+          <div className="flex justify-between items-center p-6 pb-4 flex-shrink-0">
             <h2 className="text-xl font-bold text-white">Edit Movie</h2>
             <button
               onClick={handleDelete}
@@ -294,7 +295,8 @@ export const EditMovieForm: React.FC<EditMovieFormProps> = ({ isOpen, onClose, m
             </button>
           </div>
 
-          <form onSubmit={handleSubmit} className="space-y-6">
+          <div className="flex-1 overflow-y-auto px-6 pb-6 webkit-scrollbar">
+            <form onSubmit={handleSubmit} className="space-y-6">
             {/* File Upload Section */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="space-y-2">
@@ -550,50 +552,6 @@ export const EditMovieForm: React.FC<EditMovieFormProps> = ({ isOpen, onClose, m
               )}
             </div>
 
-            {/* TMDB Poster Selection */}
-            {showTMDBPosters && (
-              <div className="space-y-4 p-4 bg-gray-800/50 rounded-lg border-2 border-blue-500/30">
-                <div className="flex justify-between items-center">
-                  <h3 className="text-lg font-semibold text-white">Select a Poster from TMDB</h3>
-                  <button
-                    type="button"
-                    onClick={() => setShowTMDBPosters(false)}
-                    className="text-gray-400 hover:text-white transition-colors"
-                  >
-                    ✕
-                  </button>
-                </div>
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4 max-h-96 overflow-y-auto">
-                  {tmdbPosters.map((posterUrl, index) => (
-                    <button
-                      key={index}
-                      type="button"
-                      onClick={() => downloadTMDBPoster(posterUrl)}
-                      disabled={isLoadingPosters}
-                      className={`relative aspect-[2/3] rounded-lg overflow-hidden border-2 transition-all ${
-                        selectedPosterUrl === posterUrl
-                          ? 'border-blue-500 ring-2 ring-blue-500'
-                          : 'border-gray-700 hover:border-blue-400'
-                      } ${isLoadingPosters ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
-                    >
-                      <img
-                        src={posterUrl}
-                        alt={`Poster ${index + 1}`}
-                        className="w-full h-full object-cover"
-                      />
-                      {selectedPosterUrl === posterUrl && (
-                        <div className="absolute inset-0 bg-blue-500/20 flex items-center justify-center">
-                          <span className="bg-blue-500 text-white px-2 py-1 rounded text-sm font-medium">
-                            Selected
-                          </span>
-                        </div>
-                      )}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-
             {error && (
               <div className="flex items-center gap-2 text-red-500 bg-red-500/10 p-3 rounded-lg">
                 <AlertCircle className="h-5 w-5" />
@@ -626,8 +584,39 @@ export const EditMovieForm: React.FC<EditMovieFormProps> = ({ isOpen, onClose, m
               </button>
             </div>
           </form>
+          </div>
         </div>
       </div>
+
+      {/* TMDB Poster Selector Modal */}
+      <TMDBPosterSelector
+        isOpen={showTMDBPosters}
+        onClose={() => setShowTMDBPosters(false)}
+        posters={tmdbPosters}
+        onSelect={downloadTMDBPoster}
+        isLoading={isLoadingPosters}
+        selectedPosterUrl={selectedPosterUrl}
+      />
+
+      <style jsx>{`
+        .webkit-scrollbar::-webkit-scrollbar {
+          width: 12px;
+        }
+
+        .webkit-scrollbar::-webkit-scrollbar-track {
+          background: rgba(31, 41, 55, 0.5);
+          border-radius: 6px;
+        }
+
+        .webkit-scrollbar::-webkit-scrollbar-thumb {
+          background: rgba(75, 85, 99, 0.8);
+          border-radius: 6px;
+        }
+
+        .webkit-scrollbar::-webkit-scrollbar-thumb:hover {
+          background: rgba(107, 114, 128, 1);
+        }
+      `}</style>
     </>
   );
 };
