@@ -66,6 +66,10 @@ export const EditMovieForm: React.FC<EditMovieFormProps> = ({ isOpen, onClose, m
   const [isDeleting, setIsDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showAdvanced, setShowAdvanced] = useState(false);
+  const [showTMDBPosters, setShowTMDBPosters] = useState(false);
+  const [tmdbPosters, setTmdbPosters] = useState<string[]>([]);
+  const [isLoadingPosters, setIsLoadingPosters] = useState(false);
+  const [selectedPosterUrl, setSelectedPosterUrl] = useState<string | null>(null);
 
   useEffect(() => {
     setFormData({
@@ -133,6 +137,72 @@ export const EditMovieForm: React.FC<EditMovieFormProps> = ({ isOpen, onClose, m
     } catch (error) {
       console.error(`Upload error for ${type}:`, error);
       throw error;
+    }
+  };
+
+  const fetchTMDBPosters = async () => {
+    setIsLoadingPosters(true);
+    setError(null);
+    try {
+      const queryParams = new URLSearchParams({
+        title: formData.title,
+        year: formData.year.toString()
+      });
+
+      const response = await fetch(`/api/movies/metadata?${queryParams.toString()}`, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+        },
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to fetch TMDB data');
+      }
+
+      if (data.metadata?.posters && data.metadata.posters.length > 0) {
+        setTmdbPosters(data.metadata.posters);
+        setShowTMDBPosters(true);
+      } else {
+        throw new Error('No posters found for this movie');
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to fetch TMDB posters');
+    } finally {
+      setIsLoadingPosters(false);
+    }
+  };
+
+  const downloadTMDBPoster = async (posterUrl: string) => {
+    try {
+      setIsLoadingPosters(true);
+      setError(null);
+
+      const response = await fetch('/api/movies/poster', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+        },
+        body: JSON.stringify({ imageUrl: posterUrl }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to download poster');
+      }
+
+      const posterData = await response.json();
+      
+      // Update the form data with the new poster path (already in images/ folder)
+      setFormData(prev => ({ ...prev, r2_image_path: posterData.path }));
+      setSelectedPosterUrl(posterUrl);
+      setShowTMDBPosters(false);
+      
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to download poster');
+    } finally {
+      setIsLoadingPosters(false);
     }
   };
 
@@ -252,20 +322,42 @@ export const EditMovieForm: React.FC<EditMovieFormProps> = ({ isOpen, onClose, m
                 <label className="block text-sm font-medium text-gray-300">
                   Poster Image
                 </label>
-                <div className="flex items-center justify-center w-full h-32 px-4 border-2 border-gray-700 border-dashed rounded-lg hover:bg-gray-800/50 transition-colors">
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={handleFileChange('image')}
-                    className="hidden"
-                    id="image-upload"
-                  />
-                  <label htmlFor="image-upload" className="cursor-pointer text-center">
-                    <Upload className="mx-auto h-8 w-8 text-gray-500 mb-2" />
-                    <span className="text-sm text-gray-500">
-                      {files.image ? files.image.name : 'Update Image'}
-                    </span>
-                  </label>
+                <div className="space-y-2">
+                  {/* TMDB Posters Button (Primary) */}
+                  <button
+                    type="button"
+                    onClick={fetchTMDBPosters}
+                    disabled={isLoadingPosters}
+                    className="w-full px-4 py-3 border-2 border-blue-600 bg-blue-600/10 text-blue-400 rounded-lg hover:bg-blue-600/20 transition-colors flex items-center justify-center gap-2"
+                  >
+                    {isLoadingPosters ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Loading...
+                      </>
+                    ) : (
+                      <>
+                        <Upload className="h-4 w-4" />
+                        Select from TMDB
+                      </>
+                    )}
+                  </button>
+                  
+                  {/* Manual Upload (Secondary) */}
+                  <div className="flex items-center justify-center w-full px-4 py-3 border-2 border-gray-700 border-dashed rounded-lg hover:bg-gray-800/50 transition-colors">
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handleFileChange('image')}
+                      className="hidden"
+                      id="image-upload"
+                    />
+                    <label htmlFor="image-upload" className="cursor-pointer text-center w-full">
+                      <span className="text-sm text-gray-500">
+                        {files.image ? files.image.name : 'Or upload from computer'}
+                      </span>
+                    </label>
+                  </div>
                 </div>
               </div>
 
@@ -457,6 +549,50 @@ export const EditMovieForm: React.FC<EditMovieFormProps> = ({ isOpen, onClose, m
                 </div>
               )}
             </div>
+
+            {/* TMDB Poster Selection */}
+            {showTMDBPosters && (
+              <div className="space-y-4 p-4 bg-gray-800/50 rounded-lg border-2 border-blue-500/30">
+                <div className="flex justify-between items-center">
+                  <h3 className="text-lg font-semibold text-white">Select a Poster from TMDB</h3>
+                  <button
+                    type="button"
+                    onClick={() => setShowTMDBPosters(false)}
+                    className="text-gray-400 hover:text-white transition-colors"
+                  >
+                    ✕
+                  </button>
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4 max-h-96 overflow-y-auto">
+                  {tmdbPosters.map((posterUrl, index) => (
+                    <button
+                      key={index}
+                      type="button"
+                      onClick={() => downloadTMDBPoster(posterUrl)}
+                      disabled={isLoadingPosters}
+                      className={`relative aspect-[2/3] rounded-lg overflow-hidden border-2 transition-all ${
+                        selectedPosterUrl === posterUrl
+                          ? 'border-blue-500 ring-2 ring-blue-500'
+                          : 'border-gray-700 hover:border-blue-400'
+                      } ${isLoadingPosters ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+                    >
+                      <img
+                        src={posterUrl}
+                        alt={`Poster ${index + 1}`}
+                        className="w-full h-full object-cover"
+                      />
+                      {selectedPosterUrl === posterUrl && (
+                        <div className="absolute inset-0 bg-blue-500/20 flex items-center justify-center">
+                          <span className="bg-blue-500 text-white px-2 py-1 rounded text-sm font-medium">
+                            Selected
+                          </span>
+                        </div>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {error && (
               <div className="flex items-center gap-2 text-red-500 bg-red-500/10 p-3 rounded-lg">

@@ -44,6 +44,7 @@ interface TMDBMovieCredit {
     description: string;
     duration: number | null;
     posterUrl: string | null;
+    posters?: string[]; // Array of all available posters
   }
   
   interface MovieSuggestion {
@@ -171,6 +172,28 @@ interface TMDBMovieCredit {
       }
   
       const movieDetails: TMDBMovieDetails = await detailsResponse.json();
+
+      // Fetch all available posters
+      const imagesUrl = new URL(`${this.baseUrl}/movie/${movieId}/images`);
+      imagesUrl.searchParams.append('api_key', this.apiKey);
+      
+      let posters: string[] = [];
+      try {
+        const imagesResponse = await fetch(imagesUrl.toString());
+        if (imagesResponse.ok) {
+          const imagesData = await imagesResponse.json();
+          // Get up to 12 posters, prioritize English language posters
+          const allPosters = imagesData.posters || [];
+          const englishPosters = allPosters.filter((p: any) => p.iso_639_1 === 'en' || p.iso_639_1 === null);
+          const otherPosters = allPosters.filter((p: any) => p.iso_639_1 !== 'en' && p.iso_639_1 !== null);
+          
+          posters = [...englishPosters, ...otherPosters]
+            .slice(0, 12)
+            .map((p: any) => `https://image.tmdb.org/t/p/w500${p.file_path}`);
+        }
+      } catch (error) {
+        console.error('Failed to fetch posters:', error);
+      }
   
       return {
         title: movieDetails.title,
@@ -181,7 +204,8 @@ interface TMDBMovieCredit {
         duration: movieDetails.runtime ? movieDetails.runtime * 60 : null,
         posterUrl: movieDetails.poster_path 
           ? `https://image.tmdb.org/t/p/w500${movieDetails.poster_path}`
-          : null
+          : null,
+        posters: posters.length > 0 ? posters : undefined
       };
     }
   
