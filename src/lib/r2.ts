@@ -1,5 +1,7 @@
 import { S3Client } from "@aws-sdk/client-s3";
 import { Agent } from "https";
+import * as dotenv from "dotenv";
+dotenv.config();
 
 const REGION = "auto"; // R2 uses "auto" as the region
 const ACCOUNT_ID = process.env.R2_ACCOUNT_ID as string;

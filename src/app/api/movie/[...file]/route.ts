@@ -42,17 +42,18 @@ function convertSRTtoVTT(srtContent: string): string {
 }
 
 
-export async function GET(req: Request, { params }: { params: { file: string } }) {
-  const { file } = params;
+export async function GET(req: Request, { params }: { params: { file: string[] } }) {
+  // Join the file path segments (e.g., ["images", "beforesunset.jpg"] -> "images/beforesunset.jpg")
+  const filePath = params.file.join('/');
 
-  if (!file) {
+  if (!filePath) {
     return NextResponse.json({ error: "Invalid file name." }, { status: 400 });
   }
 
   try {
     const command = new GetObjectCommand({
       Bucket: BUCKET_NAME,
-      Key: file,
+      Key: filePath,
     });
 
     const data = await r2Client().send(command);
@@ -60,9 +61,9 @@ export async function GET(req: Request, { params }: { params: { file: string } }
 
     // Determine content type based on file extension
     let contentType = "application/octet-stream";
-    if (file.endsWith('.mp4')) {
+    if (filePath.endsWith('.mp4')) {
       contentType = "video/mp4";
-    }  else if (file.endsWith('.srt')) {
+    }  else if (filePath.endsWith('.srt')) {
       // For SRT files, convert to WebVTT
       const response = await new Response(stream).text();
       const vttContent = convertSRTtoVTT(response);
@@ -71,10 +72,12 @@ export async function GET(req: Request, { params }: { params: { file: string } }
           "Content-Type": "text/vtt",
         },
       });
-    } else if (file.endsWith('.jpg') || file.endsWith('.jpeg')) {
+    } else if (filePath.endsWith('.jpg') || filePath.endsWith('.jpeg')) {
       contentType = "image/jpeg";
-    } else if (file.endsWith('.png')) {
+    } else if (filePath.endsWith('.png')) {
       contentType = "image/png";
+    } else if (filePath.endsWith('.webp')) {
+      contentType = "image/webp";
     }
 
     return new Response(stream, {
@@ -88,3 +91,4 @@ export async function GET(req: Request, { params }: { params: { file: string } }
     return NextResponse.json({ error: "File not found." }, { status: 404 });
   }
 }
+
