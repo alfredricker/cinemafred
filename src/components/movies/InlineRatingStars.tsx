@@ -22,6 +22,11 @@ export const InlineRatingStars: React.FC<InlineRatingStarsProps> = ({
   const [contextMenuPos, setContextMenuPos] = useState({ x: 0, y: 0 });
   const contextMenuRef = useRef<HTMLDivElement>(null);
 
+  // Update rating when initialRating prop changes
+  useEffect(() => {
+    setRating(initialRating || 0);
+  }, [initialRating]);
+
   const handleRatingClick = async (newRating: number) => {
     if (!isEditable || isUpdating) return;
 
@@ -77,7 +82,8 @@ export const InlineRatingStars: React.FC<InlineRatingStarsProps> = ({
   };
 
   const handleContextMenu = (e: React.MouseEvent) => {
-    if (!isEditable || rating === 0) return;
+    // Only show context menu if editable and user has a rating
+    if (!isEditable || !rating || rating === 0) return;
     
     e.preventDefault();
     setContextMenuPos({ x: e.clientX, y: e.clientY });

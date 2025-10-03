@@ -196,9 +196,59 @@ export default function RatingsPage() {
     return sum / userRatings.length;
   };
 
-  const handleRatingChange = () => {
-    // Refresh ratings after a change
-    fetchRatings();
+  const handleRatingChange = (movieId: string, userId: string, newRating: number) => {
+    // Update the rating locally without refetching
+    setMovies(prevMovies => 
+      prevMovies.map(movie => {
+        if (movie.id !== movieId) return movie;
+        
+        // Update or add the rating for this user
+        const existingRatingIndex = movie.ratings.findIndex(r => r.user_id === userId);
+        let updatedRatings = [...movie.ratings];
+        
+        if (newRating === 0) {
+          // Remove the rating if it was cleared
+          updatedRatings = updatedRatings.filter(r => r.user_id !== userId);
+        } else if (existingRatingIndex >= 0) {
+          // Update existing rating
+          updatedRatings[existingRatingIndex] = {
+            ...updatedRatings[existingRatingIndex],
+            value: newRating
+          };
+        } else {
+          // Add new rating
+          const user = users.find(u => u.id === userId);
+          if (user) {
+            updatedRatings.push({
+              value: newRating,
+              user_id: userId,
+              user: {
+                id: userId,
+                username: user.username
+              }
+            });
+          }
+        }
+        
+        // Recalculate average rating for display
+        const userRatingsForAvg = users
+          .map(u => {
+            const rating = updatedRatings.find(r => r.user_id === u.id);
+            return rating ? rating.value : null;
+          })
+          .filter(r => r !== null) as number[];
+        
+        const newAverageRating = userRatingsForAvg.length > 0
+          ? userRatingsForAvg.reduce((acc, val) => acc + val, 0) / userRatingsForAvg.length
+          : null;
+        
+        return {
+          ...movie,
+          ratings: updatedRatings,
+          averageRating: newAverageRating
+        };
+      })
+    );
   };
 
   if (authLoading || isLoading) {
@@ -376,7 +426,7 @@ export default function RatingsPage() {
                             movieId={movie.id}
                             initialRating={getRatingForUser(movie, u.id)}
                             isEditable={u.id === currentUserId}
-                            onRatingChange={handleRatingChange}
+                            onRatingChange={(newRating) => handleRatingChange(movie.id, u.id, newRating)}
                           />
                         </td>
                       ))}

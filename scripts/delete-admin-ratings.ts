@@ -56,50 +56,65 @@ async function deleteAdminRatings() {
 
     console.log('\n🗑️  Deleting admin ratings and reviews...');
 
-    // Delete in a transaction
-    const result = await prisma.$transaction(async (tx) => {
-      // Delete all ratings from admin users
-      const deletedRatings = await tx.rating.deleteMany({
-        where: {
-          user_id: {
-            in: adminIds
-          }
+    // Delete ratings and reviews (not in transaction to avoid timeout)
+    const deletedRatings = await prisma.rating.deleteMany({
+      where: {
+        user_id: {
+          in: adminIds
         }
-      });
-
-      // Delete all reviews from admin users
-      const deletedReviews = await tx.review.deleteMany({
-        where: {
-          user_id: {
-            in: adminIds
-          }
-        }
-      });
-
-      // Recalculate average ratings for all movies
-      const movies = await tx.movie.findMany({
-        select: { id: true }
-      });
-
-      console.log(`\n🔄 Recalculating average ratings for ${movies.length} movies...`);
-
-      for (const movie of movies) {
-        const { _avg } = await tx.rating.aggregate({
-          where: { movie_id: movie.id },
-          _avg: { value: true }
-        });
-
-        await tx.movie.update({
-          where: { id: movie.id },
-          data: { averageRating: _avg.value || 0 }
-        });
       }
-
-      return {
-        deletedRatings: deletedRatings.count,
-        deletedReviews: deletedReviews.count
-      };
     });
+
+    const deletedReviews = await prisma.review.deleteMany({
+      where: {
+        user_id: {
+          in: adminIds
+        }
+      }
+    });
+
+    console.log(`\n✅ Deleted ${deletedRatings.count} rating(s) and ${deletedReviews.count} review(s)`);
+
+    // Get movies that had admin ratings to recalculate
+    console.log('\n🔄 Recalculating average ratings...');
+    
+    const movies = await prisma.movie.findMany({
+      select: { id: true }
+    });
+
+    console.log(`   Processing ${movies.length} movies...`);
+
+    // Process in batches to avoid overwhelming the database
+    const batchSize = 50;
+    let processed = 0;
+
+    for (let i = 0; i < movies.length; i += batchSize) {
+      const batch = movies.slice(i, i + batchSize);
+      
+      await Promise.all(
+        batch.map(async (movie) => {
+          const { _avg } = await prisma.rating.aggregate({
+            where: { movie_id: movie.id },
+            _avg: { value: true }
+          });
+
+          await prisma.movie.update({
+            where: { id: movie.id },
+            data: { averageRating: _avg.value || 0 }
+          });
+        })
+      );
+
+      processed += batch.length;
+      if (processed % 100 === 0 || processed === movies.length) {
+        console.log(`   Processed ${processed}/${movies.length} movies...`);
+      }
+    }
+
+    const result = {
+      deletedRatings: deletedRatings.count,
+      deletedReviews: deletedReviews.count
+    };
 
     console.log('\n✅ Successfully deleted:');
     console.log(`   - ${result.deletedRatings} rating(s)`);
