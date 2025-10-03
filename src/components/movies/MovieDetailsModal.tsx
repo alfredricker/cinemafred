@@ -335,7 +335,7 @@ export const MovieDetailsModal: React.FC<MovieDetailsModalProps> = ({
 
                         {/* Review Submission */}
                         <div className="mb-4">
-                          {user ? (
+                          {user && !user.isAdmin ? (
                             <>
                               <textarea
                                 value={reviewText}

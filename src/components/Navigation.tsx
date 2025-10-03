@@ -24,6 +24,11 @@ export const Navigation: React.FC = () => {
             Genres
           </Link>
         </li>
+        <li>
+          <Link href="/ratings" className="hover:text-blue-300 transition-colors">
+            Ratings
+          </Link>
+        </li>
         {user?.isAdmin && (
           <li>
             <Link href="/admin/users" className="hover:text-blue-300 transition-colors">

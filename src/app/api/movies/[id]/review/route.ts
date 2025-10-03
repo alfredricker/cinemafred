@@ -22,6 +22,16 @@ export async function POST(
     const decoded = jwt.verify(token, JWT_SECRET) as { id: string };
     const { reviewText, rating } = await request.json();
 
+    // Check if user is admin
+    const user = await prisma.user.findUnique({
+      where: { id: decoded.id },
+      select: { isAdmin: true }
+    });
+
+    if (user?.isAdmin) {
+      return NextResponse.json({ error: 'Admins cannot rate or review movies' }, { status: 403 });
+    }
+
     // Validate rating value
     if (typeof rating !== 'number' || rating < 1 || rating > 10) {
       return NextResponse.json({ error: 'Invalid rating value (must be 1-10)' }, { status: 400 });
@@ -105,6 +115,20 @@ export async function GET(
 
     const token = authHeader.substring(7);
     const decoded = jwt.verify(token, JWT_SECRET) as { id: string };
+
+    // Check if user is admin
+    const user = await prisma.user.findUnique({
+      where: { id: decoded.id },
+      select: { isAdmin: true }
+    });
+
+    if (user?.isAdmin) {
+      return NextResponse.json({ 
+        review: null,
+        rating: null,
+        reviewText: null
+      });
+    }
 
     const review = await prisma.review.findUnique({
       where: {

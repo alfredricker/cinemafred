@@ -39,3 +39,9 @@ Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/bui
 Google Cloud info:
 Repository for images: us-central1-docker.pkg.dev/cinemafred/hls
 Cloud run: https://hls-worker-835547077998.us-central1.run.app
+
+
+Idea:
+A page that you can navigate to from the header (to the left of the account button) that says "Ratings"
+It should be a list view of all the movies, with columns of user's ratings
+You can selectively add users to your view through a pop up.

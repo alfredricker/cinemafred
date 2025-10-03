@@ -5,7 +5,7 @@ import { useAuth } from '@/context/AuthContext';
 import { CreateUserDialog } from '@/components/account/CreateUserDialog';
 import { CreateMovieForm } from '@/components/forms/CreateMovieForm';
 import { AccountDialog } from '@/components/account/AccountDialog';
-import { UserPlus, LogOut, Film, User } from 'lucide-react';
+import { UserPlus, LogOut, Film, User, Star } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 
@@ -54,7 +54,12 @@ export const Header = () => {
                 <span className="text-sm">Create User</span>
               </button>
             </>
-          ) : !user?.isGuest && (
+          ) : !user?.isGuest && !user?.isAdmin && (
+            <>
+            <Link href="/ratings" className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-white hover:text-blue-400 transition-colors">
+              <Star className="w-4 h-4" />
+              <span className="text-sm">Ratings</span>
+            </Link>
             <button
               onClick={() => setIsAccountOpen(true)}
               className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-white hover:text-blue-400 transition-colors"
@@ -62,6 +67,7 @@ export const Header = () => {
               <User className="w-4 h-4" />
               <span className="text-sm">Account</span>
             </button>
+            </>
           )}
           <button
             onClick={handleLogout}
