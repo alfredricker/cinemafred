@@ -130,7 +130,8 @@ export const RatingStars: React.FC<RatingStarsProps> = ({ movieId, initialRating
   };
 
   const handleContextMenu = (e: React.MouseEvent) => {
-    if (!user || !userRating) return;
+    // Only show context menu if user is logged in, not admin, and has a rating
+    if (!user || user.isAdmin || !userRating || userRating === 0) return;
     
     e.preventDefault();
     setContextMenuPos({ x: e.clientX, y: e.clientY });

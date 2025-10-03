@@ -27,10 +27,19 @@ export const InlineRatingStars: React.FC<InlineRatingStarsProps> = ({
     setRating(initialRating || 0);
   }, [initialRating]);
 
-  const handleRatingClick = async (newRating: number) => {
+  const calculateRating = (index: number, clientX: number, target: HTMLElement) => {
+    const { left, width } = target.getBoundingClientRect();
+    const offsetX = clientX - left;
+    const fraction = offsetX / width;
+    return index + (fraction > 0.5 ? 1 : 0.5);
+  };
+
+  const handleRatingClick = async (index: number, e: React.MouseEvent<HTMLButtonElement>) => {
     if (!isEditable || isUpdating) return;
 
+    const newRating = calculateRating(index, e.clientX, e.currentTarget);
     setIsUpdating(true);
+    
     try {
       const response = await fetch(`/api/movies/${movieId}/rate`, {
         method: 'POST',
@@ -113,34 +122,38 @@ export const InlineRatingStars: React.FC<InlineRatingStarsProps> = ({
         onMouseLeave={() => isEditable && setHoverRating(null)}
         onContextMenu={handleContextMenu}
       >
-        {Array.from({ length: 10 }).map((_, i) => {
-          const starValue = i + 1;
-          const isFilled = displayRating >= starValue;
-          const isHalfFilled = displayRating >= starValue - 0.5 && displayRating < starValue;
-          
-          return (
-            <button
-              key={i}
-              onClick={() => handleRatingClick(starValue)}
-              onMouseEnter={() => isEditable && setHoverRating(starValue)}
-              className={`focus:outline-none ${isEditable ? 'cursor-pointer' : 'cursor-default'} ${isUpdating ? 'opacity-50' : ''}`}
-              disabled={!isEditable || isUpdating}
-              title={isEditable ? `Rate ${starValue}` : ''}
-            >
-              <Star
-                className={`w-4 h-4 transition-colors ${
-                  isFilled
-                    ? 'text-yellow-400 fill-yellow-400'
-                    : isHalfFilled
-                    ? 'text-yellow-400 fill-yellow-400'
-                    : 'text-gray-600'
-                } ${isEditable && !isUpdating ? 'hover:text-yellow-300' : ''}`}
-              />
-            </button>
-          );
-        })}
+      {Array.from({ length: 10 }).map((_, i) => {
+        const isFilled = displayRating >= i + 1;
+        const isHalfFilled = displayRating >= i + 0.5 && displayRating < i + 1;
+        
+        return (
+          <button
+            key={i}
+            onClick={(e) => handleRatingClick(i, e)}
+            onMouseMove={(e) => {
+              if (isEditable) {
+                const hoverValue = calculateRating(i, e.clientX, e.currentTarget);
+                setHoverRating(hoverValue);
+              }
+            }}
+            className={`focus:outline-none ${isEditable ? 'cursor-pointer' : 'cursor-default'} ${isUpdating ? 'opacity-50' : ''}`}
+            disabled={!isEditable || isUpdating}
+            title={isEditable ? `Rate ${(i + 1)}` : ''}
+          >
+            <Star
+              className={`w-5 h-5 transition-colors ${
+                isFilled
+                  ? 'text-yellow-400 fill-yellow-400'
+                  : isHalfFilled
+                  ? 'text-yellow-400 fill-yellow-400'
+                  : 'text-gray-600'
+              } ${isEditable && !isUpdating ? 'hover:text-yellow-300' : ''}`}
+            />
+          </button>
+        );
+      })}
         {displayRating > 0 && (
-          <span className="ml-1 text-xs text-gray-400 font-medium min-w-[2rem]">
+          <span className="ml-1 text-sm text-gray-400 font-medium min-w-[2rem]">
             {displayRating.toFixed(1)}
           </span>
         )}
