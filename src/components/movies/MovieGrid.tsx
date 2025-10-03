@@ -1,10 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { MovieCard } from './MovieCard';
 import { Loader2 } from 'lucide-react';
 import { Movie } from '@/types/movie';
 
 interface MovieGridProps {
-  initialPage?: number;
   selectedGenre: string | null;
   sortOption: string;
   searchQuery?: string;
@@ -22,81 +21,28 @@ interface MovieResponse {
 }
 
 export const MovieGrid: React.FC<MovieGridProps> = ({ 
-  initialPage = 1, 
   selectedGenre, 
   sortOption,
   searchQuery = '',
   onMovieClick
 }) => {
   const [movies, setMovies] = useState<Movie[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [currentPage, setCurrentPage] = useState(initialPage);
-  const [totalPages, setTotalPages] = useState(0);
-  const [limit, setLimit] = useState(() => {
-    if (typeof window !== 'undefined') {
-      const width = window.innerWidth;
-      if (width >= 3000) return 54;
-      if (width >= 1680) return 42;
-      if (width >= 1024) return 36;
-      if (width >= 768) return 30;
-      return 24;
-    }
-    return 30;
-  });
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(true);
+  const loadMoreRef = useRef<HTMLDivElement>(null);
+  const observerRef = useRef<IntersectionObserver | null>(null);
 
-  const calculateLimit = () => {
-    const width = window.innerWidth;
-    if (width >= 3000) return 54;      // 2xl screens
-    if (width >= 1680) return 42;      // xl screens
-    if (width >= 1024) return 36;      // lg screens
-    if (width >= 768) return 30;       // md screens
-    return 24;                         // sm/xs screens
-  };
-
-  useEffect(() => {
-    const handleResize = () => {
-      const newLimit = calculateLimit();
-      if (newLimit !== limit) {
-        setLimit(newLimit);
-        setMovies([]); // Clear existing movies when limit changes
-        setCurrentPage(1); // Reset to first page
-      }
-    };
-
-    // Initial calculation
-    handleResize();
-
-    // Debounced resize handler
-    let timeoutId: NodeJS.Timeout;
-    const debouncedResize = () => {
-      clearTimeout(timeoutId);
-      timeoutId = setTimeout(handleResize, 250);
-    };
-
-    window.addEventListener('resize', debouncedResize);
-    return () => {
-      window.removeEventListener('resize', debouncedResize);
-      clearTimeout(timeoutId);
-    };
-  }, []);
-
-  // Reset page when filters, sort, or search change
-  useEffect(() => {
-    setMovies([]);
-    setCurrentPage(1);
-    fetchMovies(1);
-  }, [selectedGenre, sortOption, searchQuery]);
-
-  const fetchMovies = async (page: number) => {
+  // Fetch movies for a specific page
+  const fetchMovies = async (pageNum: number, append = true) => {
     try {
       setIsLoading(true);
       setError(null);
-      
-      // Build the query string with all parameters
+
       const params = new URLSearchParams({
-        page: page.toString(),
-        limit: limit.toString(),
+        page: pageNum.toString(),
+        limit: '30',
         sort: sortOption
       });
 
@@ -109,19 +55,13 @@ export const MovieGrid: React.FC<MovieGridProps> = ({
       }
 
       const response = await fetch(`/api/movies?${params.toString()}`);
-
-      if (!response.ok) {
-        throw new Error('Failed to fetch movies');
-      }
+      if (!response.ok) throw new Error('Failed to fetch movies');
 
       const data: MovieResponse = await response.json();
       
-      setMovies(prevMovies => {
-        return page === 1 ? data.movies : [...prevMovies, ...data.movies];
-      });
+      setMovies(prev => append ? [...prev, ...data.movies] : data.movies);
+      setHasMore(pageNum < data.pagination.pages);
       
-      setTotalPages(data.pagination.pages);
-      setCurrentPage(page);
     } catch (err) {
       setError('Error loading movies. Please try again.');
       console.error('Error fetching movies:', err);
@@ -130,22 +70,46 @@ export const MovieGrid: React.FC<MovieGridProps> = ({
     }
   };
 
+  // Reset and fetch initial page when filters change
   useEffect(() => {
-    fetchMovies(1);
-  }, [limit]);
+    setMovies([]);
+    setPage(1);
+    setHasMore(true);
+    fetchMovies(1, false);
+  }, [selectedGenre, sortOption, searchQuery]);
 
-  const handleLoadMore = () => {
-    if (currentPage < totalPages && !isLoading) {
-      fetchMovies(currentPage + 1);
-    }
-  };
+  // Intersection observer for infinite scroll
+  useEffect(() => {
+    if (!loadMoreRef.current) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && hasMore && !isLoading) {
+          const nextPage = page + 1;
+          setPage(nextPage);
+          fetchMovies(nextPage, true);
+        }
+      },
+      { 
+        rootMargin: '200px', // Start loading 200px before reaching the trigger
+        threshold: 0.1 
+      }
+    );
+
+    observer.observe(loadMoreRef.current);
+    observerRef.current = observer;
+
+    return () => {
+      observer.disconnect();
+    };
+  }, [hasMore, isLoading, page]);
 
   if (error) {
     return (
       <div className="text-center py-12">
         <div className="text-red-500 mb-4">{error}</div>
         <button
-          onClick={() => fetchMovies(1)}
+          onClick={() => fetchMovies(1, false)}
           className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
         >
           Try Again
@@ -158,25 +122,30 @@ export const MovieGrid: React.FC<MovieGridProps> = ({
     <div className="space-y-8">
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7 2xl:grid-cols-9 gap-3 md:gap-5">
         {movies.map((movie) => (
-          <MovieCard key={movie.id} movie={movie} onMovieClick={onMovieClick} />
+          <MovieCard 
+            key={movie.id} 
+            movie={movie} 
+            onMovieClick={onMovieClick}
+          />
         ))}
       </div>
 
+      {/* Loading indicator */}
       {isLoading && (
         <div className="flex justify-center py-8">
           <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
         </div>
       )}
 
-      {!isLoading && currentPage < totalPages && (
-        <div className="flex justify-center py-8">
-          <button
-            onClick={handleLoadMore}
-            className="px-6 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 
-                     transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
-          >
-            Load More
-          </button>
+      {/* Intersection observer trigger - invisible div at bottom */}
+      {hasMore && !isLoading && (
+        <div ref={loadMoreRef} className="h-20" />
+      )}
+
+      {/* End of results indicator */}
+      {!hasMore && movies.length > 0 && (
+        <div className="text-center text-gray-400 text-sm py-8">
+          All movies loaded
         </div>
       )}
     </div>
