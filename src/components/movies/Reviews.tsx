@@ -108,7 +108,7 @@ export const Reviews: React.FC<ReviewsProps> = ({ ratings, reviews }) => {
   }
 
   return (
-    <div className="space-y-4 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
+    <div className="space-y-4 max-h-[200px] overflow-y-auto pr-2 custom-scrollbar">
       {combinedData.map((item) => (
         <div 
           key={item.id} 

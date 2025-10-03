@@ -42,7 +42,7 @@ export const MovieGrid: React.FC<MovieGridProps> = ({
 
       const params = new URLSearchParams({
         page: pageNum.toString(),
-        limit: '30',
+        limit: '42', // Divisible by 6 and 7 for clean grid layouts
         sort: sortOption
       });
 

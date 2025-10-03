@@ -261,8 +261,8 @@ export const MovieDetailsModal: React.FC<MovieDetailsModalProps> = ({
             </div>
 
             {/* Movie Details & Reviews */}
-            <div className="flex-1 flex flex-col overflow-hidden justify-between">
-              <div className="flex-shrink-0 overflow-y-auto">
+            <div className="flex-1 flex flex-col overflow-hidden justify-between min-h-0">
+              <div className="flex-1 overflow-y-auto min-h-0 pr-2 custom-scrollbar">
                 {/* Title and Year */}
                 <h2 className="text-3xl font-bold text-white mb-2">{movie.title}</h2>
                 <div className="flex items-center gap-4 text-gray-300 mb-4">
@@ -316,14 +316,14 @@ export const MovieDetailsModal: React.FC<MovieDetailsModalProps> = ({
                 )}
 
                 {/* Sliding Container for Rating/Review and Reviews List */}
-                <div className="overflow-hidden">
+                <div className="overflow-hidden max-h-[280px]">
                   <div 
                     className="transition-transform duration-500 ease-in-out"
                     style={{ transform: showReviews ? 'translateX(-100%)' : 'translateX(0)' }}
                   >
                     <div className="flex w-[200%]">
                       {/* Rating & Review Submission Panel */}
-                      <div className="w-1/2 pr-4">
+                      <div className="w-1/2 pr-4 overflow-y-auto custom-scrollbar">
                         {/* Rating Component */}
                         <div className="mb-4">
                           <RatingStars
@@ -377,7 +377,7 @@ export const MovieDetailsModal: React.FC<MovieDetailsModalProps> = ({
                       </div>
 
                       {/* Reviews List Panel */}
-                      <div className="w-1/2 pl-4">
+                      <div className="w-1/2 pl-4 overflow-y-auto custom-scrollbar">
                         <div className="mb-3 flex align-left">
                           <button
                             onClick={() => setShowReviews(false)}
