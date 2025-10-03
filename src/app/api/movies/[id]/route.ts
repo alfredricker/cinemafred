@@ -35,8 +35,18 @@ export async function GET(
     const movie = await prisma.movie.findUnique({
       where: { id },
       include: {
+        ratings: {
+          orderBy: { created_at: 'desc' },
+          include: {
+            user: {
+              select: {
+                username: true,
+                id: true
+              }
+            }
+          }
+        },
         reviews: {
-          take: 10,
           orderBy: { created_at: 'desc' },
           include: {
             user: {

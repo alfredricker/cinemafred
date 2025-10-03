@@ -18,7 +18,18 @@ interface Review {
   };
 }
 
+interface Rating {
+  id: string;
+  value: number;
+  created_at: string;
+  user: {
+    username: string;
+    id: string;
+  };
+}
+
 interface MovieWithDetails extends Movie {
+  ratings: Rating[];
   reviews: Review[];
   averageRating: number;
   _count: {
@@ -48,6 +59,7 @@ export const MovieDetailsModal: React.FC<MovieDetailsModalProps> = ({
   const [isSubmittingReview, setIsSubmittingReview] = useState(false);
   const [reviewError, setReviewError] = useState<string | null>(null);
   const [userRating, setUserRating] = useState<number | null>(null);
+  const [showReviews, setShowReviews] = useState(false);
   const { user } = useAuth();
 
   const formatDuration = (seconds: number): string => {
@@ -203,7 +215,7 @@ export const MovieDetailsModal: React.FC<MovieDetailsModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
-      <div className="relative w-[70vw] max-w-6xl h-[70vh] bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 rounded-2xl shadow-2xl border border-gray-700 overflow-hidden">
+      <div className="relative w-[70vw] max-w-6xl h-[56vh] bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 rounded-2xl shadow-2xl border border-gray-700 overflow-hidden">
         {/* Close button */}
         <button
           onClick={onClose}
@@ -227,9 +239,9 @@ export const MovieDetailsModal: React.FC<MovieDetailsModalProps> = ({
             </button>
           </div>
         ) : movie ? (
-          <div className="flex h-full overflow-hidden">
+          <div className="flex h-full overflow-hidden p-6 gap-6">
             {/* Movie Poster */}
-            <div className="flex-shrink-0 p-6">
+            <div className="flex-shrink-0 flex flex-col">
               <div className="relative aspect-[27/40] w-80 overflow-hidden rounded-lg bg-gray-800">
                 {movie.r2_image_path && !imageError ? (
                   <Image
@@ -249,8 +261,8 @@ export const MovieDetailsModal: React.FC<MovieDetailsModalProps> = ({
             </div>
 
             {/* Movie Details & Reviews */}
-            <div className="flex-1 p-6 flex flex-col overflow-hidden">
-              <div className="flex-shrink-0">
+            <div className="flex-1 flex flex-col overflow-hidden justify-between">
+              <div className="flex-shrink-0 overflow-y-auto">
                 {/* Title and Year */}
                 <h2 className="text-3xl font-bold text-white mb-2">{movie.title}</h2>
                 <div className="flex items-center gap-4 text-gray-300 mb-4">
@@ -303,57 +315,93 @@ export const MovieDetailsModal: React.FC<MovieDetailsModalProps> = ({
                   </div>
                 )}
 
-                {/* Rating Component */}
-                <div className="mb-4">
-                  <RatingStars
-                    movieId={movie.id}
-                    initialRating={movie.averageRating}
-                    onRatingChange={handleRatingChange}
-                  />
-                </div>
-
-                {/* Review Submission */}
-                {user && (
-                  <div className="mb-4">
-                    <textarea
-                      value={reviewText}
-                      onChange={(e) => setReviewText(e.target.value)}
-                      placeholder="Share your thoughts about this movie..."
-                      className="w-full bg-gray-800/50 border border-gray-700 rounded-lg p-3 text-gray-300 text-sm placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
-                      rows={3}
-                    />
-                    {reviewError && (
-                      <p className="text-red-400 text-xs mt-1">{reviewError}</p>
-                    )}
-                    <button
-                      onClick={handleSubmitReview}
-                      disabled={isSubmittingReview || !reviewText.trim()}
-                      className="mt-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-700 disabled:cursor-not-allowed text-white text-sm rounded-lg font-medium transition-colors"
-                    >
-                      {isSubmittingReview ? 'Submitting...' : 'Submit Review'}
-                    </button>
-                  </div>
-                )}
-
-                {/* Action Buttons */}
-                <div className="flex items-center gap-4 pb-4 border-b border-gray-700">
-                  <button
-                    onClick={handleWatchClick}
-                    className="flex items-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors"
+                {/* Sliding Container for Rating/Review and Reviews List */}
+                <div className="overflow-hidden">
+                  <div 
+                    className="transition-transform duration-500 ease-in-out"
+                    style={{ transform: showReviews ? 'translateX(-100%)' : 'translateX(0)' }}
                   >
-                    <Play className="w-5 h-5" />
-                    Watch Now
-                  </button>
+                    <div className="flex w-[200%]">
+                      {/* Rating & Review Submission Panel */}
+                      <div className="w-1/2 pr-4">
+                        {/* Rating Component */}
+                        <div className="mb-4">
+                          <RatingStars
+                            movieId={movie.id}
+                            initialRating={movie.averageRating}
+                            onRatingChange={handleRatingChange}
+                          />
+                        </div>
+
+                        {/* Review Submission */}
+                        <div className="mb-4">
+                          {user ? (
+                            <>
+                              <textarea
+                                value={reviewText}
+                                onChange={(e) => setReviewText(e.target.value)}
+                                placeholder="Share your thoughts about this movie..."
+                                className="w-full bg-gray-800/50 border border-gray-700 rounded-lg p-3 text-gray-300 text-sm placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+                                rows={3}
+                              />
+                              {reviewError && (
+                                <p className="text-red-400 text-xs mt-1">{reviewError}</p>
+                              )}
+                              <div className="flex gap-2 mt-2">
+                                <button
+                                  onClick={handleSubmitReview}
+                                  disabled={isSubmittingReview || !reviewText.trim()}
+                                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-700 disabled:cursor-not-allowed text-white text-sm rounded-lg font-medium transition-colors"
+                                >
+                                  {isSubmittingReview ? 'Submitting...' : 'Submit Review'}
+                                </button>
+                                <button
+                                  onClick={() => setShowReviews(true)}
+                                  className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white text-sm rounded-lg font-medium transition-colors flex items-center gap-2"
+                                >
+                                  <MessageSquare className="w-4 h-4" />
+                                  See Reviews ({movie._count.ratings})
+                                </button>
+                              </div>
+                            </>
+                          ) : (
+                            <button
+                              onClick={() => setShowReviews(true)}
+                              className="w-full px-4 py-3 bg-gray-700 hover:bg-gray-600 text-white text-sm rounded-lg font-medium transition-colors flex items-center justify-center gap-2"
+                            >
+                              <MessageSquare className="w-4 h-4" />
+                              See Reviews ({movie._count.ratings})
+                            </button>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Reviews List Panel */}
+                      <div className="w-1/2 pl-4">
+                        <div className="mb-3 flex align-left">
+                          <button
+                            onClick={() => setShowReviews(false)}
+                            className="text-sm text-blue-400 hover:text-blue-300 transition-colors"
+                          >
+                            ← Back
+                          </button>
+                        </div>
+                        <Reviews ratings={movie.ratings} reviews={movie.reviews} />
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
 
-              {/* Reviews Section */}
-              <div className="flex-1 overflow-hidden mt-4">
-                <h3 className="text-xl font-semibold text-white mb-3 flex items-center gap-2">
-                  <MessageSquare className="w-5 h-5" />
-                  Reviews ({movie._count.reviews})
-                </h3>
-                <Reviews reviews={movie.reviews} />
+              {/* Action Buttons - Pinned to Bottom */}
+              <div className="flex-shrink-0 pt-3 border-t border-gray-600">
+                <button
+                  onClick={handleWatchClick}
+                  className="flex items-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors"
+                >
+                  <Play className="w-5 h-5" />
+                  Watch Now
+                </button>
               </div>
             </div>
           </div>

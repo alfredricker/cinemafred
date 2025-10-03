@@ -2,6 +2,16 @@
 import React from 'react';
 import { Star } from 'lucide-react';
 
+interface Rating {
+  id: string;
+  value: number;
+  created_at: string;
+  user: {
+    username: string;
+    id: string;
+  };
+}
+
 interface Review {
   id: string;
   review_text: string | null;
@@ -14,6 +24,7 @@ interface Review {
 }
 
 interface ReviewsProps {
+  ratings: Rating[];
   reviews: Review[];
 }
 
@@ -49,7 +60,7 @@ const SmallRatingStars: React.FC<{ rating: number }> = ({ rating }) => {
   );
 };
 
-export const Reviews: React.FC<ReviewsProps> = ({ reviews }) => {
+export const Reviews: React.FC<ReviewsProps> = ({ ratings, reviews }) => {
   const formatDate = (dateString: string): string => {
     const date = new Date(dateString);
     const now = new Date();
@@ -73,40 +84,55 @@ export const Reviews: React.FC<ReviewsProps> = ({ reviews }) => {
     }
   };
 
-  if (reviews.length === 0) {
+  // Create a map of reviews by user_id for quick lookup
+  const reviewsByUserId = new Map(
+    reviews.map(review => [review.user.id, review])
+  );
+
+  // Combine ratings with their reviews (if any)
+  const combinedData = ratings.map(rating => ({
+    id: rating.id,
+    userId: rating.user.id,
+    username: rating.user.username,
+    rating: rating.value,
+    created_at: rating.created_at,
+    review_text: reviewsByUserId.get(rating.user.id)?.review_text || null
+  }));
+
+  if (combinedData.length === 0) {
     return (
       <div className="text-gray-400 text-sm text-center py-4">
-        No reviews yet. Be the first to review this movie!
+        No ratings yet. Be the first to rate this movie!
       </div>
     );
   }
 
   return (
     <div className="space-y-4 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
-      {reviews.map((review) => (
+      {combinedData.map((item) => (
         <div 
-          key={review.id} 
+          key={item.id} 
           className="bg-gray-800/50 rounded-lg p-4 border border-gray-700/50"
         >
           <div className="flex items-start justify-between mb-2">
             <div className="flex items-center gap-3">
               <span className="font-semibold text-white text-sm">
-                {review.user.username}
+                {item.username}
               </span>
               <div className="flex items-center gap-2">
-                <SmallRatingStars rating={review.rating} />
+                <SmallRatingStars rating={item.rating} />
                 <span className="text-yellow-400 text-sm font-medium">
-                  {review.rating.toFixed(1)}
+                  {item.rating.toFixed(1)}
                 </span>
               </div>
             </div>
             <span className="text-gray-400 text-xs">
-              {formatDate(review.created_at)}
+              {formatDate(item.created_at)}
             </span>
           </div>
-          {review.review_text && (
+          {item.review_text && (
             <p className="text-gray-300 text-sm leading-relaxed mt-2">
-              {review.review_text}
+              {item.review_text}
             </p>
           )}
         </div>
