@@ -85,20 +85,9 @@ model Movie {
 }
 ```
 
-## API Endpoints
+## Conversion Method
 
-### Process HLS for a Movie
-
-```http
-POST /api/movies/process-hls
-Authorization: Bearer {admin-token}
-Content-Type: application/json
-
-{
-  "movieId": "movie-uuid",
-  "forceReprocess": false  // Optional: reprocess even if already done
-}
-```
+HLS conversion is handled through **CLI scripts** rather than API endpoints. Use the npm scripts documented above to convert videos.
 
 ## Usage Examples
 

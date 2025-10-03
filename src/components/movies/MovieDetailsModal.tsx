@@ -1,8 +1,9 @@
 'use client';
 import React, { useState, useEffect } from 'react';
-import { X, Play, Star, Clock, Calendar } from 'lucide-react';
+import { X, Play, Star, Clock, Calendar, MessageSquare } from 'lucide-react';
 import Image from 'next/image';
 import { RatingStars } from './RatingStars';
+import { Reviews } from './Reviews';
 import { Movie } from '@/types/movie';
 import { useAuth } from '@/context/AuthContext';
 
@@ -43,6 +44,10 @@ export const MovieDetailsModal: React.FC<MovieDetailsModalProps> = ({
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [imageError, setImageError] = useState(false);
+  const [reviewText, setReviewText] = useState('');
+  const [isSubmittingReview, setIsSubmittingReview] = useState(false);
+  const [reviewError, setReviewError] = useState<string | null>(null);
+  const [userRating, setUserRating] = useState<number | null>(null);
   const { user } = useAuth();
 
   const formatDuration = (seconds: number): string => {
@@ -81,8 +86,104 @@ export const MovieDetailsModal: React.FC<MovieDetailsModalProps> = ({
   useEffect(() => {
     if (isOpen && movieId) {
       fetchMovieDetails();
+      fetchUserReview();
     }
   }, [isOpen, movieId]);
+
+  const fetchUserReview = async () => {
+    if (!user || !movieId) return;
+
+    try {
+      const [reviewResponse, ratingResponse] = await Promise.all([
+        fetch(`/api/movies/${movieId}/review`, {
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          },
+        }),
+        fetch(`/api/movies/${movieId}/rate`, {
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          },
+        })
+      ]);
+
+      if (reviewResponse.ok) {
+        const data = await reviewResponse.json();
+        if (data.review) {
+          setReviewText(data.reviewText || '');
+        }
+      }
+
+      if (ratingResponse.ok) {
+        const data = await ratingResponse.json();
+        setUserRating(data.rating);
+      }
+    } catch (err) {
+      console.error('Error fetching user review:', err);
+    }
+  };
+
+  const handleSubmitReview = async () => {
+    if (!user) {
+      setReviewError('Please log in to submit a review');
+      return;
+    }
+
+    if (!userRating || userRating === 0) {
+      setReviewError('Please rate the movie before submitting a review');
+      return;
+    }
+
+    setIsSubmittingReview(true);
+    setReviewError(null);
+
+    try {
+      const response = await fetch(`/api/movies/${movieId}/review`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+        },
+        body: JSON.stringify({ 
+          reviewText: reviewText.trim(),
+          rating: userRating
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to submit review');
+      }
+
+      // Refetch movie details to show updated reviews
+      await fetchMovieDetails();
+      setReviewError(null);
+    } catch (err) {
+      setReviewError('Failed to submit review. Please try again.');
+      console.error('Error submitting review:', err);
+    } finally {
+      setIsSubmittingReview(false);
+    }
+  };
+
+  const handleRatingChange = async () => {
+    // Fetch the updated rating after user rates
+    if (!user || !movieId) return;
+    
+    try {
+      const response = await fetch(`/api/movies/${movieId}/rate`, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+        },
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setUserRating(data.rating);
+      }
+    } catch (err) {
+      console.error('Error fetching updated rating:', err);
+    }
+  };
 
   const handleWatchClick = () => {
     if (user?.isGuest) {
@@ -101,8 +202,8 @@ export const MovieDetailsModal: React.FC<MovieDetailsModalProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
-      <div className="relative w-[60vw] h-[55vh] bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 rounded-2xl shadow-2xl border border-gray-700 overflow-hidden">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+      <div className="relative w-[70vw] max-w-6xl h-[70vh] bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 rounded-2xl shadow-2xl border border-gray-700 overflow-hidden">
         {/* Close button */}
         <button
           onClick={onClose}
@@ -126,7 +227,7 @@ export const MovieDetailsModal: React.FC<MovieDetailsModalProps> = ({
             </button>
           </div>
         ) : movie ? (
-          <div className="flex h-full">
+          <div className="flex h-full overflow-hidden">
             {/* Movie Poster */}
             <div className="flex-shrink-0 p-6">
               <div className="relative aspect-[27/40] w-80 overflow-hidden rounded-lg bg-gray-800">
@@ -147,9 +248,9 @@ export const MovieDetailsModal: React.FC<MovieDetailsModalProps> = ({
               </div>
             </div>
 
-            {/* Movie Details */}
-            <div className="flex-1 p-6 flex flex-col justify-between">
-              <div>
+            {/* Movie Details & Reviews */}
+            <div className="flex-1 p-6 flex flex-col overflow-hidden">
+              <div className="flex-shrink-0">
                 {/* Title and Year */}
                 <h2 className="text-3xl font-bold text-white mb-2">{movie.title}</h2>
                 <div className="flex items-center gap-4 text-gray-300 mb-4">
@@ -174,11 +275,11 @@ export const MovieDetailsModal: React.FC<MovieDetailsModalProps> = ({
 
                 {/* Description */}
                 {movie.description && (
-                  <div className="mb-6">
+                  <div className="mb-4">
                     <p className="text-gray-300 text-sm leading-relaxed overflow-hidden" 
                        style={{
                          display: '-webkit-box',
-                         WebkitLineClamp: 4,
+                         WebkitLineClamp: 3,
                          WebkitBoxOrient: 'vertical'
                        }}>
                       {movie.description}
@@ -186,17 +287,9 @@ export const MovieDetailsModal: React.FC<MovieDetailsModalProps> = ({
                   </div>
                 )}
 
-                {/* Rating Component */}
-                <div className="mb-6">
-                  <RatingStars
-                    movieId={movie.id}
-                    initialRating={movie.averageRating}
-                  />
-                </div>
-
                 {/* Genres */}
                 {movie.genre && movie.genre.length > 0 && (
-                  <div className="mb-6">
+                  <div className="mb-4">
                     <div className="flex flex-wrap gap-2">
                       {movie.genre.map((genre: string, index: number) => (
                         <span 
@@ -209,17 +302,58 @@ export const MovieDetailsModal: React.FC<MovieDetailsModalProps> = ({
                     </div>
                   </div>
                 )}
+
+                {/* Rating Component */}
+                <div className="mb-4">
+                  <RatingStars
+                    movieId={movie.id}
+                    initialRating={movie.averageRating}
+                    onRatingChange={handleRatingChange}
+                  />
+                </div>
+
+                {/* Review Submission */}
+                {user && (
+                  <div className="mb-4">
+                    <textarea
+                      value={reviewText}
+                      onChange={(e) => setReviewText(e.target.value)}
+                      placeholder="Share your thoughts about this movie..."
+                      className="w-full bg-gray-800/50 border border-gray-700 rounded-lg p-3 text-gray-300 text-sm placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+                      rows={3}
+                    />
+                    {reviewError && (
+                      <p className="text-red-400 text-xs mt-1">{reviewError}</p>
+                    )}
+                    <button
+                      onClick={handleSubmitReview}
+                      disabled={isSubmittingReview || !reviewText.trim()}
+                      className="mt-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-700 disabled:cursor-not-allowed text-white text-sm rounded-lg font-medium transition-colors"
+                    >
+                      {isSubmittingReview ? 'Submitting...' : 'Submit Review'}
+                    </button>
+                  </div>
+                )}
+
+                {/* Action Buttons */}
+                <div className="flex items-center gap-4 pb-4 border-b border-gray-700">
+                  <button
+                    onClick={handleWatchClick}
+                    className="flex items-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors"
+                  >
+                    <Play className="w-5 h-5" />
+                    Watch Now
+                  </button>
+                </div>
               </div>
 
-              {/* Action Buttons */}
-              <div className="flex items-center gap-4">
-                <button
-                  onClick={handleWatchClick}
-                  className="flex items-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors"
-                >
-                  <Play className="w-5 h-5" />
-                  Watch Now
-                </button>
+              {/* Reviews Section */}
+              <div className="flex-1 overflow-hidden mt-4">
+                <h3 className="text-xl font-semibold text-white mb-3 flex items-center gap-2">
+                  <MessageSquare className="w-5 h-5" />
+                  Reviews ({movie._count.reviews})
+                </h3>
+                <Reviews reviews={movie.reviews} />
               </div>
             </div>
           </div>

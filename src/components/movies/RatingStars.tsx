@@ -5,9 +5,10 @@ import { useAuth } from '@/context/AuthContext';
 interface RatingStarsProps {
   movieId: string;
   initialRating?: number;
+  onRatingChange?: () => void;
 }
 
-export const RatingStars: React.FC<RatingStarsProps> = ({ movieId, initialRating = 0 }) => {
+export const RatingStars: React.FC<RatingStarsProps> = ({ movieId, initialRating = 0, onRatingChange }) => {
   const [rating, setRating] = useState<number>(0);
   const [userRating, setUserRating] = useState<number | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -73,6 +74,11 @@ export const RatingStars: React.FC<RatingStarsProps> = ({ movieId, initialRating
       const data = await response.json();
       if (data.averageRating) {
         // Available for parent component if needed
+      }
+
+      // Notify parent component that rating changed
+      if (onRatingChange) {
+        onRatingChange();
       }
     } catch (err) {
       setError('Failed to update rating');
