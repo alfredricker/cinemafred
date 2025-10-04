@@ -4,7 +4,7 @@ import { Header } from '@/components/Header';
 import { useAuth } from '@/context/AuthContext';
 import { redirect } from 'next/navigation';
 import { Loader2, ChevronDown, ChevronUp, Plus, X, Search } from 'lucide-react';
-import { InlineRatingStars } from '@/components/movies/InlineRatingStars';
+import { RatingStars } from '@/components/movies/RatingStars';
 
 interface MovieRating {
   id: string;
@@ -422,11 +422,12 @@ export default function RatingsPage() {
                       
                       {displayUsers.map((u) => (
                         <td key={u.id} className="px-6 py-4">
-                          <InlineRatingStars
+                          <RatingStars
                             movieId={movie.id}
-                            initialRating={getRatingForUser(movie, u.id)}
+                            initialRating={getRatingForUser(movie, u.id) || 0}
                             isEditable={u.id === currentUserId}
-                            onRatingChange={(newRating) => handleRatingChange(movie.id, u.id, newRating)}
+                            size="inline"
+                            onRatingChange={(newRating) => handleRatingChange(movie.id, u.id, newRating || 0)}
                           />
                         </td>
                       ))}

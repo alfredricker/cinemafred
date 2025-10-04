@@ -5,10 +5,18 @@ import { useAuth } from '@/context/AuthContext';
 interface RatingStarsProps {
   movieId: string;
   initialRating?: number;
-  onRatingChange?: () => void;
+  onRatingChange?: (rating?: number) => void;
+  size?: 'default' | 'inline';
+  isEditable?: boolean;
 }
 
-export const RatingStars: React.FC<RatingStarsProps> = ({ movieId, initialRating = 0, onRatingChange }) => {
+export const RatingStars: React.FC<RatingStarsProps> = ({ 
+  movieId, 
+  initialRating = 0, 
+  onRatingChange,
+  size = 'default',
+  isEditable = true
+}) => {
   const [rating, setRating] = useState<number>(0);
   const [userRating, setUserRating] = useState<number | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -18,10 +26,20 @@ export const RatingStars: React.FC<RatingStarsProps> = ({ movieId, initialRating
   const [contextMenuPos, setContextMenuPos] = useState({ x: 0, y: 0 });
   const contextMenuRef = useRef<HTMLDivElement>(null);
   const { user } = useAuth();
+  
+  // Determine if component should be interactive
+  const canEdit = isEditable && user && !user.isAdmin;
+
+  // Update rating when initialRating prop changes (for inline mode)
+  useEffect(() => {
+    setRating(initialRating || 0);
+  }, [initialRating]);
 
   useEffect(() => {
-    fetchUserRating();
-  }, [movieId]);
+    if (isEditable && user) {
+      fetchUserRating();
+    }
+  }, [movieId, isEditable, user]);
 
   const fetchUserRating = async () => {
     if (!user) return;
@@ -49,8 +67,10 @@ export const RatingStars: React.FC<RatingStarsProps> = ({ movieId, initialRating
   };
 
   const handleRatingChange = async (newRating: number) => {
-    if (!user) {
-      setError('Please log in to rate movies');
+    if (!canEdit) {
+      if (!user) {
+        setError('Please log in to rate movies');
+      }
       return;
     }
 
@@ -81,7 +101,7 @@ export const RatingStars: React.FC<RatingStarsProps> = ({ movieId, initialRating
 
       // Notify parent component that rating changed
       if (onRatingChange) {
-        onRatingChange();
+        onRatingChange(newRating);
       }
     } catch (err) {
       setError('Failed to update rating');
@@ -99,7 +119,7 @@ export const RatingStars: React.FC<RatingStarsProps> = ({ movieId, initialRating
   };
 
   const handleClearRating = async () => {
-    if (!user || isLoading || !userRating) return;
+    if (!canEdit || isLoading) return;
 
     setIsLoading(true);
     setShowContextMenu(false);
@@ -116,10 +136,10 @@ export const RatingStars: React.FC<RatingStarsProps> = ({ movieId, initialRating
       if (!response.ok) throw new Error('Failed to clear rating');
 
       setUserRating(null);
-      setRating(initialRating);
+      setRating(0);
 
       if (onRatingChange) {
-        onRatingChange();
+        onRatingChange(0);
       }
     } catch (err) {
       setError('Failed to clear rating');
@@ -130,8 +150,11 @@ export const RatingStars: React.FC<RatingStarsProps> = ({ movieId, initialRating
   };
 
   const handleContextMenu = (e: React.MouseEvent) => {
-    // Only show context menu if user is logged in, not admin, and has a rating
-    if (!user || user.isAdmin || !userRating || userRating === 0) return;
+    // Only show context menu if editable and user has a rating
+    if (!canEdit) return;
+    
+    const currentRating = userRating || rating;
+    if (!currentRating || currentRating === 0) return;
     
     e.preventDefault();
     setContextMenuPos({ x: e.clientX, y: e.clientY });
@@ -152,54 +175,68 @@ export const RatingStars: React.FC<RatingStarsProps> = ({ movieId, initialRating
     }
   }, [showContextMenu]);
 
+  const displayRating = hoverRating !== null ? hoverRating : rating;
+  const starSize = size === 'inline' ? 'w-5 h-5' : 'w-6 h-6';
+  const gapSize = size === 'inline' ? 'gap-0.5' : 'gap-1';
+  const textSize = size === 'inline' ? 'text-sm' : 'text-base';
+  const marginSize = size === 'inline' ? 'ml-1' : 'ml-2';
+
   return (
-    <div className="flex items-center gap-2 relative">
+    <div className={`flex items-center ${size === 'inline' ? 'gap-0' : 'gap-2'} relative`}>
       <div
-        className="flex gap-1"
-        onMouseLeave={() => setHoverRating(null)}
+        className={`flex ${gapSize}`}
+        onMouseLeave={() => canEdit && setHoverRating(null)}
         onContextMenu={handleContextMenu}
       >
-        {Array.from({ length: 10 }).map((_, i) => (
-          <button
-            key={i}
-            onClick={(e) => {
-              const newRating = calculateRating(i, e.clientX, e.currentTarget);
-              handleRatingChange(newRating);
-            }}
-            onMouseMove={(e) => {
-              const hoverValue = calculateRating(i, e.clientX, e.currentTarget);
-              setHoverRating(hoverValue);
-            }}
-            className="focus:outline-none"
-            disabled={isLoading || !user || user.isAdmin}
-            title={!user ? 'Please log in to rate movies' : user.isAdmin ? 'Admins cannot rate movies' : `Rate ${(i + 1)}`}
-          >
-            <Star
-              className={`w-6 h-6 ${
-                (hoverRating || userRating || rating) >= i + 1
-                  ? 'text-yellow-400 fill-yellow-400'
-                  : (hoverRating || userRating || rating) >= i + 0.5
-                  ? 'text-yellow-400 half-filled'
-                  : 'text-gray-600'
-              } ${user && !user.isAdmin ? 'hover:text-yellow-400 hover:fill-yellow-400' : ''} transition-colors`}
-            />
-          </button>
-        ))}
+        {Array.from({ length: 10 }).map((_, i) => {
+          const isFilled = displayRating >= i + 1;
+          const isHalfFilled = displayRating >= i + 0.5 && displayRating < i + 1;
+          
+          return (
+            <button
+              key={i}
+              onClick={(e) => {
+                if (!canEdit) return;
+                const newRating = calculateRating(i, e.clientX, e.currentTarget);
+                handleRatingChange(newRating);
+              }}
+              onMouseMove={(e) => {
+                if (canEdit) {
+                  const hoverValue = calculateRating(i, e.clientX, e.currentTarget);
+                  setHoverRating(hoverValue);
+                }
+              }}
+              className={`focus:outline-none ${canEdit ? 'cursor-pointer' : 'cursor-default'} ${isLoading ? 'opacity-50' : ''}`}
+              disabled={!canEdit || isLoading}
+              title={!isEditable ? '' : !user ? 'Please log in to rate movies' : user.isAdmin ? 'Admins cannot rate movies' : `Rate ${(i + 1)}`}
+            >
+              <Star
+                className={`${starSize} ${
+                  isFilled
+                    ? 'text-yellow-400 fill-yellow-400'
+                    : isHalfFilled
+                    ? 'text-yellow-400'
+                    : 'text-gray-600'
+                } ${canEdit && !isLoading ? 'hover:text-yellow-400' : ''} transition-colors`}
+              />
+            </button>
+          );
+        })}
       </div>
 
-      {isLoading ? (
+      {size === 'default' && isLoading ? (
         <Loader2 className="w-4 h-4 ml-2 animate-spin text-blue-500" />
-      ) : (
-        <span className="ml-2 text-gray-300 font-medium">
-          {userRating ? (
-            <span className="text-yellow-400">{userRating.toFixed(1)}</span>
+      ) : displayRating > 0 ? (
+        <span className={`${marginSize} ${size === 'inline' ? 'text-sm text-gray-400' : 'text-gray-300'} font-medium ${size === 'inline' ? 'min-w-[2rem]' : ''}`}>
+          {userRating && isEditable ? (
+            <span className="text-yellow-400">{displayRating.toFixed(1)}</span>
           ) : (
-            rating.toFixed(1)
+            displayRating.toFixed(1)
           )}
         </span>
-      )}
+      ) : null}
 
-      {error && (
+      {size === 'default' && error && (
         <span className="ml-2 text-sm text-red-500">{error}</span>
       )}
 

@@ -23,11 +23,11 @@ export const MovieGridHeader: React.FC<MovieGridHeaderProps> = ({
     'Sci-fi',
     'Comedy',
     'Horror',
+    'Documentary',
     'Romance',
     'Thriller',
     'Action',
     'Fantasy',
-    'Adventure'
   ];
 
   const sortOptions = [

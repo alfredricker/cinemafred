@@ -177,7 +177,7 @@ export const MovieDetailsModal: React.FC<MovieDetailsModalProps> = ({
     }
   };
 
-  const handleRatingChange = async () => {
+  const handleRatingChange = async (newRating?: number) => {
     // Fetch the updated rating after user rates
     if (!user || !movieId) return;
     
