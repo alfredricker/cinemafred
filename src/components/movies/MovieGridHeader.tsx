@@ -32,8 +32,9 @@ export const MovieGridHeader: React.FC<MovieGridHeaderProps> = ({
 
   const sortOptions = [
     { value: 'title-asc', label: 'Title: A-Z' },
-    { value: 'title-desc', label: 'Title: Z-A' },
+    { value: 'created-desc', label: 'Recently Added' },
     { value: 'rating-desc', label: 'Rating: High-Low' },
+    { value: 'title-desc', label: 'Title: Z-A' },
     { value: 'rating-asc', label: 'Rating: Low-High' },
     { value: 'year-desc', label: 'Year: New-Old' },
     { value: 'year-asc', label: 'Year: Old-New' },

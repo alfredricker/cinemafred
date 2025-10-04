@@ -115,6 +115,9 @@ export async function GET(request: Request) {
         case 'year-asc':
           orderBy = { year: 'asc' };
           break;
+        case 'created-desc':
+          orderBy = { created_at: 'desc' };
+          break;
       }
     }
 
