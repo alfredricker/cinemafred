@@ -1,8 +1,8 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { Header } from '@/components/Header';
 import { useAuth } from '@/context/AuthContext';
-import { redirect } from 'next/navigation';
+import { redirect, useSearchParams, useRouter } from 'next/navigation';
 import { Loader2, ChevronDown, ChevronUp, Plus, X, Search } from 'lucide-react';
 import { RatingStars } from '@/components/movies/RatingStars';
 
@@ -29,18 +29,29 @@ interface User {
 type SortColumn = 'title' | 'average' | string; // string for user IDs
 type SortDirection = 'asc' | 'desc';
 
-export default function RatingsPage() {
+function RatingsContent() {
   const { user, isLoading: authLoading } = useAuth();
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  
   const [movies, setMovies] = useState<MovieRating[]>([]);
   const [users, setUsers] = useState<User[]>([]);
   const [currentUserId, setCurrentUserId] = useState<string>('');
-  const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isInitialized, setIsInitialized] = useState(false);
+  
+  // Initialize state from URL params
+  const [selectedUserIds, setSelectedUserIds] = useState<string[]>(() => {
+    const usersParam = searchParams.get('users');
+    return usersParam ? usersParam.split(',') : [];
+  });
   
   // Sorting state
-  const [sortColumn, setSortColumn] = useState<SortColumn>('title');
-  const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
+  const [sortColumn, setSortColumn] = useState<SortColumn>(searchParams.get('sortBy') || 'title');
+  const [sortDirection, setSortDirection] = useState<SortDirection>(
+    (searchParams.get('sortDir') as SortDirection) || 'asc'
+  );
   
   // Add user state
   const [showUserSearch, setShowUserSearch] = useState(false);
@@ -53,6 +64,38 @@ export default function RatingsPage() {
       redirect('/login');
     }
   }, [user, authLoading]);
+
+  // Mark as initialized after first render
+  useEffect(() => {
+    setIsInitialized(true);
+  }, []);
+
+  // Update URL when state changes (but not on initial load)
+  useEffect(() => {
+    if (!isInitialized) return;
+
+    const params = new URLSearchParams();
+    
+    if (selectedUserIds.length > 0) {
+      params.set('users', selectedUserIds.join(','));
+    }
+    
+    if (sortColumn !== 'title') {
+      params.set('sortBy', sortColumn);
+    }
+    
+    if (sortDirection !== 'asc') {
+      params.set('sortDir', sortDirection);
+    }
+
+    const queryString = params.toString();
+    const newUrl = queryString ? `/ratings?${queryString}` : '/ratings';
+    
+    // Only update if URL actually changed
+    if (window.location.pathname + window.location.search !== newUrl) {
+      router.push(newUrl, { scroll: false });
+    }
+  }, [selectedUserIds, sortColumn, sortDirection, isInitialized, router]);
 
   useEffect(() => {
     if (user) {
@@ -471,6 +514,18 @@ export default function RatingsPage() {
         )}
       </main>
     </div>
+  );
+}
+
+export default function RatingsPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-gradient-to-br from-gray-900 via-black to-gray-900 flex items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-gray-400" />
+      </div>
+    }>
+      <RatingsContent />
+    </Suspense>
   );
 }
 

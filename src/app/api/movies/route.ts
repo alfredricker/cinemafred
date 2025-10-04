@@ -83,10 +83,7 @@ export async function GET(request: Request) {
     let whereClause: Prisma.MovieWhereInput = {};
 
     if (search) {
-      whereClause.OR = [
-        { title: { contains: search, mode: 'insensitive' } },
-        { director: { contains: search, mode: 'insensitive' } }
-      ];
+      whereClause.title = { contains: search, mode: 'insensitive' };
     }
 
     if (genre) {
