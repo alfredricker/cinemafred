@@ -71,6 +71,8 @@ export const EditMovieForm: React.FC<EditMovieFormProps> = ({ isOpen, onClose, m
   const [tmdbPosters, setTmdbPosters] = useState<string[]>([]);
   const [isLoadingPosters, setIsLoadingPosters] = useState(false);
   const [selectedPosterUrl, setSelectedPosterUrl] = useState<string | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [hasMorePosters, setHasMorePosters] = useState(true);
 
   useEffect(() => {
     setFormData({
@@ -141,13 +143,14 @@ export const EditMovieForm: React.FC<EditMovieFormProps> = ({ isOpen, onClose, m
     }
   };
 
-  const fetchTMDBPosters = async () => {
+  const fetchTMDBPosters = async (page: number = 1) => {
     setIsLoadingPosters(true);
     setError(null);
     try {
       const queryParams = new URLSearchParams({
         title: formData.title,
-        year: formData.year.toString()
+        year: formData.year.toString(),
+        page: page.toString()
       });
 
       const response = await fetch(`/api/movies/metadata?${queryParams.toString()}`, {
@@ -162,16 +165,35 @@ export const EditMovieForm: React.FC<EditMovieFormProps> = ({ isOpen, onClose, m
       }
 
       if (data.metadata?.posters && data.metadata.posters.length > 0) {
-        setTmdbPosters(data.metadata.posters);
-        setShowTMDBPosters(true);
+        if (page === 1) {
+          // First page, replace posters
+          setTmdbPosters(data.metadata.posters);
+          setShowTMDBPosters(true);
+          setCurrentPage(1);
+        } else {
+          // Subsequent pages, append posters
+          setTmdbPosters(prev => [...prev, ...data.metadata.posters]);
+          setCurrentPage(page);
+        }
+        // Check if there are more posters (if we got less than 8, we're at the end)
+        setHasMorePosters(data.metadata.posters.length === 8);
       } else {
-        throw new Error('No posters found for this movie');
+        if (page === 1) {
+          throw new Error('No posters found for this movie');
+        } else {
+          // No more posters to load
+          setHasMorePosters(false);
+        }
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch TMDB posters');
     } finally {
       setIsLoadingPosters(false);
     }
+  };
+
+  const loadMorePosters = () => {
+    fetchTMDBPosters(currentPage + 1);
   };
 
   const downloadTMDBPoster = async (posterUrl: string) => {
@@ -328,7 +350,7 @@ export const EditMovieForm: React.FC<EditMovieFormProps> = ({ isOpen, onClose, m
                   {/* TMDB Posters Button (Primary) */}
                   <button
                     type="button"
-                    onClick={fetchTMDBPosters}
+                    onClick={() => fetchTMDBPosters(1)}
                     disabled={isLoadingPosters}
                     className="w-full px-4 py-3 border-2 border-blue-600 bg-blue-600/10 text-blue-400 rounded-lg hover:bg-blue-600/20 transition-colors flex items-center justify-center gap-2"
                   >
@@ -596,6 +618,8 @@ export const EditMovieForm: React.FC<EditMovieFormProps> = ({ isOpen, onClose, m
         onSelect={downloadTMDBPoster}
         isLoading={isLoadingPosters}
         selectedPosterUrl={selectedPosterUrl}
+        onLoadMore={loadMorePosters}
+        hasMorePosters={hasMorePosters}
       />
 
       <style jsx>{`

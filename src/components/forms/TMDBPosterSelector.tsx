@@ -1,5 +1,5 @@
 import React from 'react';
-import { Loader2, X } from 'lucide-react';
+import { Loader2, X, ChevronDown } from 'lucide-react';
 
 interface TMDBPosterSelectorProps {
   isOpen: boolean;
@@ -8,6 +8,8 @@ interface TMDBPosterSelectorProps {
   onSelect: (posterUrl: string) => void;
   isLoading: boolean;
   selectedPosterUrl: string | null;
+  onLoadMore: () => void;
+  hasMorePosters: boolean;
 }
 
 export const TMDBPosterSelector: React.FC<TMDBPosterSelectorProps> = ({
@@ -17,6 +19,8 @@ export const TMDBPosterSelector: React.FC<TMDBPosterSelectorProps> = ({
   onSelect,
   isLoading,
   selectedPosterUrl,
+  onLoadMore,
+  hasMorePosters,
 }) => {
   if (!isOpen) return null;
 
@@ -53,39 +57,65 @@ export const TMDBPosterSelector: React.FC<TMDBPosterSelectorProps> = ({
                 <p>No posters available</p>
               </div>
             ) : (
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
-                {posters.map((posterUrl, index) => (
-                  <button
-                    key={index}
-                    type="button"
-                    onClick={() => onSelect(posterUrl)}
-                    disabled={isLoading}
-                    className={`relative aspect-[2/3] rounded-lg overflow-hidden border-2 transition-all ${
-                      selectedPosterUrl === posterUrl
-                        ? 'border-blue-500 ring-2 ring-blue-500'
-                        : 'border-gray-700 hover:border-blue-400'
-                    } ${isLoading ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer hover:scale-105'}`}
-                  >
-                    <img
-                      src={posterUrl}
-                      alt={`Poster ${index + 1}`}
-                      className="w-full h-full object-cover"
-                      loading="lazy"
-                    />
-                    {selectedPosterUrl === posterUrl && (
-                      <div className="absolute inset-0 bg-blue-500/20 flex items-center justify-center">
-                        <span className="bg-blue-500 text-white px-3 py-1 rounded text-sm font-medium">
-                          Selected
-                        </span>
-                      </div>
-                    )}
-                    {isLoading && selectedPosterUrl === posterUrl && (
-                      <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
-                        <Loader2 className="w-8 h-8 text-white animate-spin" />
-                      </div>
-                    )}
-                  </button>
-                ))}
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+                  {posters.map((posterUrl, index) => (
+                    <button
+                      key={index}
+                      type="button"
+                      onClick={() => onSelect(posterUrl)}
+                      disabled={isLoading}
+                      className={`relative aspect-[2/3] rounded-lg overflow-hidden border-2 transition-all ${
+                        selectedPosterUrl === posterUrl
+                          ? 'border-blue-500 ring-2 ring-blue-500'
+                          : 'border-gray-700 hover:border-blue-400'
+                      } ${isLoading ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer hover:scale-105'}`}
+                    >
+                      <img
+                        src={posterUrl}
+                        alt={`Poster ${index + 1}`}
+                        className="w-full h-full object-cover"
+                        loading="lazy"
+                      />
+                      {selectedPosterUrl === posterUrl && (
+                        <div className="absolute inset-0 bg-blue-500/20 flex items-center justify-center">
+                          <span className="bg-blue-500 text-white px-3 py-1 rounded text-sm font-medium">
+                            Selected
+                          </span>
+                        </div>
+                      )}
+                      {isLoading && selectedPosterUrl === posterUrl && (
+                        <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
+                          <Loader2 className="w-8 h-8 text-white animate-spin" />
+                        </div>
+                      )}
+                    </button>
+                  ))}
+                </div>
+                
+                {/* Load More Button */}
+                {hasMorePosters && (
+                  <div className="flex justify-center pt-2">
+                    <button
+                      type="button"
+                      onClick={onLoadMore}
+                      disabled={isLoading}
+                      className="flex items-center gap-2 px-6 py-3 bg-gray-800 hover:bg-gray-700 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {isLoading ? (
+                        <>
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                          Loading...
+                        </>
+                      ) : (
+                        <>
+                          <ChevronDown className="w-4 h-4" />
+                          Load 8 More Posters
+                        </>
+                      )}
+                    </button>
+                  </div>
+                )}
               </div>
             )}
           </div>

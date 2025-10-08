@@ -20,8 +20,9 @@ export async function GET(request: Request) {
     const title = url.searchParams.get('title');
     const year = url.searchParams.get('year');
     const filename = url.searchParams.get('filename');
+    const page = parseInt(url.searchParams.get('page') || '1', 10);
 
-    console.log('Received metadata request for:', { title, year, filename });
+    console.log('Received metadata request for:', { title, year, filename, page });
 
     // Support both filename parsing and direct title/year parameters
     let searchQuery: string;
@@ -36,7 +37,7 @@ export async function GET(request: Request) {
     }
 
     const tmdb = new MovieMetadataService(process.env.TMDB_API_KEY);
-    const { metadata, suggestions } = await tmdb.searchMovie(searchQuery);
+    const { metadata, suggestions } = await tmdb.searchMovie(searchQuery, page);
     
     if (!metadata && (!suggestions || !suggestions.length)) {
       console.log('No metadata or suggestions found for:', { title, year });
