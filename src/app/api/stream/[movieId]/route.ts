@@ -6,7 +6,7 @@ import { headers } from "next/headers";
 import { getPrismaClient, releasePrismaClient } from '@/lib/db';
 import jwt from 'jsonwebtoken';
 // @ts-ignore
-import { env } from "cloudflare:workers";
+import { env as cfEnv } from "cloudflare:workers";
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
 const MAX_RETRIES = 1;
@@ -160,8 +160,8 @@ export async function GET(
     let etag: string | undefined;
 
     // Try native R2 binding first
-    if (env && env.R2) {
-      const object = await env.R2.head(videoKey);
+    if (cfEnv && cfEnv.R2) {
+      const object = await cfEnv.R2.head(videoKey);
       if (object) {
         contentLength = object.size;
         contentType = object.httpMetadata?.contentType || 'video/mp4';
@@ -201,13 +201,16 @@ export async function GET(
 
       // Fetch the chunk with retry
       let stream: ReadableStream | null = null;
+      let buffer: ArrayBuffer | null = null;
       
-      if (env && env.R2) {
-        const object = await env.R2.get(videoKey, {
+      if (cfEnv && cfEnv.R2) {
+        const object = await cfEnv.R2.get(videoKey, {
           range: { offset: start, length: contentSize }
         });
-        if (object) stream = object.body;
-      } else {
+        if (object) buffer = await object.arrayBuffer();
+      }
+      
+      if (!buffer && !stream) {
         const command = new GetObjectCommand({
           Bucket: BUCKET_NAME,
           Key: videoKey,
@@ -218,13 +221,13 @@ export async function GET(
         stream = data.Body as ReadableStream;
       }
 
-      if (!stream) throw new Error('Failed to get stream');
+      if (!buffer && !stream) throw new Error('Failed to get stream');
 
       // Record successful operation
       r2CircuitBreaker.recordSuccess();
 
       // Send the chunk
-      return new Response(stream, {
+      return new Response(buffer || stream, {
         status: 206,
         headers: {
           "Content-Type": contentType,
@@ -241,13 +244,16 @@ export async function GET(
 
     // Handle initial request
     let stream: ReadableStream | null = null;
+    let buffer: ArrayBuffer | null = null;
     
-    if (env && env.R2) {
-      const object = await env.R2.get(videoKey, {
+    if (cfEnv && cfEnv.R2) {
+      const object = await cfEnv.R2.get(videoKey, {
         range: { offset: 0, length: DEFAULT_CHUNK_SIZE }
       });
-      if (object) stream = object.body;
-    } else {
+      if (object) buffer = await object.arrayBuffer();
+    }
+    
+    if (!buffer && !stream) {
       const command = new GetObjectCommand({
         Bucket: BUCKET_NAME,
         Key: videoKey,
@@ -258,12 +264,12 @@ export async function GET(
       stream = data.Body as ReadableStream;
     }
 
-    if (!stream) throw new Error('Failed to get stream');
+    if (!buffer && !stream) throw new Error('Failed to get stream');
 
     // Record successful operation
     r2CircuitBreaker.recordSuccess();
 
-    return new Response(stream, {
+    return new Response(buffer || stream, {
       status: 206,
       headers: {
         "Content-Type": contentType,

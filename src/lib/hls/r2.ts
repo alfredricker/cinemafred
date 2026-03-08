@@ -2,7 +2,7 @@ import { GetObjectCommand, PutObjectCommand, DeleteObjectCommand, ListObjectsV2C
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { r2Client, BUCKET_NAME } from '../r2';
 // @ts-ignore
-import { env } from "cloudflare:workers";
+import { env as cfEnv } from "cloudflare:workers";
 
 export interface HLSSegmentInfo {
   movieId: string;
@@ -93,10 +93,10 @@ export class HLSR2Manager {
     
     let objects: any[] = [];
     
-    if (env && env.R2) {
+    if (cfEnv && cfEnv.R2) {
       let cursor: string | undefined;
       do {
-        const listed = await env.R2.list({ prefix, cursor });
+        const listed = await cfEnv.R2.list({ prefix, cursor });
         objects.push(...listed.objects);
         cursor = listed.truncated ? listed.cursor : undefined;
       } while (cursor);
@@ -154,18 +154,18 @@ export class HLSR2Manager {
   async deleteHLSFiles(movieId: string): Promise<void> {
     const prefix = `hls/${movieId}/`;
     
-    if (env && env.R2) {
+    if (cfEnv && cfEnv.R2) {
       let cursor: string | undefined;
       let totalDeleted = 0;
       
       do {
-        const listed = await env.R2.list({ prefix, cursor });
+        const listed = await cfEnv.R2.list({ prefix, cursor });
         if (listed.objects.length === 0) break;
         
         const keys = listed.objects.map((obj: any) => obj.key);
         // R2 binding doesn't have a bulk delete, so we delete concurrently
         const deleteTasks = keys.map((key: string) => async () => {
-          await env.R2.delete(key);
+          await cfEnv.R2.delete(key);
         });
         
         await this.runWithConcurrency(deleteTasks, 8);
@@ -218,8 +218,8 @@ export class HLSR2Manager {
     content: string, 
     isMaster: boolean = false
   ): Promise<void> {
-    if (env && env.R2) {
-      await env.R2.put(key, content, {
+    if (cfEnv && cfEnv.R2) {
+      await cfEnv.R2.put(key, content, {
         httpMetadata: {
           contentType: 'application/vnd.apple.mpegurl',
           cacheControl: isMaster ? 'max-age=300' : 'max-age=60',
@@ -249,8 +249,8 @@ export class HLSR2Manager {
    * Upload HLS segment with proper content type
    */
   async uploadSegment(key: string, segmentData: Buffer): Promise<void> {
-    if (env && env.R2) {
-      await env.R2.put(key, segmentData, {
+    if (cfEnv && cfEnv.R2) {
+      await cfEnv.R2.put(key, segmentData, {
         httpMetadata: {
           contentType: 'video/mp2t',
           cacheControl: 'max-age=31536000',
@@ -285,8 +285,8 @@ export class HLSR2Manager {
     let originalContent = "";
 
     // Try native R2 binding first
-    if (env && env.R2) {
-      const object = await env.R2.get(masterKey);
+    if (cfEnv && cfEnv.R2) {
+      const object = await cfEnv.R2.get(masterKey);
       if (!object) {
         throw new Error('Master playlist not found');
       }
@@ -370,10 +370,10 @@ export class HLSR2Manager {
     const prefix = `hls/${movieId}/`;
     let totalSize = 0;
     
-    if (env && env.R2) {
+    if (cfEnv && cfEnv.R2) {
       let cursor: string | undefined;
       do {
-        const listed = await env.R2.list({ prefix, cursor });
+        const listed = await cfEnv.R2.list({ prefix, cursor });
         totalSize += listed.objects.reduce((sum: number, obj: any) => sum + (obj.size || 0), 0);
         cursor = listed.truncated ? listed.cursor : undefined;
       } while (cursor);
@@ -408,8 +408,8 @@ export class HLSR2Manager {
     let originalContent = "";
 
     // Try native R2 binding first
-    if (env && env.R2) {
-      const object = await env.R2.get(bitrateKey);
+    if (cfEnv && cfEnv.R2) {
+      const object = await cfEnv.R2.get(bitrateKey);
       if (!object) {
         throw new Error(`Bitrate playlist not found: ${bitrate}`);
       }

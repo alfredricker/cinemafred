@@ -52,7 +52,27 @@ export default {
     if (url.pathname === "/_vinext/image") {
       const allowedWidths = [...DEFAULT_DEVICE_SIZES, ...DEFAULT_IMAGE_SIZES];
       return handleImageOptimization(request, {
-        fetchAsset: (path) => env.ASSETS.fetch(new Request(new URL(path, request.url))),
+        fetchAsset: async (path) => {
+          // If it's an API route, fetch it from the worker itself
+          if (path.startsWith('/api/')) {
+            const handler = await getHandler();
+            const apiRequest = new Request(new URL(path, request.url), request);
+            const response = await handler(apiRequest);
+            
+            // Cloudflare Images binding requires a proper stream or buffer
+            // We need to clone it or read it to avoid the "Cannot perform I/O" error
+            if (response.ok && response.body) {
+              const buffer = await response.arrayBuffer();
+              return new Response(buffer, {
+                status: response.status,
+                headers: response.headers
+              });
+            }
+            return response;
+          }
+          // Otherwise fetch from ASSETS binding
+          return env.ASSETS.fetch(new Request(new URL(path, request.url)));
+        },
         transformImage: async (body, { width, format, quality }) => {
           const result = await env.IMAGES.input(body).transform(width > 0 ? { width } : {}).output({ format, quality });
           return result.response();

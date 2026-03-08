@@ -30,6 +30,8 @@ function createPrismaClient() {
   if (dbUrl && isWorkerRuntime()) {
     // In Cloudflare Workers, WebSocket is global
     neonConfig.webSocketConstructor = WebSocket;
+    // Use fetch instead of WebSockets to avoid cross-request I/O issues in Cloudflare Workers
+    neonConfig.poolQueryViaFetch = true;
     
     const pool = new NeonPool({ connectionString: dbUrl });
     const adapter = new PrismaNeon(pool);

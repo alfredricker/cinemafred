@@ -4,7 +4,7 @@ import { PutObjectCommand } from "@aws-sdk/client-s3";
 import { r2Client, BUCKET_NAME } from '@/lib/r2';
 import { validateAdmin } from '@/lib/middleware';
 // @ts-ignore
-import { env } from "cloudflare:workers";
+import { env as cfEnv } from "cloudflare:workers";
 
 export async function POST(request: Request) {
   try {
@@ -37,8 +37,8 @@ export async function POST(request: Request) {
     // Upload to R2 with organized path
     const organizedPath = `images/${filename}`;
     
-    if (env && env.R2) {
-      await env.R2.put(organizedPath, imageData, {
+    if (cfEnv && cfEnv.R2) {
+      await cfEnv.R2.put(organizedPath, imageData, {
         httpMetadata: {
           contentType: 'image/jpeg',
         }

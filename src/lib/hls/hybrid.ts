@@ -2,7 +2,7 @@ import { GetObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { r2Client, BUCKET_NAME } from '../r2';
 // @ts-ignore
-import { env } from "cloudflare:workers";
+import { env as cfEnv } from "cloudflare:workers";
 
 /**
  * Hybrid HLS manager that uses signed URLs for segments (better performance)
@@ -22,8 +22,8 @@ export class HLSHybridManager {
     const bitrateKey = `hls/${movieId}/${bitrate}/playlist.m3u8`;
     let originalContent = "";
 
-    if (env && env.R2) {
-      const object = await env.R2.get(bitrateKey);
+    if (cfEnv && cfEnv.R2) {
+      const object = await cfEnv.R2.get(bitrateKey);
       if (!object) {
         throw new Error(`Bitrate playlist not found: ${bitrate}`);
       }
@@ -77,8 +77,8 @@ export class HLSHybridManager {
     const masterKey = `hls/${movieId}/playlist.m3u8`;
     let originalContent = "";
 
-    if (env && env.R2) {
-      const object = await env.R2.get(masterKey);
+    if (cfEnv && cfEnv.R2) {
+      const object = await cfEnv.R2.get(masterKey);
       if (!object) {
         throw new Error('Master playlist not found');
       }

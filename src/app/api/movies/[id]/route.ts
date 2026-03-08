@@ -4,7 +4,7 @@ import { validateAdmin } from '@/lib/middleware';
 import { DeleteObjectCommand } from '@aws-sdk/client-s3';
 import { r2Client, BUCKET_NAME } from '@/lib/r2';
 // @ts-ignore
-import { env } from "cloudflare:workers";
+import { env as cfEnv } from "cloudflare:workers";
 
 // Mark this route as dynamic
 export const dynamic = 'force-dynamic';
@@ -14,8 +14,8 @@ export const dynamic = 'force-dynamic';
  */
 async function deleteR2File(key: string): Promise<void> {
   try {
-    if (env && env.R2) {
-      await env.R2.delete(key);
+    if (cfEnv && cfEnv.R2) {
+      await cfEnv.R2.delete(key);
     } else {
       const command = new DeleteObjectCommand({
         Bucket: BUCKET_NAME,

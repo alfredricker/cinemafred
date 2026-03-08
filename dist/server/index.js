@@ -6706,6 +6706,7 @@ function createPrismaClient() {
   const log = ["error", "warn"];
   if (dbUrl && isWorkerRuntime$1()) {
     neonConfig.webSocketConstructor = WebSocket;
+    neonConfig.poolQueryViaFetch = true;
     const pool = new Pool({ connectionString: dbUrl });
     const adapter = new PrismaNeon(pool);
     const workerOptions = { adapter, log };
@@ -9043,12 +9044,14 @@ async function GET$2(request, { params }) {
       }
       const contentSize = end - start + 1;
       let stream2 = null;
+      let buffer2 = null;
       if (env && env.R2) {
         const object = await env.R2.get(videoKey, {
           range: { offset: start, length: contentSize }
         });
-        if (object) stream2 = object.body;
-      } else {
+        if (object) buffer2 = await object.arrayBuffer();
+      }
+      if (!buffer2 && !stream2) {
         const command = new GetObjectCommand({
           Bucket: BUCKET_NAME,
           Key: videoKey,
@@ -9057,9 +9060,9 @@ async function GET$2(request, { params }) {
         const data = await retryOperation(() => getr2Client().send(command), MAX_RETRIES, RETRY_DELAY);
         stream2 = data.Body;
       }
-      if (!stream2) throw new Error("Failed to get stream");
+      if (!buffer2 && !stream2) throw new Error("Failed to get stream");
       r2CircuitBreaker.recordSuccess();
-      return new Response(stream2, {
+      return new Response(buffer2 || stream2, {
         status: 206,
         headers: {
           "Content-Type": contentType,
@@ -9074,12 +9077,14 @@ async function GET$2(request, { params }) {
       });
     }
     let stream = null;
+    let buffer = null;
     if (env && env.R2) {
       const object = await env.R2.get(videoKey, {
         range: { offset: 0, length: DEFAULT_CHUNK_SIZE }
       });
-      if (object) stream = object.body;
-    } else {
+      if (object) buffer = await object.arrayBuffer();
+    }
+    if (!buffer && !stream) {
       const command = new GetObjectCommand({
         Bucket: BUCKET_NAME,
         Key: videoKey,
@@ -9088,9 +9093,9 @@ async function GET$2(request, { params }) {
       const data = await retryOperation(() => getr2Client().send(command), MAX_RETRIES, RETRY_DELAY);
       stream = data.Body;
     }
-    if (!stream) throw new Error("Failed to get stream");
+    if (!buffer && !stream) throw new Error("Failed to get stream");
     r2CircuitBreaker.recordSuccess();
-    return new Response(stream, {
+    return new Response(buffer || stream, {
       status: 206,
       headers: {
         "Content-Type": contentType,
@@ -9162,8 +9167,33 @@ async function GET$1(req, { params }) {
     if (env && env.R2) {
       const object = await env.R2.get(filePath);
       if (object) {
-        stream = object.body;
+        const buffer = await object.arrayBuffer();
         contentLength = object.size.toString();
+        let contentType2 = "application/octet-stream";
+        if (filePath.endsWith(".mp4")) {
+          contentType2 = "video/mp4";
+        } else if (filePath.endsWith(".srt")) {
+          const text = new TextDecoder().decode(buffer);
+          const vttContent = convertSRTtoVTT(text);
+          return new Response(vttContent, {
+            headers: {
+              "Content-Type": "text/vtt"
+            }
+          });
+        } else if (filePath.endsWith(".jpg") || filePath.endsWith(".jpeg")) {
+          contentType2 = "image/jpeg";
+        } else if (filePath.endsWith(".png")) {
+          contentType2 = "image/png";
+        } else if (filePath.endsWith(".webp")) {
+          contentType2 = "image/webp";
+        }
+        return new Response(buffer, {
+          headers: {
+            "Content-Type": contentType2,
+            "Content-Length": contentLength,
+            "Cache-Control": filePath.match(/\.(jpg|jpeg|png|webp|gif|avif)$/i) ? "public, max-age=86400, s-maxage=86400" : "public, max-age=300, s-maxage=300"
+          }
+        });
       }
     }
     if (!stream) {
@@ -9215,8 +9245,8 @@ const mod_25 = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProper
 const rateLimitMap = /* @__PURE__ */ new Map();
 const segmentRateLimitMap = /* @__PURE__ */ new Map();
 const RATE_LIMIT_WINDOW = 60 * 1e3;
-const MAX_REQUESTS_PER_MINUTE = 100;
-const MAX_SEGMENT_REQUESTS_PER_MINUTE = 5;
+const MAX_REQUESTS_PER_MINUTE = 1e3;
+const MAX_SEGMENT_REQUESTS_PER_MINUTE = 50;
 function cleanupExpiredRateLimitEntries(now) {
   for (const [key, value] of rateLimitMap.entries()) {
     if (now > value.resetTime) {
@@ -9288,18 +9318,6 @@ async function GET(request, { params }) {
     const ip = request.headers.get("x-forwarded-for") || request.headers.get("x-real-ip") || "unknown";
     if (!checkRateLimit(ip)) {
       console.log(`Rate limited HLS request from IP: ${ip}`);
-      return NextResponse.json({
-        error: "Too many requests",
-        message: "Rate limit exceeded. Max 30 requests per minute."
-      }, {
-        status: 429,
-        headers: {
-          "Retry-After": "60",
-          "X-RateLimit-Limit": "30",
-          "X-RateLimit-Remaining": "0",
-          "X-RateLimit-Reset": new Date(Date.now() + RATE_LIMIT_WINDOW).toISOString()
-        }
-      });
     }
     const url = new URL(request.url);
     const token = url.searchParams.get("token");
@@ -9313,18 +9331,6 @@ async function GET(request, { params }) {
     const segmentPath = segments.join("/");
     if (!checkSegmentRateLimit(ip, segmentPath)) {
       console.log(`🚫 Segment rate limited: ${ip} requesting ${segmentPath} (too many requests)`);
-      return NextResponse.json({
-        error: "Too many requests for this segment",
-        message: "Segment rate limit exceeded. Max 5 requests per segment per minute."
-      }, {
-        status: 429,
-        headers: {
-          "Retry-After": "60",
-          "X-RateLimit-Limit": "5",
-          "X-RateLimit-Remaining": "0",
-          "X-RateLimit-Reset": new Date(Date.now() + RATE_LIMIT_WINDOW).toISOString()
-        }
-      });
     }
     console.log(`📺 HLS Segment request: ${ip} -> ${movieId}/${segmentPath}`);
     console.log(`HLS Segment request: ${movieId}/${segmentPath}`);
@@ -9380,6 +9386,7 @@ async function GET(request, { params }) {
     const rangeHeader = request.headers.get("range");
     let stream = null;
     let r2Response = null;
+    let buffer = null;
     if (env && env.R2) {
       const options = {};
       if (rangeHeader) {
@@ -9392,7 +9399,7 @@ async function GET(request, { params }) {
       }
       const object = await env.R2.get(r2Key, options);
       if (object) {
-        stream = object.body;
+        buffer = await object.arrayBuffer();
         r2Response = {
           ContentLength: object.size,
           ETag: object.etag,
@@ -9401,7 +9408,7 @@ async function GET(request, { params }) {
         };
       }
     }
-    if (!stream) {
+    if (!buffer && !stream) {
       const command = new GetObjectCommand({
         Bucket: BUCKET_NAME,
         Key: r2Key,
@@ -9413,7 +9420,7 @@ async function GET(request, { params }) {
         r2Response = response;
       }
     }
-    if (!stream || !r2Response) {
+    if (!buffer && !stream) {
       return NextResponse.json({ error: "Segment not found" }, { status: 404 });
     }
     let contentType;
@@ -9452,7 +9459,7 @@ async function GET(request, { params }) {
       headers2["Content-Range"] = r2Response.ContentRange;
     }
     const statusCode = rangeHeader && r2Response.ContentRange ? 206 : 200;
-    return new Response(stream, {
+    return new Response(buffer || stream, {
       status: statusCode,
       headers: headers2
     });

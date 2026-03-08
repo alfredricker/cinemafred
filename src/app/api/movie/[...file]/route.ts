@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { GetObjectCommand } from "@aws-sdk/client-s3";
 import { r2Client, BUCKET_NAME } from "@/lib/r2";
 // @ts-ignore
-import { env } from "cloudflare:workers";
+import { env as cfEnv } from "cloudflare:workers";
 
 function convertSRTtoVTT(srtContent: string): string {
   // Add WebVTT header
@@ -57,11 +57,46 @@ export async function GET(req: Request, { params }: { params: { file: string[] }
     let contentLength = "";
     
     // Try native R2 binding first
-    if (env && env.R2) {
-      const object = await env.R2.get(filePath);
+    if (cfEnv && cfEnv.R2) {
+      // In Cloudflare Workers, we can't easily return the raw stream from R2.get() 
+      // directly in a Response if it's going to be consumed by another part of the worker
+      // or if there are cross-request I/O issues.
+      // We will read the object into memory as an ArrayBuffer and return that instead.
+      const object = await cfEnv.R2.get(filePath);
       if (object) {
-        stream = object.body;
+        const buffer = await object.arrayBuffer();
         contentLength = object.size.toString();
+        
+        // Determine content type based on file extension
+        let contentType = "application/octet-stream";
+        if (filePath.endsWith('.mp4')) {
+          contentType = "video/mp4";
+        }  else if (filePath.endsWith('.srt')) {
+          // For SRT files, convert to WebVTT
+          const text = new TextDecoder().decode(buffer);
+          const vttContent = convertSRTtoVTT(text);
+          return new Response(vttContent, {
+            headers: {
+              "Content-Type": "text/vtt",
+            },
+          });
+        } else if (filePath.endsWith('.jpg') || filePath.endsWith('.jpeg')) {
+          contentType = "image/jpeg";
+        } else if (filePath.endsWith('.png')) {
+          contentType = "image/png";
+        } else if (filePath.endsWith('.webp')) {
+          contentType = "image/webp";
+        }
+
+        return new Response(buffer, {
+          headers: {
+            "Content-Type": contentType,
+            "Content-Length": contentLength,
+            "Cache-Control": filePath.match(/\.(jpg|jpeg|png|webp|gif|avif)$/i)
+              ? "public, max-age=86400, s-maxage=86400"
+              : "public, max-age=300, s-maxage=300",
+          },
+        });
       }
     }
     
