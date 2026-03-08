@@ -50,23 +50,10 @@ if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma
 // Simple database operation wrapper - connects, executes, disconnects
 export async function withDatabase<T>(operation: (prisma: PrismaClient) => Promise<T>): Promise<T> {
   try {
-    console.log('🔌 Connecting to database...');
-    await prisma.$connect();
-    
-    const result = await operation(prisma);
-    
-    console.log('✅ Database operation completed');
-    return result;
+    return await operation(prisma);
   } catch (error) {
     console.error('❌ Database operation failed:', error);
     throw error;
-  } finally {
-    try {
-      await prisma.$disconnect();
-      console.log('🔌 Database disconnected');
-    } catch (disconnectError) {
-      console.error('⚠️ Error disconnecting:', disconnectError);
-    }
   }
 }
 

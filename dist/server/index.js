@@ -7240,9 +7240,6 @@ const mod_8 = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.definePropert
   POST: POST$6
 }, Symbol.toStringTag, { value: "Module" }));
 const dynamic$4 = "force-dynamic";
-function getSortableTitle(title) {
-  return title.replace(/^the\s+/i, "").toLowerCase();
-}
 async function POST$5(request) {
   try {
     const validation = await validateAdmin(request);
@@ -7309,31 +7306,39 @@ async function GET$8(request) {
     if (year) {
       whereClause.year = year;
     }
-    const isTitleSort = sort === "title-asc" || sort === "title-desc";
     let orderBy = {};
-    if (!isTitleSort) {
-      switch (sort) {
-        case "rating-desc":
-          orderBy = { averageRating: "desc" };
-          break;
-        case "rating-asc":
-          orderBy = { averageRating: "asc" };
-          break;
-        case "year-desc":
-          orderBy = { year: "desc" };
-          break;
-        case "year-asc":
-          orderBy = { year: "asc" };
-          break;
-        case "created-desc":
-          orderBy = { created_at: "desc" };
-          break;
-      }
+    switch (sort) {
+      case "title-desc":
+        orderBy = { title: "desc" };
+        break;
+      case "title-asc":
+        orderBy = { title: "asc" };
+        break;
+      case "rating-desc":
+        orderBy = { averageRating: "desc" };
+        break;
+      case "rating-asc":
+        orderBy = { averageRating: "asc" };
+        break;
+      case "year-desc":
+        orderBy = { year: "desc" };
+        break;
+      case "year-asc":
+        orderBy = { year: "asc" };
+        break;
+      case "created-desc":
+        orderBy = { created_at: "desc" };
+        break;
+      default:
+        orderBy = { title: "asc" };
+        break;
     }
     const [movies, total] = await Promise.all([
       prisma.movie.findMany({
         where: whereClause,
-        orderBy: isTitleSort ? void 0 : orderBy,
+        orderBy,
+        skip,
+        take: limit,
         select: {
           id: true,
           title: true,
@@ -7351,16 +7356,8 @@ async function GET$8(request) {
       }),
       prisma.movie.count({ where: whereClause })
     ]);
-    if (isTitleSort) {
-      movies.sort((a, b) => {
-        const titleA = getSortableTitle(a.title);
-        const titleB = getSortableTitle(b.title);
-        return sort === "title-asc" ? titleA.localeCompare(titleB) : titleB.localeCompare(titleA);
-      });
-    }
-    const paginatedMovies = movies.slice(skip, skip + limit);
     return NextResponse.json({
-      movies: paginatedMovies,
+      movies,
       pagination: {
         total,
         pages: Math.ceil(total / limit),

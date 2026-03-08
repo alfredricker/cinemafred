@@ -7,11 +7,6 @@ import { validateAdmin } from '@/lib/middleware';
 // Mark this route as dynamic
 export const dynamic = 'force-dynamic';
 
-// Helper function to sort titles ignoring leading "The"
-function getSortableTitle(title: string): string {
-  return title.replace(/^the\s+/i, '').toLowerCase();
-}
-
 export async function POST(request: Request) {
   try {
     // Validate admin access
@@ -95,34 +90,42 @@ export async function GET(request: Request) {
     }
 
     // Determine sorting logic
-    const isTitleSort = sort === 'title-asc' || sort === 'title-desc';
     let orderBy: Prisma.MovieOrderByWithRelationInput = {};
 
-    if (!isTitleSort) {
-      switch (sort) {
-        case 'rating-desc':
-          orderBy = { averageRating: 'desc' };  // Use precomputed averageRating
-          break;
-        case 'rating-asc':
-          orderBy = { averageRating: 'asc' };  // Use precomputed averageRating
-          break;
-        case 'year-desc':
-          orderBy = { year: 'desc' };
-          break;
-        case 'year-asc':
-          orderBy = { year: 'asc' };
-          break;
-        case 'created-desc':
-          orderBy = { created_at: 'desc' };
-          break;
-      }
+    switch (sort) {
+      case 'title-desc':
+        orderBy = { title: 'desc' };
+        break;
+      case 'title-asc':
+        orderBy = { title: 'asc' };
+        break;
+      case 'rating-desc':
+        orderBy = { averageRating: 'desc' };  // Use precomputed averageRating
+        break;
+      case 'rating-asc':
+        orderBy = { averageRating: 'asc' };  // Use precomputed averageRating
+        break;
+      case 'year-desc':
+        orderBy = { year: 'desc' };
+        break;
+      case 'year-asc':
+        orderBy = { year: 'asc' };
+        break;
+      case 'created-desc':
+        orderBy = { created_at: 'desc' };
+        break;
+      default:
+        orderBy = { title: 'asc' };
+        break;
     }
 
     // Fetch movies
     const [movies, total] = await Promise.all([
       prisma.movie.findMany({
         where: whereClause,
-        orderBy: isTitleSort ? undefined : orderBy,
+        orderBy,
+        skip,
+        take: limit,
         select: {
           id: true,
           title: true,
@@ -141,22 +144,8 @@ export async function GET(request: Request) {
       prisma.movie.count({ where: whereClause })
     ]);
 
-    // If sorting by title, sort manually
-    if (isTitleSort) {
-      movies.sort((a, b) => {
-        const titleA = getSortableTitle(a.title);
-        const titleB = getSortableTitle(b.title);
-        return sort === 'title-asc'
-          ? titleA.localeCompare(titleB)
-          : titleB.localeCompare(titleA);
-      });
-    }
-
-    // Apply pagination after sorting
-    const paginatedMovies = movies.slice(skip, skip + limit);
-
     return NextResponse.json({
-      movies: paginatedMovies,
+      movies,
       pagination: {
         total,
         pages: Math.ceil(total / limit),
