@@ -7333,29 +7333,27 @@ async function GET$8(request) {
         orderBy = { title: "asc" };
         break;
     }
-    const [movies, total] = await Promise.all([
-      prisma.movie.findMany({
-        where: whereClause,
-        orderBy,
-        skip,
-        take: limit,
-        select: {
-          id: true,
-          title: true,
-          year: true,
-          rating: true,
-          averageRating: true,
-          r2_image_path: true,
-          _count: {
-            select: {
-              ratings: true,
-              reviews: true
-            }
+    const movies = await prisma.movie.findMany({
+      where: whereClause,
+      orderBy,
+      skip,
+      take: limit,
+      select: {
+        id: true,
+        title: true,
+        year: true,
+        rating: true,
+        averageRating: true,
+        r2_image_path: true,
+        _count: {
+          select: {
+            ratings: true,
+            reviews: true
           }
         }
-      }),
-      prisma.movie.count({ where: whereClause })
-    ]);
+      }
+    });
+    const total = await prisma.movie.count({ where: whereClause });
     return NextResponse.json({
       movies,
       pagination: {
@@ -8973,7 +8971,8 @@ async function GET$1(req, { params }) {
     return new Response(stream, {
       headers: {
         "Content-Type": contentType,
-        "Content-Length": data.ContentLength?.toString() || ""
+        "Content-Length": data.ContentLength?.toString() || "",
+        "Cache-Control": filePath.match(/\.(jpg|jpeg|png|webp|gif|avif)$/i) ? "public, max-age=86400, s-maxage=86400" : "public, max-age=300, s-maxage=300"
       }
     });
   } catch (error) {

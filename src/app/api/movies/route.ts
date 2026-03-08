@@ -119,30 +119,28 @@ export async function GET(request: Request) {
         break;
     }
 
-    // Fetch movies
-    const [movies, total] = await Promise.all([
-      prisma.movie.findMany({
-        where: whereClause,
-        orderBy,
-        skip,
-        take: limit,
-        select: {
-          id: true,
-          title: true,
-          year: true,
-          rating: true,
-          averageRating: true,
-          r2_image_path: true,
-          _count: {
-            select: {
-              ratings: true,
-              reviews: true
-            }
+    // In Workers, sequential queries are more stable with adapter-based clients.
+    const movies = await prisma.movie.findMany({
+      where: whereClause,
+      orderBy,
+      skip,
+      take: limit,
+      select: {
+        id: true,
+        title: true,
+        year: true,
+        rating: true,
+        averageRating: true,
+        r2_image_path: true,
+        _count: {
+          select: {
+            ratings: true,
+            reviews: true
           }
         }
-      }),
-      prisma.movie.count({ where: whereClause })
-    ]);
+      }
+    });
+    const total = await prisma.movie.count({ where: whereClause });
 
     return NextResponse.json({
       movies,

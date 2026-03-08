@@ -84,6 +84,9 @@ export async function GET(req: Request, { params }: { params: { file: string[] }
       headers: {
         "Content-Type": contentType,
         "Content-Length": data.ContentLength?.toString() || "",
+        "Cache-Control": filePath.match(/\.(jpg|jpeg|png|webp|gif|avif)$/i)
+          ? "public, max-age=86400, s-maxage=86400"
+          : "public, max-age=300, s-maxage=300",
       },
     });
   } catch (error) {
