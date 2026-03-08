@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { GetObjectCommand } from "@aws-sdk/client-s3";
 import { r2Client, BUCKET_NAME } from "@/lib/r2";
+// @ts-ignore
+import { env } from "cloudflare:workers";
 
 function convertSRTtoVTT(srtContent: string): string {
   // Add WebVTT header
@@ -51,13 +53,33 @@ export async function GET(req: Request, { params }: { params: { file: string[] }
   }
 
   try {
-    const command = new GetObjectCommand({
-      Bucket: BUCKET_NAME,
-      Key: filePath,
-    });
+    let stream: ReadableStream | null = null;
+    let contentLength = "";
+    
+    // Try native R2 binding first
+    if (env && env.R2) {
+      const object = await env.R2.get(filePath);
+      if (object) {
+        stream = object.body;
+        contentLength = object.size.toString();
+      }
+    }
+    
+    // Fallback to S3 client
+    if (!stream) {
+      const command = new GetObjectCommand({
+        Bucket: BUCKET_NAME,
+        Key: filePath,
+      });
 
-    const data = await r2Client().send(command);
-    const stream = data.Body as ReadableStream;
+      const data = await r2Client().send(command);
+      stream = data.Body as ReadableStream;
+      contentLength = data.ContentLength?.toString() || "";
+    }
+    
+    if (!stream) {
+      return NextResponse.json({ error: "File not found." }, { status: 404 });
+    }
 
     // Determine content type based on file extension
     let contentType = "application/octet-stream";
@@ -83,7 +105,7 @@ export async function GET(req: Request, { params }: { params: { file: string[] }
     return new Response(stream, {
       headers: {
         "Content-Type": contentType,
-        "Content-Length": data.ContentLength?.toString() || "",
+        "Content-Length": contentLength,
         "Cache-Control": filePath.match(/\.(jpg|jpeg|png|webp|gif|avif)$/i)
           ? "public, max-age=86400, s-maxage=86400"
           : "public, max-age=300, s-maxage=300",

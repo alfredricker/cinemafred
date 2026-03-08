@@ -1,6 +1,8 @@
 import { GetObjectCommand, PutObjectCommand, DeleteObjectCommand, ListObjectsV2Command } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { r2Client, BUCKET_NAME } from '../r2';
+// @ts-ignore
+import { env } from "cloudflare:workers";
 
 export interface HLSSegmentInfo {
   movieId: string;
@@ -89,13 +91,24 @@ export class HLSR2Manager {
   }> {
     const prefix = `hls/${movieId}/`;
     
-    const command = new ListObjectsV2Command({
-      Bucket: BUCKET_NAME,
-      Prefix: prefix
-    });
+    let objects: any[] = [];
+    
+    if (env && env.R2) {
+      let cursor: string | undefined;
+      do {
+        const listed = await env.R2.list({ prefix, cursor });
+        objects.push(...listed.objects);
+        cursor = listed.truncated ? listed.cursor : undefined;
+      } while (cursor);
+    } else {
+      const command = new ListObjectsV2Command({
+        Bucket: BUCKET_NAME,
+        Prefix: prefix
+      });
 
-    const response = await r2Client().send(command);
-    const objects = response.Contents || [];
+      const response = await r2Client().send(command);
+      objects = response.Contents || [];
+    }
 
     const result = {
       masterPlaylist: false,
@@ -104,17 +117,19 @@ export class HLSR2Manager {
     };
 
     // Check for master playlist
-    result.masterPlaylist = objects.some(obj => 
-      obj.Key === `hls/${movieId}/playlist.m3u8`
-    );
+    result.masterPlaylist = objects.some(obj => {
+      const key = obj.Key || obj.key;
+      return key === `hls/${movieId}/playlist.m3u8`;
+    });
 
     // Find bitrates and count segments
     const bitrateSet = new Set<string>();
     
     for (const obj of objects) {
-      if (!obj.Key) continue;
+      const key = obj.Key || obj.key;
+      if (!key) continue;
       
-      const pathParts = obj.Key.split('/');
+      const pathParts = key.split('/');
       if (pathParts.length >= 4 && pathParts[0] === 'hls' && pathParts[1] === movieId) {
         const bitrate = pathParts[2];
         const filename = pathParts[3];
@@ -139,6 +154,33 @@ export class HLSR2Manager {
   async deleteHLSFiles(movieId: string): Promise<void> {
     const prefix = `hls/${movieId}/`;
     
+    if (env && env.R2) {
+      let cursor: string | undefined;
+      let totalDeleted = 0;
+      
+      do {
+        const listed = await env.R2.list({ prefix, cursor });
+        if (listed.objects.length === 0) break;
+        
+        const keys = listed.objects.map((obj: any) => obj.key);
+        // R2 binding doesn't have a bulk delete, so we delete concurrently
+        const deleteTasks = keys.map((key: string) => async () => {
+          await env.R2.delete(key);
+        });
+        
+        await this.runWithConcurrency(deleteTasks, 8);
+        totalDeleted += keys.length;
+        cursor = listed.truncated ? listed.cursor : undefined;
+      } while (cursor);
+      
+      if (totalDeleted === 0) {
+        console.log(`No HLS files found for movie ${movieId}`);
+      } else {
+        console.log(`Deleted ${totalDeleted} HLS files for movie ${movieId}`);
+      }
+      return;
+    }
+
     // List all objects with the prefix
     const listCommand = new ListObjectsV2Command({
       Bucket: BUCKET_NAME,
@@ -176,6 +218,19 @@ export class HLSR2Manager {
     content: string, 
     isMaster: boolean = false
   ): Promise<void> {
+    if (env && env.R2) {
+      await env.R2.put(key, content, {
+        httpMetadata: {
+          contentType: 'application/vnd.apple.mpegurl',
+          cacheControl: isMaster ? 'max-age=300' : 'max-age=60',
+        },
+        customMetadata: {
+          'hls-type': isMaster ? 'master' : 'bitrate'
+        }
+      });
+      return;
+    }
+
     const command = new PutObjectCommand({
       Bucket: BUCKET_NAME,
       Key: key,
@@ -194,6 +249,16 @@ export class HLSR2Manager {
    * Upload HLS segment with proper content type
    */
   async uploadSegment(key: string, segmentData: Buffer): Promise<void> {
+    if (env && env.R2) {
+      await env.R2.put(key, segmentData, {
+        httpMetadata: {
+          contentType: 'video/mp2t',
+          cacheControl: 'max-age=31536000',
+        }
+      });
+      return;
+    }
+
     const command = new PutObjectCommand({
       Bucket: BUCKET_NAME,
       Key: key,
@@ -216,25 +281,36 @@ export class HLSR2Manager {
     masterPlaylistUrl: string;
     authenticatedMasterPlaylist: string;
   }> {
-    // Get the original master playlist
     const masterKey = `hls/${movieId}/playlist.m3u8`;
-    const getCommand = new GetObjectCommand({
-      Bucket: BUCKET_NAME,
-      Key: masterKey
-    });
+    let originalContent = "";
 
-    const response = await r2Client().send(getCommand);
-    if (!response.Body) {
-      throw new Error('Master playlist not found');
-    }
+    // Try native R2 binding first
+    if (env && env.R2) {
+      const object = await env.R2.get(masterKey);
+      if (!object) {
+        throw new Error('Master playlist not found');
+      }
+      originalContent = await object.text();
+    } else {
+      // Get the original master playlist
+      const getCommand = new GetObjectCommand({
+        Bucket: BUCKET_NAME,
+        Key: masterKey
+      });
 
-    // Read the master playlist content
-    const chunks: Buffer[] = [];
-    const stream = response.Body as any;
-    for await (const chunk of stream) {
-      chunks.push(chunk);
+      const response = await r2Client().send(getCommand);
+      if (!response.Body) {
+        throw new Error('Master playlist not found');
+      }
+
+      // Read the master playlist content
+      const chunks: Buffer[] = [];
+      const stream = response.Body as any;
+      for await (const chunk of stream) {
+        chunks.push(chunk);
+      }
+      originalContent = Buffer.concat(chunks).toString('utf-8');
     }
-    const originalContent = Buffer.concat(chunks).toString('utf-8');
 
     // Parse and replace bitrate playlist URLs with API URLs
     const lines = originalContent.split('\n');
@@ -292,13 +368,24 @@ export class HLSR2Manager {
 
     // Get size information
     const prefix = `hls/${movieId}/`;
-    const listCommand = new ListObjectsV2Command({
-      Bucket: BUCKET_NAME,
-      Prefix: prefix
-    });
+    let totalSize = 0;
+    
+    if (env && env.R2) {
+      let cursor: string | undefined;
+      do {
+        const listed = await env.R2.list({ prefix, cursor });
+        totalSize += listed.objects.reduce((sum: number, obj: any) => sum + (obj.size || 0), 0);
+        cursor = listed.truncated ? listed.cursor : undefined;
+      } while (cursor);
+    } else {
+      const listCommand = new ListObjectsV2Command({
+        Bucket: BUCKET_NAME,
+        Prefix: prefix
+      });
 
-    const response = await r2Client().send(listCommand);
-    const totalSize = (response.Contents || []).reduce((sum, obj) => sum + (obj.Size || 0), 0);
+      const response = await r2Client().send(listCommand);
+      totalSize = (response.Contents || []).reduce((sum, obj) => sum + (obj.Size || 0), 0);
+    }
 
     return {
       exists: true,
@@ -317,25 +404,36 @@ export class HLSR2Manager {
     bitrate: string,
     token: string
   ): Promise<string> {
-    // Get the original bitrate playlist
     const bitrateKey = `hls/${movieId}/${bitrate}/playlist.m3u8`;
-    const getCommand = new GetObjectCommand({
-      Bucket: BUCKET_NAME,
-      Key: bitrateKey
-    });
+    let originalContent = "";
 
-    const response = await r2Client().send(getCommand);
-    if (!response.Body) {
-      throw new Error(`Bitrate playlist not found: ${bitrate}`);
-    }
+    // Try native R2 binding first
+    if (env && env.R2) {
+      const object = await env.R2.get(bitrateKey);
+      if (!object) {
+        throw new Error(`Bitrate playlist not found: ${bitrate}`);
+      }
+      originalContent = await object.text();
+    } else {
+      // Get the original bitrate playlist
+      const getCommand = new GetObjectCommand({
+        Bucket: BUCKET_NAME,
+        Key: bitrateKey
+      });
 
-    // Read the bitrate playlist content
-    const chunks: Buffer[] = [];
-    const stream = response.Body as any;
-    for await (const chunk of stream) {
-      chunks.push(chunk);
+      const response = await r2Client().send(getCommand);
+      if (!response.Body) {
+        throw new Error(`Bitrate playlist not found: ${bitrate}`);
+      }
+
+      // Read the bitrate playlist content
+      const chunks: Buffer[] = [];
+      const stream = response.Body as any;
+      for await (const chunk of stream) {
+        chunks.push(chunk);
+      }
+      originalContent = Buffer.concat(chunks).toString('utf-8');
     }
-    const originalContent = Buffer.concat(chunks).toString('utf-8');
 
     // Parse and replace segment URLs with API URLs
     const lines = originalContent.split('\n');

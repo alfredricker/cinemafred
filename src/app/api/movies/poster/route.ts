@@ -3,6 +3,8 @@ import { NextResponse } from 'next/server';
 import { PutObjectCommand } from "@aws-sdk/client-s3";
 import { r2Client, BUCKET_NAME } from '@/lib/r2';
 import { validateAdmin } from '@/lib/middleware';
+// @ts-ignore
+import { env } from "cloudflare:workers";
 
 export async function POST(request: Request) {
   try {
@@ -34,14 +36,23 @@ export async function POST(request: Request) {
 
     // Upload to R2 with organized path
     const organizedPath = `images/${filename}`;
-    const command = new PutObjectCommand({
-      Bucket: BUCKET_NAME,
-      Key: organizedPath,
-      Body: Buffer.from(imageData),
-      ContentType: 'image/jpeg'
-    });
+    
+    if (env && env.R2) {
+      await env.R2.put(organizedPath, imageData, {
+        httpMetadata: {
+          contentType: 'image/jpeg',
+        }
+      });
+    } else {
+      const command = new PutObjectCommand({
+        Bucket: BUCKET_NAME,
+        Key: organizedPath,
+        Body: Buffer.from(imageData),
+        ContentType: 'image/jpeg'
+      });
 
-    await r2Client().send(command);
+      await r2Client().send(command);
+    }
 
     return NextResponse.json({
       filename,

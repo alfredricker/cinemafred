@@ -1,13 +1,14 @@
 import require$$0, { AsyncLocalStorage as AsyncLocalStorage$1 } from "node:async_hooks";
 import assetsManifest from "./__vite_rsc_assets_manifest.js";
 import { PrismaClient } from "@prisma/client";
-import { PrismaPg } from "@prisma/adapter-pg";
-import { Pool } from "pg";
+import { neonConfig, Pool } from "@neondatabase/serverless";
+import { PrismaNeon } from "@prisma/adapter-neon";
 import jwt from "jsonwebtoken";
 import { compare, hash } from "bcryptjs";
 import { S3Client, PutObjectCommand, GetObjectCommand, ListObjectsV2Command, DeleteObjectCommand } from "@aws-sdk/client-s3";
-import { Agent } from "https";
+import * as __CJS__import__0__ from "https";
 import * as dotenv from "dotenv";
+import { env } from "cloudflare:workers";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 function tinyassert(value, message) {
   if (value) return;
@@ -6697,19 +6698,16 @@ function buildDatabaseUrl() {
   const poolSettings = "connection_limit=5&pool_timeout=20&connect_timeout=10&socket_timeout=10";
   return databaseUrl.includes("?") ? `${databaseUrl}&${poolSettings}` : `${databaseUrl}?${poolSettings}`;
 }
-function isWorkerRuntime() {
+function isWorkerRuntime$1() {
   return typeof navigator !== "undefined" && navigator.userAgent === "Cloudflare-Workers";
 }
 function createPrismaClient() {
   const dbUrl = buildDatabaseUrl();
   const log = ["error", "warn"];
-  if (dbUrl && isWorkerRuntime()) {
-    const adapter = new PrismaPg(new Pool({
-      connectionString: dbUrl,
-      max: 1,
-      idleTimeoutMillis: 1e4,
-      connectionTimeoutMillis: 1e4
-    }));
+  if (dbUrl && isWorkerRuntime$1()) {
+    neonConfig.webSocketConstructor = WebSocket;
+    const pool = new Pool({ connectionString: dbUrl });
+    const adapter = new PrismaNeon(pool);
     const workerOptions = { adapter, log };
     return new PrismaClient(workerOptions);
   }
@@ -6724,13 +6722,13 @@ function createPrismaClient() {
 }
 const prisma = globalForPrisma.prisma ?? createPrismaClient();
 function getPrismaClient() {
-  if (isWorkerRuntime()) {
+  if (isWorkerRuntime$1()) {
     return createPrismaClient();
   }
   return prisma;
 }
 async function releasePrismaClient(client) {
-  if (!isWorkerRuntime()) return;
+  if (!isWorkerRuntime$1()) return;
   try {
     await client.$disconnect();
   } catch (error) {
@@ -7624,6 +7622,7 @@ const mod_10 = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProper
   GET: GET$7
 }, Symbol.toStringTag, { value: "Module" }));
 dotenv.config();
+const isWorkerRuntime = typeof navigator !== "undefined" && navigator.userAgent === "Cloudflare-Workers";
 const REGION = "auto";
 const ACCOUNT_ID = process.env.R2_ACCOUNT_ID;
 const ACCESS_KEY_ID = process.env.R2_ACCESS_KEY_ID;
@@ -7632,28 +7631,34 @@ const BUCKET_NAME = process.env.R2_BUCKET_NAME;
 if (!ACCOUNT_ID || !ACCESS_KEY_ID || !SECRET_ACCESS_KEY || !BUCKET_NAME) {
   throw new Error("Missing required environment variables for R2 configuration.");
 }
-const httpsAgent = new Agent({
-  keepAlive: true,
-  keepAliveMsecs: 3e4,
-  // Shorter keep-alive to prevent stale connections
-  maxSockets: 50,
-  // Reduced to respect Cloudflare limits
-  maxFreeSockets: 5,
-  // Fewer idle connections to prevent buildup
-  timeout: 3e5,
-  // 5 minute socket timeout for very large files
-  family: 4
-  // Force IPv4 to avoid IPv6 connectivity issues
-});
-httpsAgent.setMaxListeners(500);
+let httpsAgent = null;
 let agentCreatedAt = Date.now();
 const AGENT_REFRESH_INTERVAL = 10 * 60 * 1e3;
+if (!isWorkerRuntime) {
+  const { Agent } = __CJS__import__0__.default || __CJS__import__0__;
+  httpsAgent = new Agent({
+    keepAlive: true,
+    keepAliveMsecs: 3e4,
+    // Shorter keep-alive to prevent stale connections
+    maxSockets: 50,
+    // Reduced to respect Cloudflare limits
+    maxFreeSockets: 5,
+    // Fewer idle connections to prevent buildup
+    timeout: 3e5,
+    // 5 minute socket timeout for very large files
+    family: 4
+    // Force IPv4 to avoid IPv6 connectivity issues
+  });
+  httpsAgent.setMaxListeners(500);
+}
 function getRefreshedAgent() {
+  if (isWorkerRuntime) return null;
   const now = Date.now();
   if (now - agentCreatedAt > AGENT_REFRESH_INTERVAL) {
     console.log("🔄 Refreshing HTTP agent to prevent stale connections");
-    httpsAgent.destroy();
+    if (httpsAgent) httpsAgent.destroy();
     agentCreatedAt = now;
+    const { Agent } = __CJS__import__0__.default || __CJS__import__0__;
     const newAgent = new Agent({
       keepAlive: true,
       keepAliveMsecs: 3e4,
@@ -7663,29 +7668,32 @@ function getRefreshedAgent() {
       family: 4
     });
     newAgent.setMaxListeners(500);
+    httpsAgent = newAgent;
     return newAgent;
   }
   return httpsAgent;
 }
 function creater2Client() {
-  return new S3Client({
+  const isWorkerRuntime2 = typeof navigator !== "undefined" && navigator.userAgent === "Cloudflare-Workers";
+  const config2 = {
     endpoint: `https://${ACCOUNT_ID}.r2.cloudflarestorage.com`,
     region: REGION,
     credentials: {
       accessKeyId: ACCESS_KEY_ID,
       secretAccessKey: SECRET_ACCESS_KEY
     },
-    requestHandler: {
-      httpsAgent: getRefreshedAgent(),
-      connectionTimeout: 45e3,
-      // 45 seconds to establish connection
-      requestTimeout: 6e5
-      // 10 minutes for uploads (reduced from 15min)
-    },
     maxAttempts: 2,
     // Only 2 attempts to fail faster
     retryMode: "adaptive"
-  });
+  };
+  if (!isWorkerRuntime2) {
+    config2.requestHandler = {
+      httpsAgent: getRefreshedAgent(),
+      connectionTimeout: 45e3,
+      requestTimeout: 6e5
+    };
+  }
+  return new S3Client(config2);
 }
 let r2Client = creater2Client();
 function getr2Client() {
@@ -7714,13 +7722,21 @@ async function POST$4(request) {
     const randomString = Math.random().toString(36).substring(7);
     const filename = `poster_${timestamp}_${randomString}.jpg`;
     const organizedPath = `images/${filename}`;
-    const command = new PutObjectCommand({
-      Bucket: BUCKET_NAME,
-      Key: organizedPath,
-      Body: Buffer.from(imageData),
-      ContentType: "image/jpeg"
-    });
-    await getr2Client().send(command);
+    if (env && env.R2) {
+      await env.R2.put(organizedPath, imageData, {
+        httpMetadata: {
+          contentType: "image/jpeg"
+        }
+      });
+    } else {
+      const command = new PutObjectCommand({
+        Bucket: BUCKET_NAME,
+        Key: organizedPath,
+        Body: Buffer.from(imageData),
+        ContentType: "image/jpeg"
+      });
+      await getr2Client().send(command);
+    }
     return NextResponse.json({
       filename,
       path: organizedPath
@@ -8132,24 +8148,36 @@ class HLSR2Manager {
    */
   async checkHLSExists(movieId) {
     const prefix = `hls/${movieId}/`;
-    const command = new ListObjectsV2Command({
-      Bucket: BUCKET_NAME,
-      Prefix: prefix
-    });
-    const response = await getr2Client().send(command);
-    const objects = response.Contents || [];
+    let objects = [];
+    if (env && env.R2) {
+      let cursor;
+      do {
+        const listed = await env.R2.list({ prefix, cursor });
+        objects.push(...listed.objects);
+        cursor = listed.truncated ? listed.cursor : void 0;
+      } while (cursor);
+    } else {
+      const command = new ListObjectsV2Command({
+        Bucket: BUCKET_NAME,
+        Prefix: prefix
+      });
+      const response = await getr2Client().send(command);
+      objects = response.Contents || [];
+    }
     const result = {
       masterPlaylist: false,
       bitrates: [],
       segmentCount: {}
     };
-    result.masterPlaylist = objects.some(
-      (obj) => obj.Key === `hls/${movieId}/playlist.m3u8`
-    );
+    result.masterPlaylist = objects.some((obj) => {
+      const key = obj.Key || obj.key;
+      return key === `hls/${movieId}/playlist.m3u8`;
+    });
     const bitrateSet = /* @__PURE__ */ new Set();
     for (const obj of objects) {
-      if (!obj.Key) continue;
-      const pathParts = obj.Key.split("/");
+      const key = obj.Key || obj.key;
+      if (!key) continue;
+      const pathParts = key.split("/");
       if (pathParts.length >= 4 && pathParts[0] === "hls" && pathParts[1] === movieId) {
         const bitrate = pathParts[2];
         const filename = pathParts[3];
@@ -8167,6 +8195,27 @@ class HLSR2Manager {
    */
   async deleteHLSFiles(movieId) {
     const prefix = `hls/${movieId}/`;
+    if (env && env.R2) {
+      let cursor;
+      let totalDeleted = 0;
+      do {
+        const listed = await env.R2.list({ prefix, cursor });
+        if (listed.objects.length === 0) break;
+        const keys = listed.objects.map((obj) => obj.key);
+        const deleteTasks2 = keys.map((key) => async () => {
+          await env.R2.delete(key);
+        });
+        await this.runWithConcurrency(deleteTasks2, 8);
+        totalDeleted += keys.length;
+        cursor = listed.truncated ? listed.cursor : void 0;
+      } while (cursor);
+      if (totalDeleted === 0) {
+        console.log(`No HLS files found for movie ${movieId}`);
+      } else {
+        console.log(`Deleted ${totalDeleted} HLS files for movie ${movieId}`);
+      }
+      return;
+    }
     const listCommand = new ListObjectsV2Command({
       Bucket: BUCKET_NAME,
       Prefix: prefix
@@ -8191,6 +8240,18 @@ class HLSR2Manager {
    * Upload HLS playlist with proper content type
    */
   async uploadPlaylist(key, content, isMaster = false) {
+    if (env && env.R2) {
+      await env.R2.put(key, content, {
+        httpMetadata: {
+          contentType: "application/vnd.apple.mpegurl",
+          cacheControl: isMaster ? "max-age=300" : "max-age=60"
+        },
+        customMetadata: {
+          "hls-type": isMaster ? "master" : "bitrate"
+        }
+      });
+      return;
+    }
     const command = new PutObjectCommand({
       Bucket: BUCKET_NAME,
       Key: key,
@@ -8208,6 +8269,15 @@ class HLSR2Manager {
    * Upload HLS segment with proper content type
    */
   async uploadSegment(key, segmentData) {
+    if (env && env.R2) {
+      await env.R2.put(key, segmentData, {
+        httpMetadata: {
+          contentType: "video/mp2t",
+          cacheControl: "max-age=31536000"
+        }
+      });
+      return;
+    }
     const command = new PutObjectCommand({
       Bucket: BUCKET_NAME,
       Key: key,
@@ -8224,20 +8294,29 @@ class HLSR2Manager {
    */
   async generateAuthenticatedHLSUrls(movieId, token) {
     const masterKey = `hls/${movieId}/playlist.m3u8`;
-    const getCommand = new GetObjectCommand({
-      Bucket: BUCKET_NAME,
-      Key: masterKey
-    });
-    const response = await getr2Client().send(getCommand);
-    if (!response.Body) {
-      throw new Error("Master playlist not found");
+    let originalContent = "";
+    if (env && env.R2) {
+      const object = await env.R2.get(masterKey);
+      if (!object) {
+        throw new Error("Master playlist not found");
+      }
+      originalContent = await object.text();
+    } else {
+      const getCommand = new GetObjectCommand({
+        Bucket: BUCKET_NAME,
+        Key: masterKey
+      });
+      const response = await getr2Client().send(getCommand);
+      if (!response.Body) {
+        throw new Error("Master playlist not found");
+      }
+      const chunks = [];
+      const stream = response.Body;
+      for await (const chunk of stream) {
+        chunks.push(chunk);
+      }
+      originalContent = Buffer.concat(chunks).toString("utf-8");
     }
-    const chunks = [];
-    const stream = response.Body;
-    for await (const chunk of stream) {
-      chunks.push(chunk);
-    }
-    const originalContent = Buffer.concat(chunks).toString("utf-8");
     const lines = originalContent.split("\n");
     const authenticatedLines = [];
     for (const line of lines) {
@@ -8273,12 +8352,22 @@ class HLSR2Manager {
     const totalSegments = Object.values(hlsInfo.segmentCount).reduce((sum, count) => sum + count, 0);
     const estimatedDuration = Math.max(...Object.values(hlsInfo.segmentCount)) * 6;
     const prefix = `hls/${movieId}/`;
-    const listCommand = new ListObjectsV2Command({
-      Bucket: BUCKET_NAME,
-      Prefix: prefix
-    });
-    const response = await getr2Client().send(listCommand);
-    const totalSize = (response.Contents || []).reduce((sum, obj) => sum + (obj.Size || 0), 0);
+    let totalSize = 0;
+    if (env && env.R2) {
+      let cursor;
+      do {
+        const listed = await env.R2.list({ prefix, cursor });
+        totalSize += listed.objects.reduce((sum, obj) => sum + (obj.size || 0), 0);
+        cursor = listed.truncated ? listed.cursor : void 0;
+      } while (cursor);
+    } else {
+      const listCommand = new ListObjectsV2Command({
+        Bucket: BUCKET_NAME,
+        Prefix: prefix
+      });
+      const response = await getr2Client().send(listCommand);
+      totalSize = (response.Contents || []).reduce((sum, obj) => sum + (obj.Size || 0), 0);
+    }
     return {
       exists: true,
       bitrates: hlsInfo.bitrates,
@@ -8292,20 +8381,29 @@ class HLSR2Manager {
    */
   async generateAuthenticatedBitratePlaylist(movieId, bitrate, token) {
     const bitrateKey = `hls/${movieId}/${bitrate}/playlist.m3u8`;
-    const getCommand = new GetObjectCommand({
-      Bucket: BUCKET_NAME,
-      Key: bitrateKey
-    });
-    const response = await getr2Client().send(getCommand);
-    if (!response.Body) {
-      throw new Error(`Bitrate playlist not found: ${bitrate}`);
+    let originalContent = "";
+    if (env && env.R2) {
+      const object = await env.R2.get(bitrateKey);
+      if (!object) {
+        throw new Error(`Bitrate playlist not found: ${bitrate}`);
+      }
+      originalContent = await object.text();
+    } else {
+      const getCommand = new GetObjectCommand({
+        Bucket: BUCKET_NAME,
+        Key: bitrateKey
+      });
+      const response = await getr2Client().send(getCommand);
+      if (!response.Body) {
+        throw new Error(`Bitrate playlist not found: ${bitrate}`);
+      }
+      const chunks = [];
+      const stream = response.Body;
+      for await (const chunk of stream) {
+        chunks.push(chunk);
+      }
+      originalContent = Buffer.concat(chunks).toString("utf-8");
     }
-    const chunks = [];
-    const stream = response.Body;
-    for await (const chunk of stream) {
-      chunks.push(chunk);
-    }
-    const originalContent = Buffer.concat(chunks).toString("utf-8");
     const lines = originalContent.split("\n");
     const authenticatedLines = [];
     for (const line of lines) {
@@ -8367,20 +8465,29 @@ class HLSHybridManager {
    */
   async generateHybridBitratePlaylist(movieId, bitrate, expiresIn = 3600) {
     const bitrateKey = `hls/${movieId}/${bitrate}/playlist.m3u8`;
-    const getCommand = new GetObjectCommand({
-      Bucket: BUCKET_NAME,
-      Key: bitrateKey
-    });
-    const response = await getr2Client().send(getCommand);
-    if (!response.Body) {
-      throw new Error(`Bitrate playlist not found: ${bitrate}`);
+    let originalContent = "";
+    if (env && env.R2) {
+      const object = await env.R2.get(bitrateKey);
+      if (!object) {
+        throw new Error(`Bitrate playlist not found: ${bitrate}`);
+      }
+      originalContent = await object.text();
+    } else {
+      const getCommand = new GetObjectCommand({
+        Bucket: BUCKET_NAME,
+        Key: bitrateKey
+      });
+      const response = await getr2Client().send(getCommand);
+      if (!response.Body) {
+        throw new Error(`Bitrate playlist not found: ${bitrate}`);
+      }
+      const chunks = [];
+      const stream = response.Body;
+      for await (const chunk of stream) {
+        chunks.push(chunk);
+      }
+      originalContent = Buffer.concat(chunks).toString("utf-8");
     }
-    const chunks = [];
-    const stream = response.Body;
-    for await (const chunk of stream) {
-      chunks.push(chunk);
-    }
-    const originalContent = Buffer.concat(chunks).toString("utf-8");
     const lines = originalContent.split("\n");
     const authenticatedLines = [];
     for (const line of lines) {
@@ -8399,20 +8506,29 @@ class HLSHybridManager {
    */
   async generateHybridMasterPlaylist(movieId, token) {
     const masterKey = `hls/${movieId}/playlist.m3u8`;
-    const getCommand = new GetObjectCommand({
-      Bucket: BUCKET_NAME,
-      Key: masterKey
-    });
-    const response = await getr2Client().send(getCommand);
-    if (!response.Body) {
-      throw new Error("Master playlist not found");
+    let originalContent = "";
+    if (env && env.R2) {
+      const object = await env.R2.get(masterKey);
+      if (!object) {
+        throw new Error("Master playlist not found");
+      }
+      originalContent = await object.text();
+    } else {
+      const getCommand = new GetObjectCommand({
+        Bucket: BUCKET_NAME,
+        Key: masterKey
+      });
+      const response = await getr2Client().send(getCommand);
+      if (!response.Body) {
+        throw new Error("Master playlist not found");
+      }
+      const chunks = [];
+      const stream = response.Body;
+      for await (const chunk of stream) {
+        chunks.push(chunk);
+      }
+      originalContent = Buffer.concat(chunks).toString("utf-8");
     }
-    const chunks = [];
-    const stream = response.Body;
-    for await (const chunk of stream) {
-      chunks.push(chunk);
-    }
-    const originalContent = Buffer.concat(chunks).toString("utf-8");
     const lines = originalContent.split("\n");
     const authenticatedLines = [];
     for (const line of lines) {
@@ -8583,11 +8699,15 @@ const mod_21 = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProper
 const dynamic = "force-dynamic";
 async function deleteR2File(key) {
   try {
-    const command = new DeleteObjectCommand({
-      Bucket: BUCKET_NAME,
-      Key: key
-    });
-    await getr2Client().send(command);
+    if (env && env.R2) {
+      await env.R2.delete(key);
+    } else {
+      const command = new DeleteObjectCommand({
+        Bucket: BUCKET_NAME,
+        Key: key
+      });
+      await getr2Client().send(command);
+    }
     console.log(`✅ Deleted R2 file: ${key}`);
   } catch (error) {
     console.error(`❌ Failed to delete R2 file: ${key}`, error);
@@ -8889,14 +9009,28 @@ async function GET$2(request, { params }) {
       return NextResponse.json({ error: "Movie not found" }, { status: 404 });
     }
     const videoKey = movie.r2_video_path;
-    const headCommand = new GetObjectCommand({
-      Bucket: BUCKET_NAME,
-      Key: videoKey
-    });
-    const headResponse = await retryOperation(() => getr2Client().send(headCommand), MAX_RETRIES, RETRY_DELAY);
-    const contentLength = Number(headResponse.ContentLength || 0);
-    const contentType = headResponse.ContentType || "video/mp4";
-    const etag = headResponse.ETag;
+    let contentLength = 0;
+    let contentType = "video/mp4";
+    let etag;
+    if (env && env.R2) {
+      const object = await env.R2.head(videoKey);
+      if (object) {
+        contentLength = object.size;
+        contentType = object.httpMetadata?.contentType || "video/mp4";
+        etag = object.etag;
+      } else {
+        throw new Error("File not found in R2");
+      }
+    } else {
+      const headCommand = new GetObjectCommand({
+        Bucket: BUCKET_NAME,
+        Key: videoKey
+      });
+      const headResponse = await retryOperation(() => getr2Client().send(headCommand), MAX_RETRIES, RETRY_DELAY);
+      contentLength = Number(headResponse.ContentLength || 0);
+      contentType = headResponse.ContentType || "video/mp4";
+      etag = headResponse.ETag;
+    }
     if (range) {
       let [startStr, endStr] = range.replace(/bytes=/, "").split("-");
       let start = parseInt(startStr, 10);
@@ -8908,13 +9042,22 @@ async function GET$2(request, { params }) {
         end = contentLength - 1;
       }
       const contentSize = end - start + 1;
-      const command2 = new GetObjectCommand({
-        Bucket: BUCKET_NAME,
-        Key: videoKey,
-        Range: `bytes=${start}-${end}`
-      });
-      const data2 = await retryOperation(() => getr2Client().send(command2), MAX_RETRIES, RETRY_DELAY);
-      const stream2 = data2.Body;
+      let stream2 = null;
+      if (env && env.R2) {
+        const object = await env.R2.get(videoKey, {
+          range: { offset: start, length: contentSize }
+        });
+        if (object) stream2 = object.body;
+      } else {
+        const command = new GetObjectCommand({
+          Bucket: BUCKET_NAME,
+          Key: videoKey,
+          Range: `bytes=${start}-${end}`
+        });
+        const data = await retryOperation(() => getr2Client().send(command), MAX_RETRIES, RETRY_DELAY);
+        stream2 = data.Body;
+      }
+      if (!stream2) throw new Error("Failed to get stream");
       r2CircuitBreaker.recordSuccess();
       return new Response(stream2, {
         status: 206,
@@ -8930,13 +9073,22 @@ async function GET$2(request, { params }) {
         }
       });
     }
-    const command = new GetObjectCommand({
-      Bucket: BUCKET_NAME,
-      Key: videoKey,
-      Range: `bytes=0-${DEFAULT_CHUNK_SIZE - 1}`
-    });
-    const data = await retryOperation(() => getr2Client().send(command), MAX_RETRIES, RETRY_DELAY);
-    const stream = data.Body;
+    let stream = null;
+    if (env && env.R2) {
+      const object = await env.R2.get(videoKey, {
+        range: { offset: 0, length: DEFAULT_CHUNK_SIZE }
+      });
+      if (object) stream = object.body;
+    } else {
+      const command = new GetObjectCommand({
+        Bucket: BUCKET_NAME,
+        Key: videoKey,
+        Range: `bytes=0-${DEFAULT_CHUNK_SIZE - 1}`
+      });
+      const data = await retryOperation(() => getr2Client().send(command), MAX_RETRIES, RETRY_DELAY);
+      stream = data.Body;
+    }
+    if (!stream) throw new Error("Failed to get stream");
     r2CircuitBreaker.recordSuccess();
     return new Response(stream, {
       status: 206,
@@ -9005,12 +9157,27 @@ async function GET$1(req, { params }) {
     return NextResponse.json({ error: "Invalid file name." }, { status: 400 });
   }
   try {
-    const command = new GetObjectCommand({
-      Bucket: BUCKET_NAME,
-      Key: filePath
-    });
-    const data = await getr2Client().send(command);
-    const stream = data.Body;
+    let stream = null;
+    let contentLength = "";
+    if (env && env.R2) {
+      const object = await env.R2.get(filePath);
+      if (object) {
+        stream = object.body;
+        contentLength = object.size.toString();
+      }
+    }
+    if (!stream) {
+      const command = new GetObjectCommand({
+        Bucket: BUCKET_NAME,
+        Key: filePath
+      });
+      const data = await getr2Client().send(command);
+      stream = data.Body;
+      contentLength = data.ContentLength?.toString() || "";
+    }
+    if (!stream) {
+      return NextResponse.json({ error: "File not found." }, { status: 404 });
+    }
     let contentType = "application/octet-stream";
     if (filePath.endsWith(".mp4")) {
       contentType = "video/mp4";
@@ -9032,7 +9199,7 @@ async function GET$1(req, { params }) {
     return new Response(stream, {
       headers: {
         "Content-Type": contentType,
-        "Content-Length": data.ContentLength?.toString() || "",
+        "Content-Length": contentLength,
         "Cache-Control": filePath.match(/\.(jpg|jpeg|png|webp|gif|avif)$/i) ? "public, max-age=86400, s-maxage=86400" : "public, max-age=300, s-maxage=300"
       }
     });
@@ -9211,23 +9378,51 @@ async function GET(request, { params }) {
     }
     console.log(`Fetching R2 key: ${r2Key}`);
     const rangeHeader = request.headers.get("range");
-    const command = new GetObjectCommand({
-      Bucket: BUCKET_NAME,
-      Key: r2Key,
-      ...rangeHeader && { Range: rangeHeader }
-    });
-    const response = await getr2Client().send(command);
-    if (!response.Body) {
+    let stream = null;
+    let r2Response = null;
+    if (env && env.R2) {
+      const options = {};
+      if (rangeHeader) {
+        const match = rangeHeader.match(/bytes=(\d*)-(\d*)/);
+        if (match) {
+          options.range = {};
+          if (match[1]) options.range.offset = parseInt(match[1], 10);
+          if (match[2]) options.range.length = parseInt(match[2], 10) - (options.range.offset || 0) + 1;
+        }
+      }
+      const object = await env.R2.get(r2Key, options);
+      if (object) {
+        stream = object.body;
+        r2Response = {
+          ContentLength: object.size,
+          ETag: object.etag,
+          LastModified: object.uploaded,
+          ContentType: object.httpMetadata?.contentType
+        };
+      }
+    }
+    if (!stream) {
+      const command = new GetObjectCommand({
+        Bucket: BUCKET_NAME,
+        Key: r2Key,
+        ...rangeHeader && { Range: rangeHeader }
+      });
+      const response = await getr2Client().send(command);
+      if (response.Body) {
+        stream = response.Body;
+        r2Response = response;
+      }
+    }
+    if (!stream || !r2Response) {
       return NextResponse.json({ error: "Segment not found" }, { status: 404 });
     }
-    const stream = response.Body;
     let contentType;
     if (segmentPath.endsWith(".m3u8")) {
       contentType = "application/vnd.apple.mpegurl";
     } else if (segmentPath.endsWith(".ts")) {
       contentType = "video/mp2t";
     } else {
-      contentType = response.ContentType || "application/octet-stream";
+      contentType = r2Response.ContentType || "application/octet-stream";
     }
     const headers2 = {
       "Content-Type": contentType,
@@ -9243,19 +9438,20 @@ async function GET(request, { params }) {
     } else if (segmentPath.endsWith(".m3u8")) {
       headers2["Cache-Control"] = segmentPath === "playlist.m3u8" ? "public, max-age=300" : "public, max-age=60";
     }
-    if (response.ContentLength) {
-      headers2["Content-Length"] = response.ContentLength.toString();
+    if (r2Response.ContentLength) {
+      headers2["Content-Length"] = r2Response.ContentLength.toString();
     }
-    if (response.ETag) {
-      headers2["ETag"] = response.ETag;
+    if (r2Response.ETag) {
+      headers2["ETag"] = r2Response.ETag;
     }
-    if (response.LastModified) {
-      headers2["Last-Modified"] = response.LastModified.toUTCString();
+    if (r2Response.LastModified) {
+      const lastMod = r2Response.LastModified instanceof Date ? r2Response.LastModified.toUTCString() : new Date(r2Response.LastModified).toUTCString();
+      headers2["Last-Modified"] = lastMod;
     }
-    if (response.ContentRange) {
-      headers2["Content-Range"] = response.ContentRange;
+    if (r2Response.ContentRange) {
+      headers2["Content-Range"] = r2Response.ContentRange;
     }
-    const statusCode = rangeHeader && response.ContentRange ? 206 : 200;
+    const statusCode = rangeHeader && r2Response.ContentRange ? 206 : 200;
     return new Response(stream, {
       status: statusCode,
       headers: headers2

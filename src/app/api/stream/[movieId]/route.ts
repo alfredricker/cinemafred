@@ -5,6 +5,8 @@ import { r2Client, BUCKET_NAME } from "@/lib/r2";
 import { headers } from "next/headers";
 import { getPrismaClient, releasePrismaClient } from '@/lib/db';
 import jwt from 'jsonwebtoken';
+// @ts-ignore
+import { env } from "cloudflare:workers";
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
 const MAX_RETRIES = 1;
@@ -153,15 +155,31 @@ export async function GET(
     const videoKey = movie.r2_video_path;
 
     // Get video size with retry
-    const headCommand = new GetObjectCommand({
-      Bucket: BUCKET_NAME,
-      Key: videoKey,
-    });
+    let contentLength = 0;
+    let contentType = 'video/mp4';
+    let etag: string | undefined;
 
-    const headResponse = await retryOperation(() => r2Client().send(headCommand), MAX_RETRIES, RETRY_DELAY);
-    const contentLength = Number(headResponse.ContentLength || 0);
-    const contentType = headResponse.ContentType || 'video/mp4';
-    const etag = headResponse.ETag;
+    // Try native R2 binding first
+    if (env && env.R2) {
+      const object = await env.R2.head(videoKey);
+      if (object) {
+        contentLength = object.size;
+        contentType = object.httpMetadata?.contentType || 'video/mp4';
+        etag = object.etag;
+      } else {
+        throw new Error('File not found in R2');
+      }
+    } else {
+      const headCommand = new GetObjectCommand({
+        Bucket: BUCKET_NAME,
+        Key: videoKey,
+      });
+
+      const headResponse = await retryOperation(() => r2Client().send(headCommand), MAX_RETRIES, RETRY_DELAY);
+      contentLength = Number(headResponse.ContentLength || 0);
+      contentType = headResponse.ContentType || 'video/mp4';
+      etag = headResponse.ETag;
+    }
 
     // Handle range requests - simplified for native browser buffering
     if (range) {
@@ -182,14 +200,25 @@ export async function GET(
       const contentSize = end - start + 1;
 
       // Fetch the chunk with retry
-      const command = new GetObjectCommand({
-        Bucket: BUCKET_NAME,
-        Key: videoKey,
-        Range: `bytes=${start}-${end}`
-      });
+      let stream: ReadableStream | null = null;
+      
+      if (env && env.R2) {
+        const object = await env.R2.get(videoKey, {
+          range: { offset: start, length: contentSize }
+        });
+        if (object) stream = object.body;
+      } else {
+        const command = new GetObjectCommand({
+          Bucket: BUCKET_NAME,
+          Key: videoKey,
+          Range: `bytes=${start}-${end}`
+        });
 
-      const data = await retryOperation(() => r2Client().send(command), MAX_RETRIES, RETRY_DELAY);
-      const stream = data.Body as ReadableStream;
+        const data = await retryOperation(() => r2Client().send(command), MAX_RETRIES, RETRY_DELAY);
+        stream = data.Body as ReadableStream;
+      }
+
+      if (!stream) throw new Error('Failed to get stream');
 
       // Record successful operation
       r2CircuitBreaker.recordSuccess();
@@ -211,14 +240,25 @@ export async function GET(
     }
 
     // Handle initial request
-    const command = new GetObjectCommand({
-      Bucket: BUCKET_NAME,
-      Key: videoKey,
-      Range: `bytes=0-${DEFAULT_CHUNK_SIZE - 1}`
-    });
+    let stream: ReadableStream | null = null;
+    
+    if (env && env.R2) {
+      const object = await env.R2.get(videoKey, {
+        range: { offset: 0, length: DEFAULT_CHUNK_SIZE }
+      });
+      if (object) stream = object.body;
+    } else {
+      const command = new GetObjectCommand({
+        Bucket: BUCKET_NAME,
+        Key: videoKey,
+        Range: `bytes=0-${DEFAULT_CHUNK_SIZE - 1}`
+      });
 
-    const data = await retryOperation(() => r2Client().send(command), MAX_RETRIES, RETRY_DELAY);
-    const stream = data.Body as ReadableStream;
+      const data = await retryOperation(() => r2Client().send(command), MAX_RETRIES, RETRY_DELAY);
+      stream = data.Body as ReadableStream;
+    }
+
+    if (!stream) throw new Error('Failed to get stream');
 
     // Record successful operation
     r2CircuitBreaker.recordSuccess();

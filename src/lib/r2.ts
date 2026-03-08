@@ -1,7 +1,8 @@
 import { S3Client } from "@aws-sdk/client-s3";
-import { Agent } from "https";
 import * as dotenv from "dotenv";
 dotenv.config();
+
+const isWorkerRuntime = typeof navigator !== 'undefined' && navigator.userAgent === 'Cloudflare-Workers';
 
 const REGION = "auto"; // R2 uses "auto" as the region
 const ACCOUNT_ID = process.env.R2_ACCOUNT_ID as string;
@@ -14,30 +15,38 @@ if (!ACCOUNT_ID || !ACCESS_KEY_ID || !SECRET_ACCESS_KEY || !BUCKET_NAME) {
   throw new Error("Missing required environment variables for R2 configuration.");
 }
 
-// Create HTTP agent with aggressive connection management for Cloudflare R2
-const httpsAgent = new Agent({
-  keepAlive: true,
-  keepAliveMsecs: 30000, // Shorter keep-alive to prevent stale connections
-  maxSockets: 50, // Reduced to respect Cloudflare limits
-  maxFreeSockets: 5, // Fewer idle connections to prevent buildup
-  timeout: 300000, // 5 minute socket timeout for very large files
-  family: 4, // Force IPv4 to avoid IPv6 connectivity issues
-});
-
-// Increase max listeners to handle multiple concurrent conversion scripts
-httpsAgent.setMaxListeners(500);
-
-// Connection refresh mechanism - recreate agent periodically
+let httpsAgent: any = null;
 let agentCreatedAt = Date.now();
 const AGENT_REFRESH_INTERVAL = 10 * 60 * 1000; // 10 minutes
 
+if (!isWorkerRuntime) {
+  // Dynamic import or require to avoid issues in Workers
+  const { Agent } = require("https");
+  
+  // Create HTTP agent with aggressive connection management for Cloudflare R2
+  httpsAgent = new Agent({
+    keepAlive: true,
+    keepAliveMsecs: 30000, // Shorter keep-alive to prevent stale connections
+    maxSockets: 50, // Reduced to respect Cloudflare limits
+    maxFreeSockets: 5, // Fewer idle connections to prevent buildup
+    timeout: 300000, // 5 minute socket timeout for very large files
+    family: 4, // Force IPv4 to avoid IPv6 connectivity issues
+  });
+
+  // Increase max listeners to handle multiple concurrent conversion scripts
+  httpsAgent.setMaxListeners(500);
+}
+
 function getRefreshedAgent() {
+  if (isWorkerRuntime) return null;
+  
   const now = Date.now();
   if (now - agentCreatedAt > AGENT_REFRESH_INTERVAL) {
     console.log('🔄 Refreshing HTTP agent to prevent stale connections');
-    httpsAgent.destroy(); // Close all existing connections
+    if (httpsAgent) httpsAgent.destroy(); // Close all existing connections
     agentCreatedAt = now;
     
+    const { Agent } = require("https");
     // Create new agent with same settings
     const newAgent = new Agent({
       keepAlive: true,
@@ -48,6 +57,7 @@ function getRefreshedAgent() {
       family: 4,
     });
     newAgent.setMaxListeners(500);
+    httpsAgent = newAgent;
     return newAgent;
   }
   return httpsAgent;
@@ -55,21 +65,29 @@ function getRefreshedAgent() {
 
 // Create the S3 client with dynamic agent refresh and robust timeout configuration
 function creater2Client() {
-  return new S3Client({
+  const isWorkerRuntime = typeof navigator !== 'undefined' && navigator.userAgent === 'Cloudflare-Workers';
+  
+  const config: any = {
     endpoint: `https://${ACCOUNT_ID}.r2.cloudflarestorage.com`,
     region: REGION,
     credentials: {
       accessKeyId: ACCESS_KEY_ID,
       secretAccessKey: SECRET_ACCESS_KEY,
     },
-    requestHandler: {
-      httpsAgent: getRefreshedAgent(),
-      connectionTimeout: 45000, // 45 seconds to establish connection
-      requestTimeout: 600000, // 10 minutes for uploads (reduced from 15min)
-    },
     maxAttempts: 2, // Only 2 attempts to fail faster
     retryMode: "adaptive",
-  });
+  };
+
+  // Only use custom httpsAgent in Node.js environments
+  if (!isWorkerRuntime) {
+    config.requestHandler = {
+      httpsAgent: getRefreshedAgent(),
+      connectionTimeout: 45000,
+      requestTimeout: 600000,
+    };
+  }
+
+  return new S3Client(config);
 }
 
 // Create initial client

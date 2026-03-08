@@ -1,6 +1,6 @@
 import { PrismaClient } from '@prisma/client'
-import { PrismaPg } from '@prisma/adapter-pg'
-import { Pool } from 'pg'
+import { Pool as NeonPool, neonConfig } from '@neondatabase/serverless'
+import { PrismaNeon } from '@prisma/adapter-neon'
 
 const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined
@@ -28,12 +28,11 @@ function createPrismaClient() {
   const log: ('error' | 'warn')[] = ['error', 'warn'];
 
   if (dbUrl && isWorkerRuntime()) {
-    const adapter = new PrismaPg(new Pool({
-      connectionString: dbUrl,
-      max: 1,
-      idleTimeoutMillis: 10000,
-      connectionTimeoutMillis: 10000
-    }));
+    // In Cloudflare Workers, WebSocket is global
+    neonConfig.webSocketConstructor = WebSocket;
+    
+    const pool = new NeonPool({ connectionString: dbUrl });
+    const adapter = new PrismaNeon(pool);
     const workerOptions: any = { adapter, log };
     return new PrismaClient(workerOptions);
   }

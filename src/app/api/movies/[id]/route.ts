@@ -3,6 +3,8 @@ import prisma from '@/lib/db';
 import { validateAdmin } from '@/lib/middleware';
 import { DeleteObjectCommand } from '@aws-sdk/client-s3';
 import { r2Client, BUCKET_NAME } from '@/lib/r2';
+// @ts-ignore
+import { env } from "cloudflare:workers";
 
 // Mark this route as dynamic
 export const dynamic = 'force-dynamic';
@@ -12,12 +14,16 @@ export const dynamic = 'force-dynamic';
  */
 async function deleteR2File(key: string): Promise<void> {
   try {
-    const command = new DeleteObjectCommand({
-      Bucket: BUCKET_NAME,
-      Key: key
-    });
-    
-    await r2Client().send(command);
+    if (env && env.R2) {
+      await env.R2.delete(key);
+    } else {
+      const command = new DeleteObjectCommand({
+        Bucket: BUCKET_NAME,
+        Key: key
+      });
+      
+      await r2Client().send(command);
+    }
     console.log(`✅ Deleted R2 file: ${key}`);
   } catch (error) {
     console.error(`❌ Failed to delete R2 file: ${key}`, error);

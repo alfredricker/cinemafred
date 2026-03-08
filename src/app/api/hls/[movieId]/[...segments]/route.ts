@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import { GetObjectCommand } from '@aws-sdk/client-s3';
 import { r2Client, BUCKET_NAME } from '@/lib/r2';
 import prisma from '@/lib/db';
+// @ts-ignore
+import { env } from "cloudflare:workers";
 
 // Rate limiting for HLS requests
 const rateLimitMap = new Map<string, { count: number; resetTime: number }>();
@@ -234,20 +236,53 @@ export async function GET(
     const rangeHeader = request.headers.get('range');
     
     // Fetch the file from R2 with range support
-    const command = new GetObjectCommand({
-      Bucket: BUCKET_NAME,
-      Key: r2Key,
-      ...(rangeHeader && { Range: rangeHeader })
-    });
-
-    const response = await r2Client().send(command);
+    let stream: ReadableStream | null = null;
+    let r2Response: any = null;
     
-    if (!response.Body) {
+    // Try native R2 binding first
+    if (env && env.R2) {
+      const options: any = {};
+      if (rangeHeader) {
+        // Parse range header (e.g., "bytes=0-100")
+        const match = rangeHeader.match(/bytes=(\d*)-(\d*)/);
+        if (match) {
+          options.range = {};
+          if (match[1]) options.range.offset = parseInt(match[1], 10);
+          if (match[2]) options.range.length = parseInt(match[2], 10) - (options.range.offset || 0) + 1;
+        }
+      }
+      
+      const object = await env.R2.get(r2Key, options);
+      if (object) {
+        stream = object.body;
+        r2Response = {
+          ContentLength: object.size,
+          ETag: object.etag,
+          LastModified: object.uploaded,
+          ContentType: object.httpMetadata?.contentType
+        };
+        // R2 binding doesn't easily expose ContentRange in the same way, but it handles 206 natively if we pass range
+      }
+    }
+    
+    // Fallback to S3 client
+    if (!stream) {
+      const command = new GetObjectCommand({
+        Bucket: BUCKET_NAME,
+        Key: r2Key,
+        ...(rangeHeader && { Range: rangeHeader })
+      });
+
+      const response = await r2Client().send(command);
+      if (response.Body) {
+        stream = response.Body as ReadableStream;
+        r2Response = response;
+      }
+    }
+    
+    if (!stream || !r2Response) {
       return NextResponse.json({ error: "Segment not found" }, { status: 404 });
     }
-
-    // Stream the response directly without buffering
-    const stream = response.Body as ReadableStream;
     
     // Determine content type
     let contentType: string;
@@ -256,7 +291,7 @@ export async function GET(
     } else if (segmentPath.endsWith('.ts')) {
       contentType = 'video/mp2t';
     } else {
-      contentType = response.ContentType || 'application/octet-stream';
+      contentType = r2Response.ContentType || 'application/octet-stream';
     }
 
     // Set appropriate headers with performance optimizations
@@ -282,21 +317,24 @@ export async function GET(
     }
 
     // Forward relevant headers from R2 response
-    if (response.ContentLength) {
-      headers['Content-Length'] = response.ContentLength.toString();
+    if (r2Response.ContentLength) {
+      headers['Content-Length'] = r2Response.ContentLength.toString();
     }
-    if (response.ETag) {
-      headers['ETag'] = response.ETag;
+    if (r2Response.ETag) {
+      headers['ETag'] = r2Response.ETag;
     }
-    if (response.LastModified) {
-      headers['Last-Modified'] = response.LastModified.toUTCString();
+    if (r2Response.LastModified) {
+      const lastMod = r2Response.LastModified instanceof Date 
+        ? r2Response.LastModified.toUTCString() 
+        : new Date(r2Response.LastModified).toUTCString();
+      headers['Last-Modified'] = lastMod;
     }
-    if (response.ContentRange) {
-      headers['Content-Range'] = response.ContentRange;
+    if (r2Response.ContentRange) {
+      headers['Content-Range'] = r2Response.ContentRange;
     }
 
     // Determine status code based on range request
-    const statusCode = rangeHeader && response.ContentRange ? 206 : 200;
+    const statusCode = rangeHeader && r2Response.ContentRange ? 206 : 200;
 
     return new Response(stream, {
       status: statusCode,

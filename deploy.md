@@ -1,4 +1,4 @@
-npm run build
+npm run build:vinext
 npx vinext deploy
 
 ### logs

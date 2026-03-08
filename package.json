@@ -25,6 +25,8 @@
   "dependencies": {
     "@aws-sdk/client-s3": "^3.896.0",
     "@aws-sdk/s3-request-presigner": "^3.726.1",
+    "@neondatabase/serverless": "^0.10.0",
+    "@prisma/adapter-neon": "^5.22.0",
     "@prisma/adapter-pg": "^5.22.0",
     "@prisma/client": "^5.9.1",
     "@types/express": "^5.0.3",
@@ -45,7 +47,8 @@
     "react-dom": "^19.2.4",
     "sharp": "^0.33.5",
     "uuid": "^9.0.1",
-    "video.js": "^8.23.4"
+    "video.js": "^8.23.4",
+    "ws": "^8.19.0"
   },
   "devDependencies": {
     "@cloudflare/vite-plugin": "^1.26.1",

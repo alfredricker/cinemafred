@@ -1,6 +1,8 @@
 import { GetObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { r2Client, BUCKET_NAME } from '../r2';
+// @ts-ignore
+import { env } from "cloudflare:workers";
 
 /**
  * Hybrid HLS manager that uses signed URLs for segments (better performance)
@@ -17,25 +19,35 @@ export class HLSHybridManager {
     bitrate: string,
     expiresIn: number = 3600
   ): Promise<string> {
-    // Get the original bitrate playlist
     const bitrateKey = `hls/${movieId}/${bitrate}/playlist.m3u8`;
-    const getCommand = new GetObjectCommand({
-      Bucket: BUCKET_NAME,
-      Key: bitrateKey
-    });
+    let originalContent = "";
 
-    const response = await r2Client().send(getCommand);
-    if (!response.Body) {
-      throw new Error(`Bitrate playlist not found: ${bitrate}`);
-    }
+    if (env && env.R2) {
+      const object = await env.R2.get(bitrateKey);
+      if (!object) {
+        throw new Error(`Bitrate playlist not found: ${bitrate}`);
+      }
+      originalContent = await object.text();
+    } else {
+      // Get the original bitrate playlist
+      const getCommand = new GetObjectCommand({
+        Bucket: BUCKET_NAME,
+        Key: bitrateKey
+      });
 
-    // Read the bitrate playlist content
-    const chunks: Buffer[] = [];
-    const stream = response.Body as any;
-    for await (const chunk of stream) {
-      chunks.push(chunk);
+      const response = await r2Client().send(getCommand);
+      if (!response.Body) {
+        throw new Error(`Bitrate playlist not found: ${bitrate}`);
+      }
+
+      // Read the bitrate playlist content
+      const chunks: Buffer[] = [];
+      const stream = response.Body as any;
+      for await (const chunk of stream) {
+        chunks.push(chunk);
+      }
+      originalContent = Buffer.concat(chunks).toString('utf-8');
     }
-    const originalContent = Buffer.concat(chunks).toString('utf-8');
 
     // Parse and replace segment URLs with signed URLs for direct access
     const lines = originalContent.split('\n');
@@ -62,25 +74,35 @@ export class HLSHybridManager {
     movieId: string,
     token: string
   ): Promise<string> {
-    // Get the original master playlist
     const masterKey = `hls/${movieId}/playlist.m3u8`;
-    const getCommand = new GetObjectCommand({
-      Bucket: BUCKET_NAME,
-      Key: masterKey
-    });
+    let originalContent = "";
 
-    const response = await r2Client().send(getCommand);
-    if (!response.Body) {
-      throw new Error('Master playlist not found');
-    }
+    if (env && env.R2) {
+      const object = await env.R2.get(masterKey);
+      if (!object) {
+        throw new Error('Master playlist not found');
+      }
+      originalContent = await object.text();
+    } else {
+      // Get the original master playlist
+      const getCommand = new GetObjectCommand({
+        Bucket: BUCKET_NAME,
+        Key: masterKey
+      });
 
-    // Read the master playlist content
-    const chunks: Buffer[] = [];
-    const stream = response.Body as any;
-    for await (const chunk of stream) {
-      chunks.push(chunk);
+      const response = await r2Client().send(getCommand);
+      if (!response.Body) {
+        throw new Error('Master playlist not found');
+      }
+
+      // Read the master playlist content
+      const chunks: Buffer[] = [];
+      const stream = response.Body as any;
+      for await (const chunk of stream) {
+        chunks.push(chunk);
+      }
+      originalContent = Buffer.concat(chunks).toString('utf-8');
     }
-    const originalContent = Buffer.concat(chunks).toString('utf-8');
 
     // Parse and replace bitrate playlist URLs with API URLs
     const lines = originalContent.split('\n');
