@@ -1,4 +1,6 @@
 import { PrismaClient } from '@prisma/client'
+import { PrismaPg } from '@prisma/adapter-pg'
+import { Pool } from 'pg'
 
 const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined
@@ -17,14 +19,31 @@ function buildDatabaseUrl() {
     : `${databaseUrl}?${poolSettings}`;
 }
 
-const prisma = globalForPrisma.prisma ?? new PrismaClient({
-  log: ['error', 'warn'],
-  datasources: {
-    db: {
-      url: buildDatabaseUrl()
-    }
+function isWorkerRuntime() {
+  return typeof navigator !== 'undefined' && navigator.userAgent === 'Cloudflare-Workers';
+}
+
+function createPrismaClient() {
+  const dbUrl = buildDatabaseUrl();
+  const log: ('error' | 'warn')[] = ['error', 'warn'];
+
+  if (dbUrl && isWorkerRuntime()) {
+    const adapter = new PrismaPg(new Pool({ connectionString: dbUrl }));
+    const workerOptions: any = { adapter, log };
+    return new PrismaClient(workerOptions);
   }
-})
+
+  return new PrismaClient({
+    log,
+    datasources: {
+      db: {
+        url: dbUrl
+      }
+    }
+  });
+}
+
+const prisma = globalForPrisma.prisma ?? createPrismaClient()
 
 if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma
 

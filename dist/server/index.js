@@ -1,6 +1,8 @@
 import require$$0, { AsyncLocalStorage as AsyncLocalStorage$1 } from "node:async_hooks";
 import assetsManifest from "./__vite_rsc_assets_manifest.js";
 import { PrismaClient } from "@prisma/client";
+import { PrismaPg } from "@prisma/adapter-pg";
+import { Pool } from "pg";
 import jwt from "jsonwebtoken";
 import { compare, hash } from "bcryptjs";
 import { S3Client, PutObjectCommand, GetObjectCommand, ListObjectsV2Command, DeleteObjectCommand } from "@aws-sdk/client-s3";
@@ -6695,14 +6697,27 @@ function buildDatabaseUrl() {
   const poolSettings = "connection_limit=5&pool_timeout=20&connect_timeout=10&socket_timeout=10";
   return databaseUrl.includes("?") ? `${databaseUrl}&${poolSettings}` : `${databaseUrl}?${poolSettings}`;
 }
-const prisma = globalForPrisma.prisma ?? new PrismaClient({
-  log: ["error", "warn"],
-  datasources: {
-    db: {
-      url: buildDatabaseUrl()
-    }
+function isWorkerRuntime() {
+  return typeof navigator !== "undefined" && navigator.userAgent === "Cloudflare-Workers";
+}
+function createPrismaClient() {
+  const dbUrl = buildDatabaseUrl();
+  const log = ["error", "warn"];
+  if (dbUrl && isWorkerRuntime()) {
+    const adapter = new PrismaPg(new Pool({ connectionString: dbUrl }));
+    const workerOptions = { adapter, log };
+    return new PrismaClient(workerOptions);
   }
-});
+  return new PrismaClient({
+    log,
+    datasources: {
+      db: {
+        url: dbUrl
+      }
+    }
+  });
+}
+const prisma = globalForPrisma.prisma ?? createPrismaClient();
 const JWT_SECRET$9 = process.env.JWT_SECRET || "your-secret-key";
 const dynamic$6 = "force-dynamic";
 async function GET$a(request, { params }) {
