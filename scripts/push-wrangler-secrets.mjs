@@ -21,6 +21,7 @@ Options:
   --env <name>       Wrangler environment (adds --env <name>)
   --dry-run          Print keys without uploading
   --include-token    Also upload CLOUDFLARE_* auth vars
+  --strict           Exit non-zero if any upload fails
   -h, --help         Show this help
 `);
   process.exit(0);
@@ -30,6 +31,7 @@ const envFile = path.resolve(process.cwd(), getArg("--file") || ".env");
 const wranglerEnv = getArg("--env");
 const dryRun = hasFlag("--dry-run");
 const includeToken = hasFlag("--include-token");
+const strict = hasFlag("--strict");
 
 if (!fs.existsSync(envFile)) {
   console.error(`Env file not found: ${envFile}`);
@@ -37,23 +39,10 @@ if (!fs.existsSync(envFile)) {
 }
 
 const parsed = dotenv.parse(fs.readFileSync(envFile));
-const skippedAuthKeys = new Set([
-  "CLOUDFLARE_API_TOKEN",
-  "CLOUDFLARE_ACCOUNT_ID",
-  "CLOUDFLARE_WORKER_TOKEN",
-]);
 
-const entries = Object.entries(parsed).filter(([key]) => {
-  if (!includeToken && skippedAuthKeys.has(key)) return false;
-  return true;
-});
+const failedKeys = [];
 
-if (entries.length === 0) {
-  console.log("No secrets found to upload.");
-  process.exit(0);
-}
-
-for (const [key, value] of entries) {
+for (const [key, value] of Object.entries(parsed)) {
   const cmdArgs = ["wrangler", "secret", "put", key];
   if (wranglerEnv) cmdArgs.push("--env", wranglerEnv);
 
@@ -66,15 +55,23 @@ for (const [key, value] of entries) {
   const result = spawnSync("npx", cmdArgs, {
     input: value,
     encoding: "utf8",
-    stdio: ["pipe", "inherit", "inherit"],
+    stdio: ["pipe", "pipe", "pipe"],
   });
 
   if (result.status !== 0) {
-    console.log("failed");
-    process.exit(result.status ?? 1);
+    console.log("failed (skipped)");
+    if (result.stdout) process.stdout.write(result.stdout);
+    if (result.stderr) process.stderr.write(result.stderr);
+    failedKeys.push(key);
+    continue;
   }
 
   console.log("done");
 }
 
-console.log("All secrets uploaded.");
+if (failedKeys.length > 0) {
+  console.log(`Completed with ${failedKeys.length} skipped secret(s): ${failedKeys.join(", ")}`);
+  if (strict) process.exit(1);
+} else {
+  console.log("All secrets uploaded.");
+}

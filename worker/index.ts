@@ -7,10 +7,12 @@
  */
 import { handleImageOptimization, DEFAULT_DEVICE_SIZES, DEFAULT_IMAGE_SIZES } from "vinext/server/image-optimization";
 import type { ImageConfig } from "vinext/server/image-optimization";
-import handler from "vinext/server/app-router-entry";
+import { DOMParser as XmldomParser } from "@xmldom/xmldom";
 
 interface Env {
-  ASSETS: Fetcher;
+  ASSETS: {
+    fetch(request: Request): Promise<Response>;
+  };
   IMAGES: {
     input(stream: ReadableStream): {
       transform(options: Record<string, unknown>): {
@@ -25,6 +27,20 @@ interface Env {
 // To route SVGs through the optimizer (with security headers), set
 // dangerouslyAllowSVG: true in next.config.js and uncomment below:
 // const imageConfig: ImageConfig = { dangerouslyAllowSVG: true };
+
+if (typeof globalThis.DOMParser === "undefined") {
+  // @aws-sdk/xml-builder expects a global DOMParser in Workers validation/runtime.
+  globalThis.DOMParser = XmldomParser as unknown as typeof DOMParser;
+}
+
+let handlerPromise: Promise<(request: Request) => Promise<Response>> | null = null;
+
+async function getHandler() {
+  if (!handlerPromise) {
+    handlerPromise = import("../dist/server/index.js").then((mod) => mod.default as (request: Request) => Promise<Response>);
+  }
+  return handlerPromise;
+}
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
@@ -45,6 +61,7 @@ export default {
     }
 
     // Delegate everything else to vinext
-    return handler.fetch(request);
+    const handler = await getHandler();
+    return handler(request);
   },
 };
