@@ -17,13 +17,16 @@ export class HLSManager {
   private hls: Hls | null = null;
   private config: HLSManagerConfig;
   private failedSegmentRanges = new Map<string, { start: number; end: number }>();
+  private failedSegmentAttempts = new Map<string, number>();
   private maxRetries = 3;
+  private maxFailedSegmentAttempts = 2;
   private retryCount = 0;
   private playbackMonitorInterval: NodeJS.Timeout | null = null;
   private lastPlaybackTime = -1;
   private currentStats: HLSStats = { loadedBytes: 0, totalBytes: 0, currentLevel: -1 };
   private segmentSkipTimer: NodeJS.Timeout | null = null;
   private hlsLoadingStopped = false;
+  private lastMediaRecoveryAt = 0;
 
   constructor(config: HLSManagerConfig) {
     this.config = config;
@@ -146,31 +149,44 @@ export class HLSManager {
 
   private handleError(event: Events.ERROR, data: ErrorData): void {
     console.log('HLS Error:', data);
-    
-    const isParsingError = data.type === ErrorTypes.MEDIA_ERROR && data.details === ErrorDetails.FRAG_PARSING_ERROR;
-    const isNetworkError = data.type === ErrorTypes.NETWORK_ERROR && (data.details === ErrorDetails.FRAG_LOAD_ERROR || data.details === ErrorDetails.FRAG_LOAD_TIMEOUT);
 
-    // Blacklist segments that are permanently broken
-    if ((isParsingError || (isNetworkError && data.fatal)) && data.frag) {
+    const details = data.details as string | undefined;
+    const isParsingError = data.type === ErrorTypes.MEDIA_ERROR && details === ErrorDetails.FRAG_PARSING_ERROR;
+    const isNetworkError = data.type === ErrorTypes.NETWORK_ERROR && (data.details === ErrorDetails.FRAG_LOAD_ERROR || data.details === ErrorDetails.FRAG_LOAD_TIMEOUT);
+    const isBufferAppendingError =
+      data.type === ErrorTypes.MEDIA_ERROR &&
+      (details === 'bufferAppendingError' || details === 'bufferAppendError');
+
+    // Treat repeated fragment-level media errors as a bad segment and skip it.
+    if ((isParsingError || isBufferAppendingError || (isNetworkError && data.fatal)) && data.frag) {
       const frag = data.frag;
       const segmentUrl = frag.url;
+      const attemptCount = (this.failedSegmentAttempts.get(segmentUrl) || 0) + 1;
+      this.failedSegmentAttempts.set(segmentUrl, attemptCount);
 
       if (!this.failedSegmentRanges.has(segmentUrl)) {
         const startTime = frag.start;
         const endTime = startTime + frag.duration;
         console.log(`🚫 Blacklisting segment ${frag.sn} (${startTime.toFixed(2)}s - ${endTime.toFixed(2)}s) due to ${data.details}.`);
         this.failedSegmentRanges.set(segmentUrl, { start: startTime, end: endTime });
-        
-        // Stop HLS loading to prevent request storms - simple and clean
-        if (this.hls && !this.hlsLoadingStopped) {
-          console.log('🛑 Stopping HLS loading to prevent request storms');
-          this.hlsLoadingStopped = true;
-          this.hls.stopLoad(); // This stops all fragment loading requests
-          
-          // Start timer-based approach to resume when safe
-          this.startSegmentSkipTimer();
+      }
+
+      if (isBufferAppendingError && this.hls) {
+        const now = Date.now();
+        if (now - this.lastMediaRecoveryAt > 1000) {
+          this.lastMediaRecoveryAt = now;
+          this.hls.recoverMediaError();
         }
       }
+
+      // Escalate only after repeated failures for the same segment to avoid false positives.
+      if (attemptCount >= this.maxFailedSegmentAttempts && this.hls && !this.hlsLoadingStopped) {
+        console.log('🛑 Stopping HLS loading to prevent request storms');
+        this.hlsLoadingStopped = true;
+        this.hls.stopLoad();
+        this.startSegmentSkipTimer();
+      }
+      return;
     } else if (data.fatal) {
       this.handleGenericFatalError(data);
     }
@@ -221,6 +237,7 @@ export class HLSManager {
   retry(): void {
     this.retryCount = 0;
     this.failedSegmentRanges.clear();
+    this.failedSegmentAttempts.clear();
     this.hlsLoadingStopped = false;
     
     if (this.segmentSkipTimer) {
@@ -305,6 +322,7 @@ export class HLSManager {
       this.hls = null;
     }
     this.failedSegmentRanges.clear();
+    this.failedSegmentAttempts.clear();
     this.hlsLoadingStopped = false;
   }
 

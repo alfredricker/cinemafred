@@ -133,11 +133,22 @@ export async function GET(
     const segmentPath = segments.join('/');
     
     // Additional rate limiting for specific segments to prevent retry storms
-    // Relaxed for production HLS streaming where many segments are requested quickly
+    // Hard-stop repeated requests to the same segment to avoid retry storms/cost spikes.
     if (!checkSegmentRateLimit(ip, segmentPath)) {
-      console.log(`🚫 Segment rate limited: ${ip} requesting ${segmentPath} (too many requests)`);
-      // We still serve the segment to avoid breaking playback, but log the warning
-      // In a real production app, you might want a higher limit rather than returning 429
+      console.log(`🚫 Segment hard-limited: ${ip} requesting ${segmentPath} too frequently`);
+      return NextResponse.json(
+        { error: 'Segment request rate limited' },
+        {
+          status: 429,
+          headers: {
+            'Retry-After': '30',
+            'Cache-Control': 'private, no-store',
+            'Access-Control-Allow-Origin': '*',
+            'Access-Control-Allow-Methods': 'GET',
+            'Access-Control-Allow-Headers': 'Range, Content-Type',
+          },
+        }
+      );
     }
     
     // Log segment requests for debugging
