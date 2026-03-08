@@ -28,7 +28,12 @@ function createPrismaClient() {
   const log: ('error' | 'warn')[] = ['error', 'warn'];
 
   if (dbUrl && isWorkerRuntime()) {
-    const adapter = new PrismaPg(new Pool({ connectionString: dbUrl }));
+    const adapter = new PrismaPg(new Pool({
+      connectionString: dbUrl,
+      max: 1,
+      idleTimeoutMillis: 10000,
+      connectionTimeoutMillis: 10000
+    }));
     const workerOptions: any = { adapter, log };
     return new PrismaClient(workerOptions);
   }
@@ -46,6 +51,22 @@ function createPrismaClient() {
 const prisma = globalForPrisma.prisma ?? createPrismaClient()
 
 if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma
+
+export function getPrismaClient(): PrismaClient {
+  if (isWorkerRuntime()) {
+    return createPrismaClient();
+  }
+  return prisma;
+}
+
+export async function releasePrismaClient(client: PrismaClient) {
+  if (!isWorkerRuntime()) return;
+  try {
+    await client.$disconnect();
+  } catch (error) {
+    console.error('⚠️ Error disconnecting request Prisma client:', error);
+  }
+}
 
 // Simple database operation wrapper - connects, executes, disconnects
 export async function withDatabase<T>(operation: (prisma: PrismaClient) => Promise<T>): Promise<T> {

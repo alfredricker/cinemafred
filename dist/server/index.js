@@ -6704,7 +6704,12 @@ function createPrismaClient() {
   const dbUrl = buildDatabaseUrl();
   const log = ["error", "warn"];
   if (dbUrl && isWorkerRuntime()) {
-    const adapter = new PrismaPg(new Pool({ connectionString: dbUrl }));
+    const adapter = new PrismaPg(new Pool({
+      connectionString: dbUrl,
+      max: 1,
+      idleTimeoutMillis: 1e4,
+      connectionTimeoutMillis: 1e4
+    }));
     const workerOptions = { adapter, log };
     return new PrismaClient(workerOptions);
   }
@@ -6718,9 +6723,24 @@ function createPrismaClient() {
   });
 }
 const prisma = globalForPrisma.prisma ?? createPrismaClient();
+function getPrismaClient() {
+  if (isWorkerRuntime()) {
+    return createPrismaClient();
+  }
+  return prisma;
+}
+async function releasePrismaClient(client) {
+  if (!isWorkerRuntime()) return;
+  try {
+    await client.$disconnect();
+  } catch (error) {
+    console.error("⚠️ Error disconnecting request Prisma client:", error);
+  }
+}
 const JWT_SECRET$9 = process.env.JWT_SECRET || "your-secret-key";
 const dynamic$6 = "force-dynamic";
 async function GET$a(request, { params }) {
+  const prisma2 = getPrismaClient();
   try {
     const authHeader = request.headers.get("Authorization");
     if (!authHeader?.startsWith("Bearer ")) {
@@ -6728,14 +6748,14 @@ async function GET$a(request, { params }) {
     }
     const token = authHeader.substring(7);
     const decoded = jwt.verify(token, JWT_SECRET$9);
-    const user = await prisma.user.findUnique({
+    const user = await prisma2.user.findUnique({
       where: { id: decoded.id },
       select: { isAdmin: true }
     });
     if (user?.isAdmin) {
       return NextResponse.json({ rating: null });
     }
-    const rating = await prisma.rating.findUnique({
+    const rating = await prisma2.rating.findUnique({
       where: {
         user_id_movie_id: {
           user_id: decoded.id,
@@ -6747,9 +6767,12 @@ async function GET$a(request, { params }) {
   } catch (error) {
     console.error("Error fetching rating:", error);
     return NextResponse.json({ error: "Failed to fetch rating" }, { status: 500 });
+  } finally {
+    await releasePrismaClient(prisma2);
   }
 }
 async function POST$c(request, { params }) {
+  const prisma2 = getPrismaClient();
   try {
     const authHeader = request.headers.get("Authorization");
     if (!authHeader?.startsWith("Bearer ")) {
@@ -6758,7 +6781,7 @@ async function POST$c(request, { params }) {
     const token = authHeader.substring(7);
     const decoded = jwt.verify(token, JWT_SECRET$9);
     const { value } = await request.json();
-    const user = await prisma.user.findUnique({
+    const user = await prisma2.user.findUnique({
       where: { id: decoded.id },
       select: { isAdmin: true }
     });
@@ -6768,7 +6791,7 @@ async function POST$c(request, { params }) {
     if (typeof value !== "number" || value < 0 || value > 10) {
       return NextResponse.json({ error: "Invalid rating value" }, { status: 400 });
     }
-    const result = await prisma.$transaction(async (tx) => {
+    const result = await prisma2.$transaction(async (tx) => {
       await tx.rating.upsert({
         where: {
           user_id_movie_id: {
@@ -6801,9 +6824,12 @@ async function POST$c(request, { params }) {
   } catch (error) {
     console.error("Error updating rating:", error);
     return NextResponse.json({ error: "Failed to update rating" }, { status: 500 });
+  } finally {
+    await releasePrismaClient(prisma2);
   }
 }
 async function DELETE$1(request, { params }) {
+  const prisma2 = getPrismaClient();
   try {
     const authHeader = request.headers.get("Authorization");
     if (!authHeader?.startsWith("Bearer ")) {
@@ -6811,14 +6837,14 @@ async function DELETE$1(request, { params }) {
     }
     const token = authHeader.substring(7);
     const decoded = jwt.verify(token, JWT_SECRET$9);
-    const user = await prisma.user.findUnique({
+    const user = await prisma2.user.findUnique({
       where: { id: decoded.id },
       select: { isAdmin: true }
     });
     if (user?.isAdmin) {
       return NextResponse.json({ error: "Admins cannot rate movies" }, { status: 403 });
     }
-    const result = await prisma.$transaction(async (tx) => {
+    const result = await prisma2.$transaction(async (tx) => {
       await tx.rating.delete({
         where: {
           user_id_movie_id: {
@@ -6845,6 +6871,8 @@ async function DELETE$1(request, { params }) {
   } catch (error) {
     console.error("Error deleting rating:", error);
     return NextResponse.json({ error: "Failed to delete rating" }, { status: 500 });
+  } finally {
+    await releasePrismaClient(prisma2);
   }
 }
 const mod_0 = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
@@ -6900,6 +6928,7 @@ const mod_1 = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.definePropert
 const JWT_SECRET$8 = process.env.JWT_SECRET || "your-secret-key";
 const dynamic$5 = "force-dynamic";
 async function POST$b(request, { params }) {
+  const prisma2 = getPrismaClient();
   try {
     const authHeader = request.headers.get("Authorization");
     if (!authHeader?.startsWith("Bearer ")) {
@@ -6908,7 +6937,7 @@ async function POST$b(request, { params }) {
     const token = authHeader.substring(7);
     const decoded = jwt.verify(token, JWT_SECRET$8);
     const { reviewText, rating } = await request.json();
-    const user = await prisma.user.findUnique({
+    const user = await prisma2.user.findUnique({
       where: { id: decoded.id },
       select: { isAdmin: true }
     });
@@ -6918,7 +6947,7 @@ async function POST$b(request, { params }) {
     if (typeof rating !== "number" || rating < 1 || rating > 10) {
       return NextResponse.json({ error: "Invalid rating value (must be 1-10)" }, { status: 400 });
     }
-    const result = await prisma.$transaction(async (tx) => {
+    const result = await prisma2.$transaction(async (tx) => {
       const review = await tx.review.upsert({
         where: {
           user_id_movie_id: {
@@ -6970,9 +6999,12 @@ async function POST$b(request, { params }) {
   } catch (error) {
     console.error("Error submitting review:", error);
     return NextResponse.json({ error: "Failed to submit review" }, { status: 500 });
+  } finally {
+    await releasePrismaClient(prisma2);
   }
 }
 async function GET$9(request, { params }) {
+  const prisma2 = getPrismaClient();
   try {
     const authHeader = request.headers.get("Authorization");
     if (!authHeader?.startsWith("Bearer ")) {
@@ -6980,7 +7012,7 @@ async function GET$9(request, { params }) {
     }
     const token = authHeader.substring(7);
     const decoded = jwt.verify(token, JWT_SECRET$8);
-    const user = await prisma.user.findUnique({
+    const user = await prisma2.user.findUnique({
       where: { id: decoded.id },
       select: { isAdmin: true }
     });
@@ -6991,7 +7023,7 @@ async function GET$9(request, { params }) {
         reviewText: null
       });
     }
-    const review = await prisma.review.findUnique({
+    const review = await prisma2.review.findUnique({
       where: {
         user_id_movie_id: {
           user_id: decoded.id,
@@ -7007,6 +7039,8 @@ async function GET$9(request, { params }) {
   } catch (error) {
     console.error("Error fetching review:", error);
     return NextResponse.json({ error: "Failed to fetch review" }, { status: 500 });
+  } finally {
+    await releasePrismaClient(prisma2);
   }
 }
 const mod_2 = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
@@ -7241,6 +7275,7 @@ const mod_8 = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.definePropert
 }, Symbol.toStringTag, { value: "Module" }));
 const dynamic$4 = "force-dynamic";
 async function POST$5(request) {
+  const prisma2 = getPrismaClient();
   try {
     const validation = await validateAdmin(request);
     if ("error" in validation) {
@@ -7258,7 +7293,7 @@ async function POST$5(request) {
         { status: 400 }
       );
     }
-    const movie = await prisma.movie.create({
+    const movie = await prisma2.movie.create({
       data: {
         title: data.title,
         year: data.year,
@@ -7284,9 +7319,12 @@ async function POST$5(request) {
       { error: "Failed to create movie" },
       { status: 500 }
     );
+  } finally {
+    await releasePrismaClient(prisma2);
   }
 }
 async function GET$8(request) {
+  const prisma2 = getPrismaClient();
   try {
     const url = new URL(request.url);
     const page2 = parseInt(url.searchParams.get("page") || "1");
@@ -7333,7 +7371,7 @@ async function GET$8(request) {
         orderBy = { title: "asc" };
         break;
     }
-    const movies = await prisma.movie.findMany({
+    const movies = await prisma2.movie.findMany({
       where: whereClause,
       orderBy,
       skip,
@@ -7353,7 +7391,7 @@ async function GET$8(request) {
         }
       }
     });
-    const total = await prisma.movie.count({ where: whereClause });
+    const total = await prisma2.movie.count({ where: whereClause });
     return NextResponse.json({
       movies,
       pagination: {
@@ -7369,6 +7407,8 @@ async function GET$8(request) {
       { error: "Failed to fetch movies" },
       { status: 500 }
     );
+  } finally {
+    await releasePrismaClient(prisma2);
   }
 }
 const mod_9 = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
@@ -8043,6 +8083,17 @@ const mod_20 = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProper
   default: page$1
 }, Symbol.toStringTag, { value: "Module" }));
 class HLSR2Manager {
+  async runWithConcurrency(tasks, concurrency) {
+    if (tasks.length === 0) return;
+    let index = 0;
+    const workers = Array.from({ length: Math.min(concurrency, tasks.length) }, async () => {
+      while (index < tasks.length) {
+        const current = index++;
+        await tasks[current]();
+      }
+    });
+    await Promise.all(workers);
+  }
   /**
    * Get a signed URL for HLS master playlist
    */
@@ -8126,15 +8177,14 @@ class HLSR2Manager {
       console.log(`No HLS files found for movie ${movieId}`);
       return;
     }
-    const deletePromises = objects.map((obj) => {
-      if (!obj.Key) return Promise.resolve();
+    const deleteTasks = objects.filter((obj) => !!obj.Key).map((obj) => async () => {
       const deleteCommand = new DeleteObjectCommand({
         Bucket: BUCKET_NAME,
         Key: obj.Key
       });
-      return getr2Client().send(deleteCommand);
+      await getr2Client().send(deleteCommand);
     });
-    await Promise.all(deletePromises);
+    await this.runWithConcurrency(deleteTasks, 8);
     console.log(`Deleted ${objects.length} HLS files for movie ${movieId}`);
   }
   /**
@@ -8702,11 +8752,12 @@ async function DELETE(request, { params }) {
       const { hlsR2Manager: hlsR2Manager2 } = await Promise.resolve().then(() => r2);
       deletePromises.push(hlsR2Manager2.deleteHLSFiles(id));
     }
-    try {
-      await Promise.all(deletePromises);
+    const deleteResults = await Promise.allSettled(deletePromises);
+    const failedDeletes = deleteResults.filter((result) => result.status === "rejected");
+    if (failedDeletes.length > 0) {
+      console.error(`⚠️ ${failedDeletes.length} R2 delete operation(s) failed`);
+    } else {
       console.log(`✅ Successfully deleted all R2 files for movie: ${existingMovie.title}`);
-    } catch (r2Error) {
-      console.error("⚠️ Some R2 files could not be deleted:", r2Error);
     }
     await prisma.$transaction([
       prisma.rating.deleteMany({ where: { movie_id: id } }),
@@ -8739,8 +8790,9 @@ const mod_22 = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProper
   dynamic
 }, Symbol.toStringTag, { value: "Module" }));
 const JWT_SECRET = process.env.JWT_SECRET || "your-secret-key";
-const MAX_RETRIES = 3;
-const RETRY_DELAY = 1e3;
+const MAX_RETRIES = 1;
+const RETRY_DELAY = 250;
+const R2_OP_TIMEOUT_MS = 12e3;
 class CircuitBreaker {
   constructor() {
     this.failures = 0;
@@ -8794,8 +8846,14 @@ const validateStreamToken$1 = (request) => {
 };
 const DEFAULT_CHUNK_SIZE = 2 * 1024 * 1024;
 const retryOperation = async (operation, retries = MAX_RETRIES, delay = RETRY_DELAY) => {
+  const withTimeout = () => Promise.race([
+    operation(),
+    new Promise(
+      (_, reject) => setTimeout(() => reject(new Error("R2 operation timeout")), R2_OP_TIMEOUT_MS)
+    )
+  ]);
   try {
-    return await operation();
+    return await withTimeout();
   } catch (error) {
     const errorCode = error.code;
     const shouldRetry = retries > 0 && (errorCode === "EAI_AGAIN" || errorCode === "ETIMEDOUT" || errorCode === "ECONNRESET" || errorCode === "ENOTFOUND" || errorCode === "ENETUNREACH" || error.name === "TimeoutError" || error.$metadata?.httpStatusCode >= 500);
@@ -8809,6 +8867,7 @@ const retryOperation = async (operation, retries = MAX_RETRIES, delay = RETRY_DE
   }
 };
 async function GET$2(request, { params }) {
+  const prisma2 = getPrismaClient();
   try {
     if (r2CircuitBreaker.isOpen()) {
       console.log("R2 circuit breaker is open, rejecting request");
@@ -8820,9 +8879,9 @@ async function GET$2(request, { params }) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
     const { movieId } = params;
-    const headersList = headers();
+    const headersList = await headers();
     const range = headersList.get("range");
-    const movie = await prisma.movie.findUnique({
+    const movie = await prisma2.movie.findUnique({
       where: { id: movieId },
       select: { r2_video_path: true }
     });
@@ -8902,6 +8961,8 @@ async function GET$2(request, { params }) {
       { error: "Failed to stream video" },
       { status: 500 }
     );
+  } finally {
+    await releasePrismaClient(prisma2);
   }
 }
 const mod_23 = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
@@ -8989,8 +9050,21 @@ const segmentRateLimitMap = /* @__PURE__ */ new Map();
 const RATE_LIMIT_WINDOW = 60 * 1e3;
 const MAX_REQUESTS_PER_MINUTE = 100;
 const MAX_SEGMENT_REQUESTS_PER_MINUTE = 5;
+function cleanupExpiredRateLimitEntries(now) {
+  for (const [key, value] of rateLimitMap.entries()) {
+    if (now > value.resetTime) {
+      rateLimitMap.delete(key);
+    }
+  }
+  for (const [key, value] of segmentRateLimitMap.entries()) {
+    if (now > value.resetTime) {
+      segmentRateLimitMap.delete(key);
+    }
+  }
+}
 function checkRateLimit(ip) {
   const now = Date.now();
+  cleanupExpiredRateLimitEntries(now);
   const key = `hls_${ip}`;
   const current = rateLimitMap.get(key);
   if (!current || now > current.resetTime) {
@@ -9005,6 +9079,7 @@ function checkRateLimit(ip) {
 }
 function checkSegmentRateLimit(ip, segmentPath) {
   const now = Date.now();
+  cleanupExpiredRateLimitEntries(now);
   const key = `segment_${ip}_${segmentPath}`;
   const current = segmentRateLimitMap.get(key);
   if (!current || now > current.resetTime) {
@@ -9017,19 +9092,6 @@ function checkSegmentRateLimit(ip, segmentPath) {
   current.count++;
   return true;
 }
-setInterval(() => {
-  const now = Date.now();
-  for (const [key, value] of rateLimitMap.entries()) {
-    if (now > value.resetTime) {
-      rateLimitMap.delete(key);
-    }
-  }
-  for (const [key, value] of segmentRateLimitMap.entries()) {
-    if (now > value.resetTime) {
-      segmentRateLimitMap.delete(key);
-    }
-  }
-}, 5 * 60 * 1e3);
 async function OPTIONS(request) {
   return new Response(null, {
     status: 200,

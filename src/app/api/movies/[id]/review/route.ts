@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import prisma from '@/lib/db';
+import { getPrismaClient, releasePrismaClient } from '@/lib/db';
 import jwt from 'jsonwebtoken';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
@@ -12,6 +12,7 @@ export async function POST(
   request: Request,
   { params }: { params: { id: string } }
 ) {
+  const prisma = getPrismaClient();
   try {
     const authHeader = request.headers.get('Authorization');
     if (!authHeader?.startsWith('Bearer ')) {
@@ -99,6 +100,8 @@ export async function POST(
   } catch (error) {
     console.error('Error submitting review:', error);
     return NextResponse.json({ error: 'Failed to submit review' }, { status: 500 });
+  } finally {
+    await releasePrismaClient(prisma);
   }
 }
 
@@ -107,6 +110,7 @@ export async function GET(
   request: Request,
   { params }: { params: { id: string } }
 ) {
+  const prisma = getPrismaClient();
   try {
     const authHeader = request.headers.get('Authorization');
     if (!authHeader?.startsWith('Bearer ')) {
@@ -147,6 +151,8 @@ export async function GET(
   } catch (error) {
     console.error('Error fetching review:', error);
     return NextResponse.json({ error: 'Failed to fetch review' }, { status: 500 });
+  } finally {
+    await releasePrismaClient(prisma);
   }
 }
 

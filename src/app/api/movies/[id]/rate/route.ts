@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import prisma from '@/lib/db';
+import { getPrismaClient, releasePrismaClient } from '@/lib/db';
 import jwt from 'jsonwebtoken';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
@@ -12,6 +12,7 @@ export async function GET(
   request: Request,
   { params }: { params: { id: string } }
 ) {
+  const prisma = getPrismaClient();
   try {
     const authHeader = request.headers.get('Authorization');
     if (!authHeader?.startsWith('Bearer ')) {
@@ -44,6 +45,8 @@ export async function GET(
   } catch (error) {
     console.error('Error fetching rating:', error);
     return NextResponse.json({ error: 'Failed to fetch rating' }, { status: 500 });
+  } finally {
+    await releasePrismaClient(prisma);
   }
 }
 
@@ -52,6 +55,7 @@ export async function POST(
   request: Request,
   { params }: { params: { id: string } }
 ) {
+  const prisma = getPrismaClient();
   try {
     const authHeader = request.headers.get('Authorization');
     if (!authHeader?.startsWith('Bearer ')) {
@@ -118,6 +122,8 @@ export async function POST(
   } catch (error) {
     console.error('Error updating rating:', error);
     return NextResponse.json({ error: 'Failed to update rating' }, { status: 500 });
+  } finally {
+    await releasePrismaClient(prisma);
   }
 }
 
@@ -126,6 +132,7 @@ export async function DELETE(
   request: Request,
   { params }: { params: { id: string } }
 ) {
+  const prisma = getPrismaClient();
   try {
     const authHeader = request.headers.get('Authorization');
     if (!authHeader?.startsWith('Bearer ')) {
@@ -180,5 +187,7 @@ export async function DELETE(
   } catch (error) {
     console.error('Error deleting rating:', error);
     return NextResponse.json({ error: 'Failed to delete rating' }, { status: 500 });
+  } finally {
+    await releasePrismaClient(prisma);
   }
 }

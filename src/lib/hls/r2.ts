@@ -16,6 +16,17 @@ export interface HLSPlaylistInfo {
 }
 
 export class HLSR2Manager {
+  private async runWithConcurrency<T>(tasks: Array<() => Promise<T>>, concurrency: number): Promise<void> {
+    if (tasks.length === 0) return;
+    let index = 0;
+    const workers = Array.from({ length: Math.min(concurrency, tasks.length) }, async () => {
+      while (index < tasks.length) {
+        const current = index++;
+        await tasks[current]();
+      }
+    });
+    await Promise.all(workers);
+  }
   
   /**
    * Get a signed URL for HLS master playlist
@@ -142,19 +153,18 @@ export class HLSR2Manager {
       return;
     }
 
-    // Delete all objects
-    const deletePromises = objects.map(obj => {
-      if (!obj.Key) return Promise.resolve();
-      
-      const deleteCommand = new DeleteObjectCommand({
-        Bucket: BUCKET_NAME,
-        Key: obj.Key
+    const deleteTasks = objects
+      .filter((obj): obj is { Key: string } => !!obj.Key)
+      .map((obj) => async () => {
+        const deleteCommand = new DeleteObjectCommand({
+          Bucket: BUCKET_NAME,
+          Key: obj.Key
+        });
+        await r2Client().send(deleteCommand);
       });
-      
-      return r2Client().send(deleteCommand);
-    });
 
-    await Promise.all(deletePromises);
+    // Bound concurrency to avoid overwhelming Workers sockets/runtime.
+    await this.runWithConcurrency(deleteTasks, 8);
     console.log(`Deleted ${objects.length} HLS files for movie ${movieId}`);
   }
 

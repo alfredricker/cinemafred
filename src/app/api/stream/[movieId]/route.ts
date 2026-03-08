@@ -3,12 +3,13 @@ import { NextResponse } from "next/server";
 import { GetObjectCommand } from "@aws-sdk/client-s3";
 import { r2Client, BUCKET_NAME } from "@/lib/r2";
 import { headers } from "next/headers";
-import prisma from '@/lib/db';
+import { getPrismaClient, releasePrismaClient } from '@/lib/db';
 import jwt from 'jsonwebtoken';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
-const MAX_RETRIES = 3;
-const RETRY_DELAY = 1000; // 1 second
+const MAX_RETRIES = 1;
+const RETRY_DELAY = 250;
+const R2_OP_TIMEOUT_MS = 12000;
 
 // Simple circuit breaker to prevent overwhelming R2 during outages
 class CircuitBreaker {
@@ -82,8 +83,16 @@ const retryOperation = async <T>(
   retries: number = MAX_RETRIES,
   delay: number = RETRY_DELAY
 ): Promise<T> => {
+  const withTimeout = () =>
+    Promise.race([
+      operation(),
+      new Promise<T>((_, reject) =>
+        setTimeout(() => reject(new Error('R2 operation timeout')), R2_OP_TIMEOUT_MS)
+      ),
+    ]);
+
   try {
-    return await operation();
+    return await withTimeout();
   } catch (error) {
     const errorCode = (error as any).code;
     const shouldRetry = retries > 0 && (
@@ -111,6 +120,7 @@ export async function GET(
   request: Request,
   { params }: { params: { movieId: string } }
 ) {
+  const prisma = getPrismaClient();
   try {
     // Check circuit breaker first
     if (r2CircuitBreaker.isOpen()) {
@@ -126,7 +136,7 @@ export async function GET(
     }
 
     const { movieId } = params;
-    const headersList = headers();
+    const headersList = await headers();
     const range = headersList.get("range");
 
     // Find the movie in the database
@@ -240,5 +250,7 @@ export async function GET(
       { error: "Failed to stream video" },
       { status: 500 }
     );
+  } finally {
+    await releasePrismaClient(prisma);
   }
 }

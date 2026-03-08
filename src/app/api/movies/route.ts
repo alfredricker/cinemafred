@@ -1,6 +1,6 @@
 // src/app/api/movies/route.ts
 import { NextResponse } from 'next/server';
-import prisma from '@/lib/db';
+import { getPrismaClient, releasePrismaClient } from '@/lib/db';
 import { Prisma } from '@prisma/client';
 import { validateAdmin } from '@/lib/middleware';
 
@@ -8,6 +8,7 @@ import { validateAdmin } from '@/lib/middleware';
 export const dynamic = 'force-dynamic';
 
 export async function POST(request: Request) {
+  const prisma = getPrismaClient();
   try {
     // Validate admin access
     const validation = await validateAdmin(request);
@@ -57,11 +58,14 @@ export async function POST(request: Request) {
       { error: 'Failed to create movie' },
       { status: 500 }
     );
+  } finally {
+    await releasePrismaClient(prisma);
   }
 }
 
 
 export async function GET(request: Request) {
+  const prisma = getPrismaClient();
   try {
     const url = new URL(request.url);
     const page = parseInt(url.searchParams.get('page') || '1');
@@ -157,5 +161,7 @@ export async function GET(request: Request) {
       { error: 'Failed to fetch movies' },
       { status: 500 }
     );
+  } finally {
+    await releasePrismaClient(prisma);
   }
 }

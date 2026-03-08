@@ -224,14 +224,13 @@ export async function DELETE(
       deletePromises.push(hlsR2Manager.deleteHLSFiles(id));
     }
 
-    // Execute all R2 deletions in parallel
-    try {
-      await Promise.all(deletePromises);
+    // Avoid all-or-nothing promise rejection and preserve per-file failures.
+    const deleteResults = await Promise.allSettled(deletePromises);
+    const failedDeletes = deleteResults.filter((result) => result.status === 'rejected');
+    if (failedDeletes.length > 0) {
+      console.error(`⚠️ ${failedDeletes.length} R2 delete operation(s) failed`);
+    } else {
       console.log(`✅ Successfully deleted all R2 files for movie: ${existingMovie.title}`);
-    } catch (r2Error) {
-      console.error('⚠️ Some R2 files could not be deleted:', r2Error);
-      // Continue with database deletion even if some R2 files failed
-      // This prevents orphaned database records
     }
 
     // Delete related records from database

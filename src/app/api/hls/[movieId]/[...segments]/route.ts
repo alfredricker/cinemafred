@@ -10,8 +10,22 @@ const RATE_LIMIT_WINDOW = 60 * 1000; // 1 minute
 const MAX_REQUESTS_PER_MINUTE = 100; // Max 30 requests per minute per IP (0.5 req/sec)
 const MAX_SEGMENT_REQUESTS_PER_MINUTE = 5; // Max 5 requests per segment per minute per IP
 
+function cleanupExpiredRateLimitEntries(now: number) {
+  for (const [key, value] of rateLimitMap.entries()) {
+    if (now > value.resetTime) {
+      rateLimitMap.delete(key);
+    }
+  }
+  for (const [key, value] of segmentRateLimitMap.entries()) {
+    if (now > value.resetTime) {
+      segmentRateLimitMap.delete(key);
+    }
+  }
+}
+
 function checkRateLimit(ip: string): boolean {
   const now = Date.now();
+  cleanupExpiredRateLimitEntries(now);
   const key = `hls_${ip}`;
   
   const current = rateLimitMap.get(key);
@@ -32,6 +46,7 @@ function checkRateLimit(ip: string): boolean {
 
 function checkSegmentRateLimit(ip: string, segmentPath: string): boolean {
   const now = Date.now();
+  cleanupExpiredRateLimitEntries(now);
   const key = `segment_${ip}_${segmentPath}`;
   
   const current = segmentRateLimitMap.get(key);
@@ -49,21 +64,6 @@ function checkSegmentRateLimit(ip: string, segmentPath: string): boolean {
   current.count++;
   return true;
 }
-
-// Clean up old entries every 5 minutes
-setInterval(() => {
-  const now = Date.now();
-  for (const [key, value] of rateLimitMap.entries()) {
-    if (now > value.resetTime) {
-      rateLimitMap.delete(key);
-    }
-  }
-  for (const [key, value] of segmentRateLimitMap.entries()) {
-    if (now > value.resetTime) {
-      segmentRateLimitMap.delete(key);
-    }
-  }
-}, 5 * 60 * 1000);
 
 // Add CORS headers for OPTIONS requests
 export async function OPTIONS(request: Request) {
