@@ -9330,7 +9330,20 @@ async function GET(request, { params }) {
     const { movieId, segments } = params;
     const segmentPath = segments.join("/");
     if (!checkSegmentRateLimit(ip, segmentPath)) {
-      console.log(`🚫 Segment rate limited: ${ip} requesting ${segmentPath} (too many requests)`);
+      console.log(`🚫 Segment hard-limited: ${ip} requesting ${segmentPath} too frequently`);
+      return NextResponse.json(
+        { error: "Segment request rate limited" },
+        {
+          status: 429,
+          headers: {
+            "Retry-After": "30",
+            "Cache-Control": "private, no-store",
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "GET",
+            "Access-Control-Allow-Headers": "Range, Content-Type"
+          }
+        }
+      );
     }
     console.log(`📺 HLS Segment request: ${ip} -> ${movieId}/${segmentPath}`);
     console.log(`HLS Segment request: ${movieId}/${segmentPath}`);
