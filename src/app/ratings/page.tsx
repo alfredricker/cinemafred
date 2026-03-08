@@ -2,7 +2,7 @@
 import { useState, useEffect, Suspense } from 'react';
 import { Header } from '@/components/Header';
 import { useAuth } from '@/context/AuthContext';
-import { redirect, useSearchParams, useRouter } from 'next/navigation';
+import { useSearchParams, useRouter } from 'next/navigation';
 import { Loader2, ChevronDown, ChevronUp, Plus, X, Search } from 'lucide-react';
 import { RatingStars } from '@/components/movies/RatingStars';
 
@@ -61,9 +61,9 @@ function RatingsContent() {
 
   useEffect(() => {
     if (!authLoading && !user) {
-      redirect('/login');
+      router.replace('/login');
     }
-  }, [user, authLoading]);
+  }, [user, authLoading, router]);
 
   // Mark as initialized after first render
   useEffect(() => {

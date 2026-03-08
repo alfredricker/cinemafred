@@ -4,7 +4,7 @@ import { MovieGridHeader } from '@/components/movies/MovieGridHeader';
 import { MovieGrid } from '@/components/movies/MovieGrid';
 import { MovieDetailsModal } from '@/components/movies/MovieDetailsModal';
 import { useAuth } from '@/context/AuthContext';
-import { redirect, useSearchParams, useRouter } from 'next/navigation';
+import { useSearchParams, useRouter } from 'next/navigation';
 import { Loader2 } from 'lucide-react';
 import { useState, useEffect, Suspense } from 'react';
 
@@ -28,8 +28,18 @@ function HomeContent() {
     );
   }
 
+  useEffect(() => {
+    if (!isLoading && !user) {
+      router.replace('/login');
+    }
+  }, [isLoading, user, router]);
+
   if (!user) {
-    redirect('/login');
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-gray-900 via-black to-gray-900 flex items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-gray-400" />
+      </div>
+    );
   }
 
   // Mark as initialized after first render

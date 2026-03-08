@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { Film, Lock, User, UserCircle } from 'lucide-react';
-import { redirect, useRouter } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import { PasswordResetDialog } from '@/components/account/PasswordResetDialog';
 
 export default function LoginPage() {

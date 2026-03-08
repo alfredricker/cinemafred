@@ -1,7 +1,7 @@
 import { jsx, jsxs, Fragment } from "react/jsx-runtime";
 import * as React from "react";
 import React__default, { createElement, useState, useEffect, useContext, createContext, forwardRef, useRef, useCallback, Suspense } from "react";
-import { u as usePathname, g as getLayoutSegmentContext, a as useRouter, b as useParams, t as toRscUrl, c as getPrefetchedUrls, s as storePrefetchResponse, d as useSearchParams, r as redirect } from "../index.js";
+import { u as usePathname, g as getLayoutSegmentContext, a as useRouter, b as useParams, t as toRscUrl, c as getPrefetchedUrls, s as storePrefetchResponse, d as useSearchParams } from "../index.js";
 import Hls, { Events, ErrorTypes, ErrorDetails } from "hls.js";
 import { transformProps, transformSourceProps } from "@unpic/core";
 import "../__vite_rsc_assets_manifest.js";
@@ -4074,8 +4074,13 @@ function HomeContent() {
   if (isLoading) {
     return /* @__PURE__ */ jsx("div", { className: "min-h-screen bg-gradient-to-br from-gray-900 via-black to-gray-900 flex items-center justify-center", children: /* @__PURE__ */ jsx(LoaderCircle, { className: "w-8 h-8 animate-spin text-gray-400" }) });
   }
+  useEffect(() => {
+    if (!isLoading && !user) {
+      router.replace("/login");
+    }
+  }, [isLoading, user, router]);
   if (!user) {
-    redirect("/login");
+    return /* @__PURE__ */ jsx("div", { className: "min-h-screen bg-gradient-to-br from-gray-900 via-black to-gray-900 flex items-center justify-center", children: /* @__PURE__ */ jsx(LoaderCircle, { className: "w-8 h-8 animate-spin text-gray-400" }) });
   }
   useEffect(() => {
     setIsInitialized(true);
@@ -4203,9 +4208,9 @@ function RatingsContent() {
   const [isSearching, setIsSearching] = useState(false);
   useEffect(() => {
     if (!authLoading && !user) {
-      redirect("/login");
+      router.replace("/login");
     }
-  }, [user, authLoading]);
+  }, [user, authLoading, router]);
   useEffect(() => {
     setIsInitialized(true);
   }, []);

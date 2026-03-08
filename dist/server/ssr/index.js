@@ -1696,39 +1696,39 @@ function createFromReadableStream(stream, options = {}) {
 }
 const clientReferences = {
   "f29e6e234fea": async () => {
-    const m = await import("./assets/facade__virtual_vinext-rsc-entry-BuMH625I.js");
+    const m = await import("./assets/facade__virtual_vinext-rsc-entry-DdljBzc0.js");
     return m.export_f29e6e234fea;
   },
   "0deffcb8ffd7": async () => {
-    const m = await import("./assets/facade__virtual_vinext-rsc-entry-BuMH625I.js");
+    const m = await import("./assets/facade__virtual_vinext-rsc-entry-DdljBzc0.js");
     return m.export_0deffcb8ffd7;
   },
   "31585754d24e": async () => {
-    const m = await import("./assets/facade__virtual_vinext-rsc-entry-BuMH625I.js");
+    const m = await import("./assets/facade__virtual_vinext-rsc-entry-DdljBzc0.js");
     return m.export_31585754d24e;
   },
   "a51bfb13d020": async () => {
-    const m = await import("./assets/facade__virtual_vinext-rsc-entry-BuMH625I.js");
+    const m = await import("./assets/facade__virtual_vinext-rsc-entry-DdljBzc0.js");
     return m.export_a51bfb13d020;
   },
   "73d7a23e5015": async () => {
-    const m = await import("./assets/facade__virtual_vinext-rsc-entry-BuMH625I.js");
+    const m = await import("./assets/facade__virtual_vinext-rsc-entry-DdljBzc0.js");
     return m.export_73d7a23e5015;
   },
   "104784aef6c0": async () => {
-    const m = await import("./assets/facade__virtual_vinext-rsc-entry-BuMH625I.js");
+    const m = await import("./assets/facade__virtual_vinext-rsc-entry-DdljBzc0.js");
     return m.export_104784aef6c0;
   },
   "3264f6c18f35": async () => {
-    const m = await import("./assets/facade__virtual_vinext-rsc-entry-BuMH625I.js");
+    const m = await import("./assets/facade__virtual_vinext-rsc-entry-DdljBzc0.js");
     return m.export_3264f6c18f35;
   },
   "8429a7681a9c": async () => {
-    const m = await import("./assets/facade__virtual_vinext-rsc-entry-BuMH625I.js");
+    const m = await import("./assets/facade__virtual_vinext-rsc-entry-DdljBzc0.js");
     return m.export_8429a7681a9c;
   },
   "18818acbefb3": async () => {
-    const m = await import("./assets/facade__virtual_vinext-rsc-entry-BuMH625I.js");
+    const m = await import("./assets/facade__virtual_vinext-rsc-entry-DdljBzc0.js");
     return m.export_18818acbefb3;
   }
 };
@@ -2076,11 +2076,6 @@ var RedirectType;
   RedirectType2["push"] = "push";
   RedirectType2["replace"] = "replace";
 })(RedirectType || (RedirectType = {}));
-function redirect(url, type) {
-  const error = new Error(`NEXT_REDIRECT:${url}`);
-  error.digest = `NEXT_REDIRECT;${"replace"};${encodeURIComponent(url)}`;
-  throw error;
-}
 if (!isServer) {
   window.addEventListener("popstate", (event) => {
     notifyListeners();
@@ -2109,7 +2104,6 @@ const navigation = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.definePr
   getLayoutSegmentContext,
   getPrefetchCache,
   getPrefetchedUrls,
-  redirect,
   setNavigationContext,
   storePrefetchResponse,
   toRscUrl,
@@ -2392,7 +2386,6 @@ export {
   _virtual_vinextAppSsrEntry as default,
   getLayoutSegmentContext as g,
   handleSsr,
-  redirect as r,
   storePrefetchResponse as s,
   toRscUrl as t,
   usePathname as u
