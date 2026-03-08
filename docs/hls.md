@@ -167,7 +167,7 @@ Failed conversions are logged to `conversion-errors.log`:
    - Ensure adequate space in `/tmp` or set custom temp directory
 
 3. **R2 connection issues**
-   - Check environment variables: `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, etc.
+   - Check environment variables: `CLOUDFLARE_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, etc.
    - Verify R2 bucket permissions
 
 ## Performance Considerations

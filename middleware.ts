@@ -35,6 +35,10 @@ export function middleware(request: NextRequest) {
   return NextResponse.next();
 }
 
+// Vinext/Next 16 compatibility: expose middleware as proxy export.
+export const proxy = middleware;
+export default middleware;
+
 // Configure which routes the middleware should run on
 export const config = {
   matcher: [

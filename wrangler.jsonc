@@ -1,0 +1,21 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "cinemafred",
+  "compatibility_date": "2026-03-08",
+  "compatibility_flags": [
+    "nodejs_compat"
+  ],
+  "main": "./worker/index.ts",
+  "assets": {
+    "directory": "./dist/client",
+    "not_found_handling": "none",
+    "binding": "ASSETS"
+  },
+  "images": {
+    "binding": "IMAGES"
+  },
+  "routes": [
+    { "pattern": "cinemafred.com", "custom_domain": true },
+    { "pattern": "www.cinemafred.com", "custom_domain": true }
+  ]
+}

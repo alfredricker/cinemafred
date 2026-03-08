@@ -4,7 +4,7 @@ import * as dotenv from "dotenv";
 dotenv.config();
 
 const REGION = "auto"; // R2 uses "auto" as the region
-const ACCOUNT_ID = process.env.R2_ACCOUNT_ID as string;
+const ACCOUNT_ID = process.env.CLOUDFLARE_ACCOUNT_ID as string;
 const ACCESS_KEY_ID = process.env.R2_ACCESS_KEY_ID as string;
 const SECRET_ACCESS_KEY = process.env.R2_SECRET_ACCESS_KEY as string;
 const BUCKET_NAME = process.env.R2_BUCKET_NAME as string;
