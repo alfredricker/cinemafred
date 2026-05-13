@@ -8,6 +8,7 @@ import { AccountDialog } from '@/components/account/AccountDialog';
 import { UserPlus, LogOut, Film, User, Star } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import Image from 'next/image';
 
 export const Header = () => {
   const { user, logout } = useAuth();
@@ -29,11 +30,12 @@ export const Header = () => {
     // can include border-b border-gray-800 in className = 
     <header className="py-4 px-16">
       <div className="max-w-[128rem] mx-auto flex items-center justify-between">
-        <Link 
-          href="/" 
-          className="text-xl font-bold text-white hover:text-blue-400 transition-colors"
+        <Link
+          href="/"
+          className="flex items-center gap-2 hover:opacity-80 transition-opacity"
         >
-          CinemaFred
+          <Image src="/cinemafred.svg" alt="CinemaFred" height={32} width={57} />
+          <span className="text-xl font-bold text-white">CinemaFred</span>
         </Link>
         
         <div className="flex items-center gap-4">

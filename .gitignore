@@ -40,6 +40,10 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
+# dis
+dist/
+.wrangler/
+
 
 #prisma
 .env
