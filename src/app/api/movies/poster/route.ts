@@ -1,69 +1,38 @@
-// src/app/api/movies/poster/route.ts
 import { NextResponse } from 'next/server';
-import { PutObjectCommand } from "@aws-sdk/client-s3";
-import { r2Client, BUCKET_NAME } from '@/lib/r2';
 import { validateAdmin } from '@/lib/middleware';
-// @ts-ignore
-import { env as cfEnv } from "cloudflare:workers";
+import fs from 'fs/promises';
+import path from 'path';
+
+const MEDIA_ROOT = process.env.MEDIA_ROOT || '/data/cinemafred';
 
 export async function POST(request: Request) {
-  try {
-    // Validate admin access
-    const validation = await validateAdmin(request);
-    if ('error' in validation) {
-      return NextResponse.json({ error: validation.error }, { status: validation.status });
-    }
-
-    const { imageUrl } = await request.json();
-    
-    if (!imageUrl) {
-      return NextResponse.json({ error: 'Image URL is required' }, { status: 400 });
-    }
-
-    // Download the image from TMDB
-    const imageResponse = await fetch(imageUrl);
-    if (!imageResponse.ok) {
-      throw new Error('Failed to download image from TMDB');
-    }
-
-    // Get the image data as a buffer
-    const imageData = await imageResponse.arrayBuffer();
-
-    // Generate a unique filename
-    const timestamp = Date.now();
-    const randomString = Math.random().toString(36).substring(7);
-    const filename = `poster_${timestamp}_${randomString}.jpg`;
-
-    // Upload to R2 with organized path
-    const organizedPath = `images/${filename}`;
-    
-    if (cfEnv && cfEnv.R2) {
-      await cfEnv.R2.put(organizedPath, imageData, {
-        httpMetadata: {
-          contentType: 'image/jpeg',
-        }
-      });
-    } else {
-      const command = new PutObjectCommand({
-        Bucket: BUCKET_NAME,
-        Key: organizedPath,
-        Body: Buffer.from(imageData),
-        ContentType: 'image/jpeg'
-      });
-
-      await r2Client().send(command);
-    }
-
-    return NextResponse.json({
-      filename,
-      path: organizedPath
-    });
-
-  } catch (error) {
-    console.error('Error downloading poster:', error);
-    return NextResponse.json(
-      { error: 'Failed to download and store poster' },
-      { status: 500 }
-    );
+  const validation = await validateAdmin(request);
+  if ('error' in validation) {
+    return NextResponse.json({ error: validation.error }, { status: validation.status });
   }
+
+  const { imageUrl } = await request.json();
+  if (!imageUrl) {
+    return NextResponse.json({ error: 'Image URL is required' }, { status: 400 });
+  }
+
+  const imageResponse = await fetch(imageUrl);
+  if (!imageResponse.ok) {
+    return NextResponse.json({ error: 'Failed to download image from TMDB' }, { status: 500 });
+  }
+
+  const imageData = await imageResponse.arrayBuffer();
+
+  const timestamp = Date.now();
+  const randomString = Math.random().toString(36).substring(7);
+  const filename = `poster_${timestamp}_${randomString}.jpg`;
+  const organizedPath = `images/${filename}`;
+  const fullPath = path.join(MEDIA_ROOT, organizedPath);
+
+  await fs.mkdir(path.dirname(fullPath), { recursive: true });
+  await fs.writeFile(fullPath, Buffer.from(imageData));
+
+  return NextResponse.json({ filename, path: organizedPath });
 }
+
+export const runtime = 'nodejs';

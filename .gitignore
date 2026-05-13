@@ -44,6 +44,8 @@ next-env.d.ts
 dist/
 .wrangler/
 
-
 #prisma
 .env
+
+# logs
+*.log

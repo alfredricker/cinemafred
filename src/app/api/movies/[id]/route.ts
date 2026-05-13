@@ -1,32 +1,31 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/db';
 import { validateAdmin } from '@/lib/middleware';
-import { DeleteObjectCommand } from '@aws-sdk/client-s3';
-import { r2Client, BUCKET_NAME } from '@/lib/r2';
-// @ts-ignore
-import { env as cfEnv } from "cloudflare:workers";
+import fs from 'fs/promises';
+import path from 'path';
 
-// Mark this route as dynamic
 export const dynamic = 'force-dynamic';
 
-/**
- * Helper function to delete a file from R2 storage
- */
-async function deleteR2File(key: string): Promise<void> {
+const MEDIA_ROOT = process.env.MEDIA_ROOT || '/data/cinemafred';
+
+async function deleteMediaFile(relativePath: string): Promise<void> {
+  const fullPath = path.resolve(MEDIA_ROOT, relativePath);
+  if (!fullPath.startsWith(path.resolve(MEDIA_ROOT))) return;
   try {
-    if (cfEnv && cfEnv.R2) {
-      await cfEnv.R2.delete(key);
-    } else {
-      const command = new DeleteObjectCommand({
-        Bucket: BUCKET_NAME,
-        Key: key
-      });
-      
-      await r2Client().send(command);
-    }
-    console.log(`✅ Deleted R2 file: ${key}`);
+    await fs.rm(fullPath, { force: true });
   } catch (error) {
-    console.error(`❌ Failed to delete R2 file: ${key}`, error);
+    console.error(`Failed to delete media file: ${relativePath}`, error);
+    throw error;
+  }
+}
+
+async function deleteHLSDirectory(movieId: string): Promise<void> {
+  const fullPath = path.resolve(MEDIA_ROOT, 'hls', movieId);
+  if (!fullPath.startsWith(path.resolve(MEDIA_ROOT))) return;
+  try {
+    await fs.rm(fullPath, { recursive: true, force: true });
+  } catch (error) {
+    console.error(`Failed to delete HLS directory for movie: ${movieId}`, error);
     throw error;
   }
 }
@@ -36,56 +35,29 @@ export async function GET(
   { params }: { params: { id: string } }
 ) {
   try {
-    const { id } = params;
-
     const movie = await prisma.movie.findUnique({
-      where: { id },
+      where: { id: params.id },
       include: {
         ratings: {
           orderBy: { created_at: 'desc' },
-          include: {
-            user: {
-              select: {
-                username: true,
-                id: true
-              }
-            }
-          }
+          include: { user: { select: { username: true, id: true } } }
         },
         reviews: {
           orderBy: { created_at: 'desc' },
-          include: {
-            user: {
-              select: {
-                username: true,
-                id: true
-              }
-            }
-          }
+          include: { user: { select: { username: true, id: true } } }
         },
-        _count: {
-          select: {
-            ratings: true,
-            reviews: true
-          }
-        }
+        _count: { select: { ratings: true, reviews: true } }
       }
     });
 
     if (!movie) {
-      return NextResponse.json(
-        { error: 'Movie not found' },
-        { status: 404 }
-      );
+      return NextResponse.json({ error: 'Movie not found' }, { status: 404 });
     }
 
-    return NextResponse.json(movie); // No need to compute averageRating manually
+    return NextResponse.json(movie);
   } catch (error) {
     console.error('Error fetching movie:', error);
-    return NextResponse.json(
-      { error: 'Failed to fetch movie' },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: 'Failed to fetch movie' }, { status: 500 });
   }
 }
 
@@ -94,22 +66,15 @@ export async function PUT(
   { params }: { params: { id: string } }
 ) {
   try {
-    // Validate admin access
     const validation = await validateAdmin(request);
     if ('error' in validation) {
-      return NextResponse.json(
-        { error: validation.error },
-        { status: validation.status }
-      );
+      return NextResponse.json({ error: validation.error }, { status: validation.status });
     }
 
-    const { id } = params;
     const updates = await request.json();
 
-    // Validate required fields
     const requiredFields = ['title', 'year', 'director', 'genre', 'description'];
     const missingFields = requiredFields.filter(field => !updates[field]);
-    
     if (missingFields.length > 0) {
       return NextResponse.json(
         { error: `Missing required fields: ${missingFields.join(', ')}` },
@@ -117,21 +82,13 @@ export async function PUT(
       );
     }
 
-    // Check if movie exists
-    const existingMovie = await prisma.movie.findUnique({
-      where: { id }
-    });
-
+    const existingMovie = await prisma.movie.findUnique({ where: { id: params.id } });
     if (!existingMovie) {
-      return NextResponse.json(
-        { error: 'Movie not found' },
-        { status: 404 }
-      );
+      return NextResponse.json({ error: 'Movie not found' }, { status: 404 });
     }
 
-    // Update movie (excluding `averageRating` unless explicitly provided)
     const updatedMovie = await prisma.movie.update({
-      where: { id },
+      where: { id: params.id },
       data: {
         title: updates.title,
         year: updates.year,
@@ -143,20 +100,14 @@ export async function PUT(
         r2_subtitles_path: updates.r2_subtitles_path,
         streaming_url: updates.streaming_url,
         cloudflare_video_id: updates.cloudflare_video_id,
-        ...(updates.averageRating !== undefined && { averageRating: updates.averageRating }) // Optional update
+        ...(updates.averageRating !== undefined && { averageRating: updates.averageRating }),
       }
     });
 
-    return NextResponse.json({
-      message: 'Movie updated successfully',
-      movie: updatedMovie
-    });
+    return NextResponse.json({ message: 'Movie updated successfully', movie: updatedMovie });
   } catch (error) {
     console.error('Error updating movie:', error);
-    return NextResponse.json(
-      { error: 'Failed to update movie' },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: 'Failed to update movie' }, { status: 500 });
   }
 }
 
@@ -165,20 +116,13 @@ export async function DELETE(
   { params }: { params: { id: string } }
 ) {
   try {
-    // Validate admin access
     const validation = await validateAdmin(request);
     if ('error' in validation) {
-      return NextResponse.json(
-        { error: validation.error },
-        { status: validation.status }
-      );
+      return NextResponse.json({ error: validation.error }, { status: validation.status });
     }
 
-    const { id } = params;
-
-    // Check if movie exists and get all file paths
     const existingMovie = await prisma.movie.findUnique({
-      where: { id },
+      where: { id: params.id },
       select: {
         id: true,
         title: true,
@@ -186,67 +130,40 @@ export async function DELETE(
         r2_image_path: true,
         r2_subtitles_path: true,
         r2_hls_path: true,
-        hls_ready: true
+        hls_ready: true,
       }
     });
 
     if (!existingMovie) {
-      return NextResponse.json(
-        { error: 'Movie not found' },
-        { status: 404 }
-      );
+      return NextResponse.json({ error: 'Movie not found' }, { status: 404 });
     }
 
-    console.log(`🗑️ Deleting movie: ${existingMovie.title} (${id})`);
+    const deleteOps: Promise<void>[] = [];
 
-    // Delete files from Cloudflare R2 storage
-    const deletePromises: Promise<void>[] = [];
-
-    // Delete video file
     if (existingMovie.r2_video_path) {
-      const videoKey = existingMovie.r2_video_path.replace(/^api\/movie\//, '');
-      console.log(`Deleting video: ${videoKey}`);
-      deletePromises.push(deleteR2File(videoKey));
+      deleteOps.push(deleteMediaFile(existingMovie.r2_video_path));
     }
-
-    // Delete image file
     if (existingMovie.r2_image_path) {
-      const imageKey = existingMovie.r2_image_path.replace(/^api\/movie\//, '');
-      console.log(`Deleting image: ${imageKey}`);
-      deletePromises.push(deleteR2File(imageKey));
+      deleteOps.push(deleteMediaFile(existingMovie.r2_image_path));
     }
-
-    // Delete subtitles file
     if (existingMovie.r2_subtitles_path) {
-      const subtitlesKey = existingMovie.r2_subtitles_path.replace(/^api\/movie\//, '');
-      console.log(`Deleting subtitles: ${subtitlesKey}`);
-      deletePromises.push(deleteR2File(subtitlesKey));
+      deleteOps.push(deleteMediaFile(existingMovie.r2_subtitles_path));
+    }
+    if (existingMovie.hls_ready) {
+      deleteOps.push(deleteHLSDirectory(existingMovie.id));
     }
 
-    // Delete HLS files if they exist
-    if (existingMovie.hls_ready && existingMovie.r2_hls_path) {
-      console.log(`Deleting HLS files for movie: ${id}`);
-      const { hlsR2Manager } = await import('@/lib/hls/r2');
-      deletePromises.push(hlsR2Manager.deleteHLSFiles(id));
+    const results = await Promise.allSettled(deleteOps);
+    const failures = results.filter(r => r.status === 'rejected');
+    if (failures.length > 0) {
+      console.error(`${failures.length} file delete(s) failed for movie: ${existingMovie.title}`);
     }
 
-    // Avoid all-or-nothing promise rejection and preserve per-file failures.
-    const deleteResults = await Promise.allSettled(deletePromises);
-    const failedDeletes = deleteResults.filter((result) => result.status === 'rejected');
-    if (failedDeletes.length > 0) {
-      console.error(`⚠️ ${failedDeletes.length} R2 delete operation(s) failed`);
-    } else {
-      console.log(`✅ Successfully deleted all R2 files for movie: ${existingMovie.title}`);
-    }
-
-    // Delete related records from database
     await prisma.$transaction([
-      prisma.rating.deleteMany({ where: { movie_id: id } }),
-      prisma.review.deleteMany({ where: { movie_id: id } }),
-      prisma.movie.delete({ where: { id } })
+      prisma.rating.deleteMany({ where: { movie_id: params.id } }),
+      prisma.review.deleteMany({ where: { movie_id: params.id } }),
+      prisma.movie.delete({ where: { id: params.id } }),
     ]);
-
-    console.log(`✅ Successfully deleted movie from database: ${existingMovie.title}`);
 
     return NextResponse.json({
       message: `Movie "${existingMovie.title}" deleted successfully`,
@@ -254,14 +171,11 @@ export async function DELETE(
         video: !!existingMovie.r2_video_path,
         image: !!existingMovie.r2_image_path,
         subtitles: !!existingMovie.r2_subtitles_path,
-        hls: existingMovie.hls_ready && !!existingMovie.r2_hls_path
+        hls: existingMovie.hls_ready && !!existingMovie.r2_hls_path,
       }
     });
   } catch (error) {
     console.error('Error deleting movie:', error);
-    return NextResponse.json(
-      { error: 'Failed to delete movie' },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: 'Failed to delete movie' }, { status: 500 });
   }
 }

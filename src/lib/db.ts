@@ -1,75 +1,23 @@
 import { PrismaClient } from '@prisma/client'
-import { Pool as NeonPool, neonConfig } from '@neondatabase/serverless'
-import { PrismaNeon } from '@prisma/adapter-neon'
 
 const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined
 }
 
-// Build DATABASE_URL with connection pool settings for Cloud Run
-function buildDatabaseUrl() {
-  const databaseUrl = process.env.DATABASE_URL;
-  if (!databaseUrl) return databaseUrl;
-  
-  // More conservative connection pool settings for Cloud Run
-  const poolSettings = 'connection_limit=5&pool_timeout=20&connect_timeout=10&socket_timeout=10';
-  
-  return databaseUrl.includes('?') 
-    ? `${databaseUrl}&${poolSettings}`
-    : `${databaseUrl}?${poolSettings}`;
-}
-
-function isWorkerRuntime() {
-  return typeof navigator !== 'undefined' && navigator.userAgent === 'Cloudflare-Workers';
-}
-
-function createPrismaClient() {
-  const dbUrl = buildDatabaseUrl();
-  const log: ('error' | 'warn')[] = ['error', 'warn'];
-
-  if (dbUrl && isWorkerRuntime()) {
-    // In Cloudflare Workers, WebSocket is global
-    neonConfig.webSocketConstructor = WebSocket;
-    // Use fetch instead of WebSockets to avoid cross-request I/O issues in Cloudflare Workers
-    neonConfig.poolQueryViaFetch = true;
-    
-    const pool = new NeonPool({ connectionString: dbUrl });
-    const adapter = new PrismaNeon(pool);
-    const workerOptions: any = { adapter, log };
-    return new PrismaClient(workerOptions);
-  }
-
-  return new PrismaClient({
-    log,
-    datasources: {
-      db: {
-        url: dbUrl
-      }
-    }
-  });
-}
-
-const prisma = globalForPrisma.prisma ?? createPrismaClient()
+const prisma = globalForPrisma.prisma ?? new PrismaClient({
+  log: ['error', 'warn'],
+})
 
 if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma
 
 export function getPrismaClient(): PrismaClient {
-  if (isWorkerRuntime()) {
-    return createPrismaClient();
-  }
   return prisma;
 }
 
-export async function releasePrismaClient(client: PrismaClient) {
-  if (!isWorkerRuntime()) return;
-  try {
-    await client.$disconnect();
-  } catch (error) {
-    console.error('⚠️ Error disconnecting request Prisma client:', error);
-  }
+export async function releasePrismaClient(_client: PrismaClient): Promise<void> {
+  // no-op — only needed for edge runtimes
 }
 
-// Simple database operation wrapper - connects, executes, disconnects
 export async function withDatabase<T>(operation: (prisma: PrismaClient) => Promise<T>): Promise<T> {
   try {
     return await operation(prisma);
@@ -79,39 +27,34 @@ export async function withDatabase<T>(operation: (prisma: PrismaClient) => Promi
   }
 }
 
-// Legacy function for backwards compatibility
 export async function ensureDbConnection(): Promise<void> {
   await withDatabase(async (db) => {
     await db.$queryRaw`SELECT 1`;
   });
 }
 
-// Get database diagnostics information
 export async function getDatabaseDiagnostics() {
   return await withDatabase(async (db) => {
-    // Get database connection info
     const connectionInfo = await db.$queryRaw`
-      SELECT 
+      SELECT
         count(*) as total_connections,
         count(*) FILTER (WHERE state = 'active') as active_connections,
         count(*) FILTER (WHERE state = 'idle') as idle_connections,
         max(now() - backend_start) as max_connection_age
-      FROM pg_stat_activity 
+      FROM pg_stat_activity
       WHERE datname = current_database()
     ` as any[];
-    
-    // Get database settings
+
     const settings = await db.$queryRaw`
-      SELECT name, setting, unit, context 
-      FROM pg_settings 
+      SELECT name, setting, unit, context
+      FROM pg_settings
       WHERE name IN ('max_connections', 'shared_preload_libraries', 'log_connections', 'log_disconnections')
     ` as any[];
-    
-    // Get current database name and user
+
     const dbInfo = await db.$queryRaw`
       SELECT current_database() as database, current_user as user, version() as version
     ` as any[];
-    
+
     return {
       connectionInfo: connectionInfo[0],
       settings,
@@ -121,42 +64,10 @@ export async function getDatabaseDiagnostics() {
   });
 }
 
-// Force clean all database connections (useful for debugging)
 export async function cleanAllConnections(): Promise<void> {
-  try {
-    console.log('🧹 Force cleaning all database connections...');
-    
-    // Disconnect current connections
-    await prisma.$disconnect();
-    
-    // Wait a moment for connections to fully close
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    // Optionally kill any remaining connections from our app
-    // This requires database admin privileges
-    try {
-      await withDatabase(async (db) => {
-        await db.$queryRaw`
-          SELECT pg_terminate_backend(pid)
-          FROM pg_stat_activity 
-          WHERE datname = current_database() 
-          AND pid <> pg_backend_pid()
-          AND application_name LIKE '%prisma%'
-        `;
-      });
-      console.log('✅ Terminated any remaining Prisma connections');
-    } catch (error) {
-      console.log('ℹ️ Could not terminate connections (may not have permissions)');
-    }
-    
-    console.log('✅ Connection cleanup completed');
-  } catch (error) {
-    console.error('❌ Connection cleanup failed:', error);
-    throw error;
-  }
+  await prisma.$disconnect();
 }
 
-// Check current connection status
 export async function getConnectionStatus(): Promise<{
   totalConnections: number;
   prismaConnections: number;
@@ -164,14 +75,14 @@ export async function getConnectionStatus(): Promise<{
 }> {
   return await withDatabase(async (db) => {
     const result = await db.$queryRaw`
-      SELECT 
+      SELECT
         COUNT(*) as total_connections,
         COUNT(*) FILTER (WHERE application_name LIKE '%prisma%') as prisma_connections,
         COUNT(*) FILTER (WHERE state = 'active') as active_connections
-      FROM pg_stat_activity 
+      FROM pg_stat_activity
       WHERE datname = current_database()
     ` as any[];
-    
+
     return result[0];
   });
 }
