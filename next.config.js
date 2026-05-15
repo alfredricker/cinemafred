@@ -5,7 +5,7 @@ const nextConfig = {
     remotePatterns: [
       {
         protocol: 'https',
-        hostname: 'cinemafred-origin.rickermedia.com',
+        hostname: 'main-node.rickermedia.com',
       },
     ],
     minimumCacheTTL: 60,

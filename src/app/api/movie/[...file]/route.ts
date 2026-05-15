@@ -54,6 +54,25 @@ export async function GET(req: Request, { params }: { params: Promise<{ file: st
     }
   }
 
-  // All other files redirect directly to Nginx
+  // Images: proxy through so Next.js Image optimizer receives actual bytes
+  // (the optimizer doesn't follow redirects reliably)
+  const imageExts = ['jpg', 'jpeg', 'png', 'webp', 'gif', 'avif'];
+  const ext = filePath.split('.').pop()?.toLowerCase() ?? '';
+  if (imageExts.includes(ext)) {
+    const upstream = await fetch(mediaUrl(filePath));
+    if (!upstream.ok) {
+      return NextResponse.json({ error: 'File not found.' }, { status: 404 });
+    }
+    const body = await upstream.arrayBuffer();
+    const contentType = upstream.headers.get('content-type') ?? 'image/jpeg';
+    return new Response(body, {
+      headers: {
+        'Content-Type': contentType,
+        'Cache-Control': 'public, max-age=3600',
+      },
+    });
+  }
+
+  // All other files (HLS segments, mp4, subtitles) redirect directly to Nginx
   return NextResponse.redirect(mediaUrl(filePath));
 }
