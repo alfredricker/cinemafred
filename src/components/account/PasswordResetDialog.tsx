@@ -68,8 +68,7 @@ export const PasswordResetDialog = ({ onUpdatePassword, onClose }: PasswordReset
                 type="password"
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
-                className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white
-                         focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 required
                 minLength={8}
               />
@@ -84,8 +83,7 @@ export const PasswordResetDialog = ({ onUpdatePassword, onClose }: PasswordReset
                 type="password"
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
-                className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white
-                         focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 required
                 minLength={8}
               />
@@ -101,9 +99,7 @@ export const PasswordResetDialog = ({ onUpdatePassword, onClose }: PasswordReset
               <button
                 type="submit"
                 disabled={isLoading}
-                className="flex-1 bg-blue-600 text-white rounded-lg py-2 hover:bg-blue-700 
-                         focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500
-                         disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                className="flex-1 bg-blue-600 text-white rounded-lg py-2 hover:bg-blue-700  focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
                 {isLoading ? (
                   <span className="flex items-center justify-center gap-2">

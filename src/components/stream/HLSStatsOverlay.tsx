@@ -4,7 +4,7 @@ import { HLSStats } from './types';
 interface HLSStatsOverlayProps {
   stats: HLSStats;
   hlsInstance: any; // HLS instance
-  videoRef: React.RefObject<HTMLVideoElement>;
+  videoRef: React.RefObject<HTMLVideoElement | null>;
   useHLS: boolean;
 }
 

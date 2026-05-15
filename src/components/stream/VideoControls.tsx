@@ -20,8 +20,7 @@ export const VideoControls: React.FC<VideoControlsProps> = ({
       {/* Back button */}
       <button
         onClick={onBack}
-        className="flex items-center justify-center w-10 h-10 bg-black/60 hover:bg-black/80 
-                  text-white rounded-lg transition-colors backdrop-blur-sm"
+        className="flex items-center justify-center w-10 h-10 bg-black/60 hover:bg-black/80  text-white rounded-lg transition-colors backdrop-blur-sm"
         title="Go back"
       >
         <ArrowLeft className="w-5 h-5" />
@@ -47,8 +46,7 @@ export const VideoControls: React.FC<VideoControlsProps> = ({
         <div className="relative">
           <button
             onClick={onToggleQualityMenu}
-            className="flex items-center justify-center w-10 h-10 bg-black/60 hover:bg-black/80 
-                      text-white rounded-lg transition-colors backdrop-blur-sm"
+            className="flex items-center justify-center w-10 h-10 bg-black/60 hover:bg-black/80  text-white rounded-lg transition-colors backdrop-blur-sm"
             title="Quality settings"
           >
             <Settings className="w-5 h-5" />

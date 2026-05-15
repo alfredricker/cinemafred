@@ -27,14 +27,15 @@ function validateStreamToken(request: Request): boolean {
 
 export async function GET(
   request: Request,
-  { params }: { params: { movieId: string } }
+  { params }: { params: Promise<{ movieId: string }> }
 ) {
+  const { movieId } = await params;
   if (!validateStreamToken(request)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
   const movie = await prisma.movie.findUnique({
-    where: { id: params.movieId },
+    where: { id: movieId },
     select: { r2_video_path: true }
   });
 

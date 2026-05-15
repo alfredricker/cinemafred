@@ -10,8 +10,9 @@ export const dynamic = 'force-dynamic';
 // Submit or update review
 export async function POST(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await params;
   const prisma = getPrismaClient();
   try {
     const authHeader = request.headers.get('Authorization');
@@ -45,7 +46,7 @@ export async function POST(
         where: {
           user_id_movie_id: {
             user_id: decoded.id,
-            movie_id: params.id
+            movie_id: id
           }
         },
         update: { 
@@ -54,7 +55,7 @@ export async function POST(
         },
         create: {
           user_id: decoded.id,
-          movie_id: params.id,
+          movie_id: id,
           rating,
           review_text: reviewText || null
         }
@@ -65,26 +66,26 @@ export async function POST(
         where: {
           user_id_movie_id: {
             user_id: decoded.id,
-            movie_id: params.id
+            movie_id: id
           }
         },
         update: { value: rating },
         create: {
           user_id: decoded.id,
-          movie_id: params.id,
+          movie_id: id,
           value: rating
         }
       });
 
       // Recalculate averageRating
       const { _avg } = await tx.rating.aggregate({
-        where: { movie_id: params.id },
+        where: { movie_id: id },
         _avg: { value: true }
       });
 
       // Update `averageRating` field in the `Movie` table
       const updatedMovie = await tx.movie.update({
-        where: { id: params.id },
+        where: { id: id },
         data: { averageRating: _avg.value || 0 },
         select: { averageRating: true }
       });
@@ -108,8 +109,9 @@ export async function POST(
 // Get user's review for a movie
 export async function GET(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await params;
   const prisma = getPrismaClient();
   try {
     const authHeader = request.headers.get('Authorization');
@@ -138,7 +140,7 @@ export async function GET(
       where: {
         user_id_movie_id: {
           user_id: decoded.id,
-          movie_id: params.id
+          movie_id: id
         }
       }
     });

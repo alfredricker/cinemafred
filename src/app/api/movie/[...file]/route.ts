@@ -30,8 +30,9 @@ function convertSRTtoVTT(srtContent: string): string {
   return vttContent;
 }
 
-export async function GET(req: Request, { params }: { params: { file: string[] } }) {
-  const filePath = params.file.join('/');
+export async function GET(req: Request, { params }: { params: Promise<{ file: string[] }> }) {
+  const { file } = await params;
+  const filePath = file.join('/');
 
   if (!filePath) {
     return NextResponse.json({ error: 'Invalid file path.' }, { status: 400 });

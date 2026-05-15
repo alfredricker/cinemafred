@@ -5,11 +5,12 @@ import { validateAdmin } from '@/lib/middleware';
 
 export async function POST(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await params;
   try {
     const { duration } = await request.json();
-    
+
     // Validate input
     if (typeof duration !== 'number' || duration <= 0) {
       return NextResponse.json(
@@ -20,7 +21,7 @@ export async function POST(
 
     // Update movie duration
     await prisma.movie.update({
-      where: { id: params.id },
+      where: { id },
       data: { duration }
     });
 

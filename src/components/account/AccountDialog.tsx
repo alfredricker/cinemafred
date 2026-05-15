@@ -76,8 +76,7 @@ export const AccountDialog: React.FC<AccountDialogProps> = ({ isOpen, onClose })
                 type="text"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
-                className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white
-                         focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 required
               />
             </div>
@@ -107,10 +106,7 @@ export const AccountDialog: React.FC<AccountDialogProps> = ({ isOpen, onClose })
               <button
                 type="submit"
                 disabled={isLoading || username === user?.username}
-                className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg 
-                         hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 
-                         focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed 
-                         transition-colors"
+                className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg  hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2  focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed  transition-colors"
               >
                 {isLoading ? (
                   <>

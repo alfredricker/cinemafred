@@ -32,11 +32,12 @@ async function deleteHLSDirectory(movieId: string): Promise<void> {
 
 export async function GET(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await params;
   try {
     const movie = await prisma.movie.findUnique({
-      where: { id: params.id },
+      where: { id },
       include: {
         ratings: {
           orderBy: { created_at: 'desc' },
@@ -63,8 +64,9 @@ export async function GET(
 
 export async function PUT(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await params;
   try {
     const validation = await validateAdmin(request);
     if ('error' in validation) {
@@ -82,13 +84,13 @@ export async function PUT(
       );
     }
 
-    const existingMovie = await prisma.movie.findUnique({ where: { id: params.id } });
+    const existingMovie = await prisma.movie.findUnique({ where: { id } });
     if (!existingMovie) {
       return NextResponse.json({ error: 'Movie not found' }, { status: 404 });
     }
 
     const updatedMovie = await prisma.movie.update({
-      where: { id: params.id },
+      where: { id },
       data: {
         title: updates.title,
         year: updates.year,
@@ -113,8 +115,9 @@ export async function PUT(
 
 export async function DELETE(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await params;
   try {
     const validation = await validateAdmin(request);
     if ('error' in validation) {
@@ -122,7 +125,7 @@ export async function DELETE(
     }
 
     const existingMovie = await prisma.movie.findUnique({
-      where: { id: params.id },
+      where: { id },
       select: {
         id: true,
         title: true,
@@ -160,9 +163,9 @@ export async function DELETE(
     }
 
     await prisma.$transaction([
-      prisma.rating.deleteMany({ where: { movie_id: params.id } }),
-      prisma.review.deleteMany({ where: { movie_id: params.id } }),
-      prisma.movie.delete({ where: { id: params.id } }),
+      prisma.rating.deleteMany({ where: { movie_id: id } }),
+      prisma.review.deleteMany({ where: { movie_id: id } }),
+      prisma.movie.delete({ where: { id: id } }),
     ]);
 
     return NextResponse.json({

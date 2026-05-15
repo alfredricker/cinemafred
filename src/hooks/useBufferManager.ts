@@ -22,7 +22,7 @@ export interface BufferInfo {
 }
 
 interface UseBufferManagerProps {
-  videoRef: React.RefObject<HTMLVideoElement>;
+  videoRef: React.RefObject<HTMLVideoElement | null>;
   streamUrl: string;
   movieId: string;
   chunkSize?: number;
@@ -55,7 +55,7 @@ export const useBufferManager = ({
 
   const activeRequests = useRef(new Map<string, AbortController>());
   const completedRanges = useRef(new Set<string>());
-  const bufferingTimeout = useRef<number>();
+  const bufferingTimeout = useRef<number | undefined>(undefined);
   const lastBufferingTime = useRef<number | null>(null);
   const chunkCache = useRef(new Map<string, { timestamp: number; size: number }>());
 

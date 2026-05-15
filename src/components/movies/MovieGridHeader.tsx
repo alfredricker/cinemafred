@@ -84,9 +84,7 @@ export const MovieGridHeader: React.FC<MovieGridHeaderProps> = ({
             <select
               value={selectedSort}
               onChange={handleSortChange}
-              className="bg-gray-800/50 border border-gray-700 rounded-md px-4 py-1.5 text-white
-                       focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent
-                       hover:bg-gray-800/80 transition-colors min-w-[200px]"
+              className="bg-gray-800/50 border border-gray-700 rounded-md px-4 py-1.5 text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent hover:bg-gray-800/80 transition-colors min-w-[200px]"
             >
               {sortOptions.map((option) => (
                 <option key={option.value} value={option.value}>

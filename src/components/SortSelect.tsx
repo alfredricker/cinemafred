@@ -6,8 +6,7 @@ export const SortSelect: React.FC = () => {
   return (
     <div className="relative">
       <select 
-        className="appearance-none bg-gray-900 border border-gray-700 rounded-lg px-3 py-1.5 pr-8 text-sm 
-                   focus:outline-none focus:border-gray-600 text-gray-300"
+        className="appearance-none bg-gray-900 border border-gray-700 rounded-lg px-3 py-1.5 pr-8 text-sm  focus:outline-none focus:border-gray-600 text-gray-300"
         defaultValue="rating"
       >
         <option value="rating" className="bg-gray-900">Rating: High to Low</option>

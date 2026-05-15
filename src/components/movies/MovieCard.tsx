@@ -60,9 +60,7 @@ export const MovieCard: React.FC<MovieCardProps> = ({ movie, priority = false, o
               e.stopPropagation();
               fetchFullMovieDetails();
             }}
-            className="edit-button absolute top-2 right-2 p-2 bg-black/50 rounded-full 
-                      opacity-0 group-hover:opacity-100 hover:bg-black/70 transition-all
-                      backdrop-blur-sm z-10"
+            className="edit-button absolute top-2 right-2 p-2 bg-black/50 rounded-full  opacity-0 group-hover:opacity-100 hover:bg-black/70 transition-all backdrop-blur-sm z-10"
             title="Edit movie"
           >
             <Pencil className="w-4 h-4 text-white" />

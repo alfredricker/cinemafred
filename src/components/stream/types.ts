@@ -55,7 +55,7 @@ export interface QualitySelectorProps {
 
 export interface HLSManagerConfig {
   movieId: string;
-  videoRef: React.RefObject<HTMLVideoElement>;
+  videoRef: React.RefObject<HTMLVideoElement | null>;
   onError: (error: string) => void;
   onStatsUpdate: (stats: HLSStats) => void;
   onQualitiesUpdate: (qualities: string[]) => void;
