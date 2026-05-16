@@ -46,9 +46,8 @@ export const MovieCard: React.FC<MovieCardProps> = ({ movie, priority = false, o
     }
   };
 
-  // Use the organized image path directly (database stores: images/filename.jpg)
   const imageUrl = movie.r2_image_path
-    ? `/api/movie/${movie.r2_image_path}?format=webp`
+    ? `/api/movie/${movie.r2_image_path}`
     : null;
 
   return (
@@ -73,7 +72,8 @@ export const MovieCard: React.FC<MovieCardProps> = ({ movie, priority = false, o
               src={imageUrl}
               alt={movie.title}
               fill
-              quality={70} // Set quality to balance performance & clarity
+              sizes="(max-width: 640px) 50vw, (max-width: 1024px) 25vw, 16vw"
+              quality={70}
               className="object-cover transition-transform group-hover:scale-105"
               onError={() => {
                 console.error(`Failed to load image for ${movie.title}`);

@@ -206,10 +206,7 @@ export const MovieDetailsModal: React.FC<MovieDetailsModalProps> = ({
     window.location.href = `/movie/${movieId}`;
   };
 
-  const getOptimizedImageUrl = (path: string) => {
-    // Use the organized path directly (database stores: images/filename.jpg)
-    return `/api/movie/${path}?format=webp`;
-  };
+  const getImageUrl = (path: string) => `/api/movie/${path}`;
 
   if (!isOpen) return null;
 
@@ -245,9 +242,10 @@ export const MovieDetailsModal: React.FC<MovieDetailsModalProps> = ({
               <div className="relative aspect-[27/40] w-80 overflow-hidden rounded-lg bg-gray-800">
                 {movie.r2_image_path && !imageError ? (
                   <Image
-                    src={getOptimizedImageUrl(movie.r2_image_path)}
+                    src={getImageUrl(movie.r2_image_path)}
                     alt={movie.title}
                     fill
+                    sizes="320px"
                     quality={85}
                     className="object-cover"
                     onError={() => setImageError(true)}

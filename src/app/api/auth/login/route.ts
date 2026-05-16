@@ -37,7 +37,7 @@ export async function POST(req: Request) {
         mustResetPassword: user.mustResetPassword
       },
       JWT_SECRET,
-      { expiresIn: '24h' }
+      { expiresIn: '90d' }
     );
 
     return NextResponse.json({ token, user });

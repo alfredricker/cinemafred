@@ -54,12 +54,12 @@ export async function GET(req: Request, { params }: { params: Promise<{ file: st
     }
   }
 
-  // Images: proxy through so Next.js Image optimizer receives actual bytes
-  // (the optimizer doesn't follow redirects reliably)
+  // Images: proxy from local nginx so the Next.js image optimizer doesn't have
+  // to round-trip through Cloudflare to fetch the source.
   const imageExts = ['jpg', 'jpeg', 'png', 'webp', 'gif', 'avif'];
   const ext = filePath.split('.').pop()?.toLowerCase() ?? '';
   if (imageExts.includes(ext)) {
-    const upstream = await fetch(mediaUrl(filePath));
+    const upstream = await fetch(`http://127.0.0.1:8080/${filePath}`);
     if (!upstream.ok) {
       return NextResponse.json({ error: 'File not found.' }, { status: 404 });
     }
@@ -73,6 +73,6 @@ export async function GET(req: Request, { params }: { params: Promise<{ file: st
     });
   }
 
-  // All other files (HLS segments, mp4, subtitles) redirect directly to Nginx
+  // All other files (HLS, mp4, subtitles) redirect to Nginx
   return NextResponse.redirect(mediaUrl(filePath));
 }
