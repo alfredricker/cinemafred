@@ -20,15 +20,24 @@ export const MovieCard: React.FC<MovieCardProps> = ({ movie, priority = false, o
   const [showEditForm, setShowEditForm] = useState(false);
   const [fullMovieData, setFullMovieData] = useState<Movie | null>(null);
 
+  const handleActivate = () => {
+    if (!movie.id) return;
+    if (onMovieClick) {
+      onMovieClick(movie.id);
+    } else {
+      router.push(`/movie/${movie.id}`);
+    }
+  };
+
   const handleCardClick = (e: React.MouseEvent) => {
     if ((e.target as HTMLElement).closest('.edit-button')) return;
-    if (movie.id) {
-      if (onMovieClick) {
-        onMovieClick(movie.id);
-      } else {
-        // Navigate directly to movie page
-        router.push(`/movie/${movie.id}`);
-      }
+    handleActivate();
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      handleActivate();
     }
   };
 
@@ -52,7 +61,14 @@ export const MovieCard: React.FC<MovieCardProps> = ({ movie, priority = false, o
 
   return (
     <>
-      <div className="cursor-pointer group relative" onClick={handleCardClick}>
+      <div
+        className="cursor-pointer group relative rounded-lg focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-gray-950"
+        tabIndex={0}
+        role="button"
+        data-movie-card
+        onClick={handleCardClick}
+        onKeyDown={handleKeyDown}
+      >
         {user?.isAdmin && (
           <button
             onClick={(e) => {

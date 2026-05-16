@@ -1,6 +1,5 @@
-// src/app/login/page.tsx
 'use client';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { Film, Lock, User, UserCircle } from 'lucide-react';
 import { useRouter } from 'next/navigation';
@@ -14,6 +13,20 @@ export default function LoginPage() {
   const [showResetDialog, setShowResetDialog] = useState(false);
   const { login, loginAsGuest, updatePassword, user } = useAuth();
   const router = useRouter();
+  const formRef = useRef<HTMLFormElement>(null);
+
+  const handleFormKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
+    const focusable = Array.from(
+      formRef.current?.querySelectorAll<HTMLElement>('input, button:not([disabled])') ?? []
+    );
+    const current = document.activeElement as HTMLElement;
+    const idx = focusable.indexOf(current);
+    if (idx === -1) return;
+    e.preventDefault();
+    const next = e.key === 'ArrowDown' ? focusable[idx + 1] : focusable[idx - 1];
+    next?.focus();
+  };
 
   useEffect(() => {
     if (user && !user.mustResetPassword) {
@@ -83,7 +96,7 @@ export default function LoginPage() {
           <p className="mt-4 text-sm text-gray-400">Authorized access only</p>
         </div>
         
-        <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
+        <form ref={formRef} className="mt-8 space-y-6" onSubmit={handleSubmit} onKeyDown={handleFormKeyDown}>
           <div className="rounded-md shadow-sm space-y-4">
             <div className="relative">
               <User className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-500 pointer-events-none" />
