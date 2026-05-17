@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Image from 'next/image';
 import { Movie } from '@/types/movie';
 import { Star, Clock, Play, ArrowLeft } from 'lucide-react';
@@ -21,19 +21,36 @@ export function TVMovieDetail({ movie, onBack, onPlay }: TVMovieDetailProps) {
   const onPlayRef = useRef(onPlay);
   useEffect(() => { onBackRef.current = onBack; onPlayRef.current = onPlay; });
 
+  // 0 = Play, 1 = Back
+  const [focusedBtn, setFocusedBtn] = useState(0);
+
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' || e.key === 'BrowserBack') {
-        e.preventDefault();
-        onBackRef.current();
-      } else if (e.key === 'Enter' || e.key === ' ') {
-        e.preventDefault();
-        onPlayRef.current();
+      switch (e.key) {
+        case 'ArrowRight':
+          e.preventDefault();
+          setFocusedBtn(1);
+          break;
+        case 'ArrowLeft':
+          e.preventDefault();
+          setFocusedBtn(0);
+          break;
+        case 'Enter':
+        case ' ':
+          e.preventDefault();
+          if (focusedBtn === 0) onPlayRef.current();
+          else onBackRef.current();
+          break;
+        case 'Escape':
+        case 'BrowserBack':
+          e.preventDefault();
+          onBackRef.current();
+          break;
       }
     };
     document.addEventListener('keydown', onKeyDown);
     return () => document.removeEventListener('keydown', onKeyDown);
-  }, []);
+  }, [focusedBtn]);
 
   const imageUrl = movie.r2_image_path ? `/api/movie/${movie.r2_image_path}` : null;
   const rating = movie.averageRating ?? movie.rating;
@@ -87,20 +104,25 @@ export function TVMovieDetail({ movie, onBack, onPlay }: TVMovieDetailProps) {
 
         <div className="flex items-center gap-5">
           <button
-            autoFocus
             onClick={onPlay}
-            className="flex items-center gap-4 px-12 py-5 bg-white text-black text-2xl font-bold rounded-2xl
-                       focus:outline-none focus:ring-4 focus:ring-white focus:ring-offset-4 focus:ring-offset-black
-                       hover:bg-gray-200 transition-colors"
+            onMouseEnter={() => setFocusedBtn(0)}
+            className={`flex items-center gap-4 px-12 py-5 text-2xl font-bold rounded-2xl transition-all outline-none ${
+              focusedBtn === 0
+                ? 'bg-white text-black scale-105 ring-4 ring-white ring-offset-4 ring-offset-black shadow-xl'
+                : 'bg-gray-700 text-white'
+            }`}
           >
-            <Play className="w-8 h-8 fill-black" />
+            <Play className={`w-8 h-8 ${focusedBtn === 0 ? 'fill-black' : 'fill-white'}`} />
             Play
           </button>
           <button
             onClick={onBack}
-            className="flex items-center gap-3 px-8 py-5 bg-gray-800 text-white text-2xl rounded-2xl
-                       focus:outline-none focus:ring-4 focus:ring-white focus:ring-offset-4 focus:ring-offset-black
-                       hover:bg-gray-700 transition-colors"
+            onMouseEnter={() => setFocusedBtn(1)}
+            className={`flex items-center gap-3 px-8 py-5 text-2xl rounded-2xl transition-all outline-none ${
+              focusedBtn === 1
+                ? 'bg-white text-black scale-105 ring-4 ring-white ring-offset-4 ring-offset-black shadow-xl'
+                : 'bg-gray-800 text-white'
+            }`}
           >
             <ArrowLeft className="w-6 h-6" />
             Back
