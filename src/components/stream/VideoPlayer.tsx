@@ -1,4 +1,3 @@
-'use client';
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { VideoPlayerProps, VideoPlayerState, HLSStats } from './types';
@@ -6,11 +5,6 @@ import { HLSManager } from './HLSManager';
 import { VideoControls } from './VideoControls';
 import { ErrorOverlay } from './ErrorOverlay';
 import { HLSStatsOverlay } from './HLSStatsOverlay';
-
-const FF_SPEEDS = [2, 4, 8, 16] as const;
-// seconds to seek backward per 100 ms interval — gives ~2x/4x/8x/16x effective rewind
-const RW_STEPS = [0.2, 0.4, 0.8, 1.6] as const;
-const RW_LABELS = ['2x', '4x', '8x', '16x'] as const;
 
 export const VideoPlayer: React.FC<VideoPlayerProps> = ({ 
   streamUrl, 
@@ -26,12 +20,6 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
   const hlsManagerRef = useRef<HLSManager | null>(null);
   const router = useRouter();
   
-  // Seek mode (ff/rw) — stored in refs to avoid stale closures in interval/keydown handlers
-  const seekModeRef = useRef<'none' | 'ff' | 'rw'>('none');
-  const seekSpeedIndexRef = useRef(0);
-  const seekIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const [seekDisplay, setSeekDisplay] = useState<string | null>(null);
-
   const [state, setState] = useState<VideoPlayerState>({
     captionsOn: false,
     videoError: null,
@@ -170,22 +158,6 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
     }
   }, []);
 
-  // Seek mode helpers
-  const stopSeekMode = useCallback(() => {
-    const video = videoRef.current;
-    if (seekIntervalRef.current) {
-      clearInterval(seekIntervalRef.current);
-      seekIntervalRef.current = null;
-    }
-    if (video) {
-      if (seekModeRef.current === 'ff') video.playbackRate = 1;
-      else if (seekModeRef.current === 'rw') video.play();
-    }
-    seekModeRef.current = 'none';
-    seekSpeedIndexRef.current = 0;
-    setSeekDisplay(null);
-  }, []);
-
   // Control handlers
   const handleBack = useCallback(() => {
     // Save the current playback position before navigating
@@ -263,88 +235,6 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
     
     initializeMP4();
   }, [initializeMP4]);
-
-  // Remote / keyboard controls
-  const handleKeyDown = useCallback((e: KeyboardEvent) => {
-    const video = videoRef.current;
-    if (!video) return;
-
-    switch (e.key) {
-      case 'Escape':
-        e.preventDefault();
-        stopSeekMode();
-        handleBack();
-        break;
-
-      case 'Enter': {
-        // Let focused buttons handle their own Enter press
-        if ((document.activeElement as HTMLElement)?.tagName === 'BUTTON') return;
-        e.preventDefault();
-        if (seekModeRef.current !== 'none') {
-          stopSeekMode();
-        } else {
-          video.paused ? video.play() : video.pause();
-        }
-        break;
-      }
-
-      case 'ArrowRight': {
-        e.preventDefault();
-        if (seekModeRef.current === 'rw') {
-          // Switch rw → ff
-          if (seekIntervalRef.current) { clearInterval(seekIntervalRef.current); seekIntervalRef.current = null; }
-          seekModeRef.current = 'ff';
-          seekSpeedIndexRef.current = 0;
-        } else if (seekModeRef.current === 'ff') {
-          seekSpeedIndexRef.current = Math.min(seekSpeedIndexRef.current + 1, FF_SPEEDS.length - 1);
-        } else {
-          seekModeRef.current = 'ff';
-          seekSpeedIndexRef.current = 0;
-        }
-        const ffSpeed = FF_SPEEDS[seekSpeedIndexRef.current];
-        video.playbackRate = ffSpeed;
-        if (video.paused) video.play();
-        setSeekDisplay(`⏩ ${ffSpeed}x`);
-        break;
-      }
-
-      case 'ArrowLeft': {
-        e.preventDefault();
-        if (seekModeRef.current === 'ff') {
-          // Switch ff → rw
-          video.playbackRate = 1;
-          video.pause();
-          seekModeRef.current = 'rw';
-          seekSpeedIndexRef.current = 0;
-        } else if (seekModeRef.current === 'rw') {
-          seekSpeedIndexRef.current = Math.min(seekSpeedIndexRef.current + 1, RW_STEPS.length - 1);
-          if (seekIntervalRef.current) { clearInterval(seekIntervalRef.current); seekIntervalRef.current = null; }
-        } else {
-          video.pause();
-          seekModeRef.current = 'rw';
-          seekSpeedIndexRef.current = 0;
-        }
-        const step = RW_STEPS[seekSpeedIndexRef.current];
-        setSeekDisplay(`⏪ ${RW_LABELS[seekSpeedIndexRef.current]}`);
-        seekIntervalRef.current = setInterval(() => {
-          const v = videoRef.current;
-          if (!v) return;
-          const next = v.currentTime - step;
-          if (next <= 0) { v.currentTime = 0; stopSeekMode(); }
-          else v.currentTime = next;
-        }, 100);
-        break;
-      }
-    }
-  }, [handleBack, stopSeekMode]);
-
-  useEffect(() => {
-    document.addEventListener('keydown', handleKeyDown);
-    return () => {
-      document.removeEventListener('keydown', handleKeyDown);
-      if (seekIntervalRef.current) clearInterval(seekIntervalRef.current);
-    };
-  }, [handleKeyDown]);
 
   // Initialize player on mount
   useEffect(() => {
@@ -433,15 +323,6 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
             />
           )}
         </video>
-
-        {/* Seek mode OSD */}
-        {seekDisplay && (
-          <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-20">
-            <div className="bg-black/70 text-white text-5xl font-bold px-10 py-5 rounded-2xl backdrop-blur-sm">
-              {seekDisplay}
-            </div>
-          </div>
-        )}
 
         {/* Error overlay */}
         {state.videoError && (
