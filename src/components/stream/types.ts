@@ -33,8 +33,6 @@ export interface VideoPlayerState {
   isHLSSupported: boolean;
   availableQualities: string[];
   currentQuality: string;
-  showQualityMenu: boolean;
-  showSubtitleMenu: boolean;
   hlsStats: HLSStats;
 }
 

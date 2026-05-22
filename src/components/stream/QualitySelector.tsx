@@ -1,11 +1,12 @@
 import React from 'react';
 import { QualitySelectorProps } from './types';
 
-export const QualitySelector: React.FC<QualitySelectorProps> = ({
+export const QualitySelector: React.FC<QualitySelectorProps & { className?: string }> = ({
   availableQualities,
   currentQuality,
   onQualityChange,
   onClose,
+  className,
 }) => {
   const handleQualitySelect = (quality: string) => {
     onQualityChange(quality);
@@ -13,7 +14,7 @@ export const QualitySelector: React.FC<QualitySelectorProps> = ({
   };
 
   return (
-    <div className="absolute top-12 left-0 bg-black/90 backdrop-blur-sm rounded-lg  border border-gray-600 min-w-[120px] z-60">
+    <div className={`bg-black/90 backdrop-blur-sm rounded-lg border border-gray-600 min-w-[120px] z-50 ${className ?? 'absolute top-12 left-0'}`}>
       <div className="p-2">
         <div className="text-white text-sm font-medium mb-2 px-2">Quality</div>
         {availableQualities.map((quality) => (

@@ -8,6 +8,7 @@ interface SubtitleSelectorProps {
   loading: boolean;
   onSelect: (id: string | null) => void;
   onClose: () => void;
+  className?: string;
 }
 
 const LANG_NAMES: Record<string, string> = {
@@ -18,7 +19,7 @@ const LANG_NAMES: Record<string, string> = {
 const langName = (code: string) => LANG_NAMES[code] ?? code.toUpperCase();
 
 export const SubtitleSelector: React.FC<SubtitleSelectorProps> = ({
-  options, activeId, loading, onSelect, onClose,
+  options, activeId, loading, onSelect, onClose, className,
 }) => {
   const local   = options.filter(o => o.source === 'local');
   const cached  = options.filter(o => o.source === 'cached');
@@ -35,7 +36,7 @@ export const SubtitleSelector: React.FC<SubtitleSelectorProps> = ({
   const isEmpty = options.length === 0;
 
   return (
-    <div className="absolute top-12 left-0 z-50 w-72 rounded-lg bg-black/90 backdrop-blur-sm border border-white/10 shadow-2xl overflow-hidden">
+    <div className={`z-50 w-72 rounded-lg bg-black/90 backdrop-blur-sm border border-white/10 shadow-2xl overflow-hidden ${className ?? 'absolute top-12 left-0'}`}>
       <div className="px-3 py-2 border-b border-white/10 flex items-center justify-between">
         <span className="text-white text-sm font-medium">Subtitles</span>
         {loading && <Loader2 className="w-3.5 h-3.5 text-white/50 animate-spin" />}
