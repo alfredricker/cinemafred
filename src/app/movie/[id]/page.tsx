@@ -89,6 +89,7 @@ export default function MoviePage() {
       poster={movie.r2_image_path ? `/api/movie/${movie.r2_image_path}` : undefined}
       title={movie.title}
       movieId={movieId}
+      movieYear={movie.year}
       subtitlesUrl={subtitlesUrl}
       isAdmin={user?.isAdmin}
       onClose={handleClose}

@@ -1,8 +1,13 @@
+import type { SubtitleOption } from '@/hooks/useSubtitles';
+
+export type { SubtitleOption };
+
 export interface VideoPlayerProps {
   streamUrl: string;
   poster?: string;
   title: string;
   movieId: string;
+  movieYear?: number;
   subtitlesUrl?: string | null;
   isAdmin?: boolean;
   onClose?: () => void;
@@ -23,21 +28,24 @@ export interface QualityLevel {
 }
 
 export interface VideoPlayerState {
-  captionsOn: boolean;
   videoError: string | null;
   retryCount: number;
   isHLSSupported: boolean;
   availableQualities: string[];
   currentQuality: string;
   showQualityMenu: boolean;
+  showSubtitleMenu: boolean;
   hlsStats: HLSStats;
 }
 
 export interface VideoControlsProps {
   onBack: () => void;
-  subtitlesUrl?: string | null;
-  captionsOn: boolean;
-  onToggleCaptions: () => void;
+  subtitleOptions: SubtitleOption[];
+  activeSubtitleId: string | null;
+  subtitlesLoading: boolean;
+  onSubtitleChange: (id: string | null) => void;
+  showSubtitleMenu: boolean;
+  onToggleSubtitleMenu: () => void;
   isHLSSupported: boolean;
   availableQualities: string[];
   currentQuality: string;

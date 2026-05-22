@@ -1,34 +1,6 @@
 import { NextResponse } from 'next/server';
 import { mediaUrl } from '@/lib/media';
-
-function convertSRTtoVTT(srtContent: string): string {
-  let vttContent = 'WEBVTT\n\n';
-  const lines = srtContent.split('\n');
-  let i = 0;
-
-  while (i < lines.length) {
-    while (i < lines.length && !lines[i].trim()) i++;
-    if (i >= lines.length) break;
-
-    i++; // skip subtitle number
-    if (i >= lines.length) break;
-
-    const timestampLine = lines[i];
-    if (timestampLine) {
-      vttContent += timestampLine.replace(/,/g, '.') + '\n';
-    }
-    i++;
-
-    while (i < lines.length && lines[i].trim()) {
-      vttContent += lines[i] + '\n';
-      i++;
-    }
-
-    vttContent += '\n';
-  }
-
-  return vttContent;
-}
+import { convertSRTtoVTT } from '@/lib/subtitles';
 
 export async function GET(req: Request, { params }: { params: Promise<{ file: string[] }> }) {
   const { file } = await params;

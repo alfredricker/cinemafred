@@ -42,6 +42,7 @@ export default function TVWatchPage() {
     <TVPlayer
       movieId={id}
       title={movie.title}
+      movieYear={movie.year}
       streamUrl={streamUrl}
       poster={movie.r2_image_path ? `/api/movie/${movie.r2_image_path}` : undefined}
       subtitlesUrl={movie.r2_subtitles_path ? `/api/movie/${movie.r2_subtitles_path}` : undefined}
