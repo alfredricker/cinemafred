@@ -102,7 +102,7 @@ export const EditMovieForm: React.FC<EditMovieFormProps> = ({ isOpen, onClose, m
     setFormData(prev => ({ ...prev, genre: genres }));
   };
 
-  const uploadToR2 = async (file: File, type: string) => {
+  const uploadFile = async (file: File, type: string) => {
     try {
       const presignedResponse = await fetch('/api/upload', {
         method: 'POST',
@@ -113,29 +113,30 @@ export const EditMovieForm: React.FC<EditMovieFormProps> = ({ isOpen, onClose, m
         body: JSON.stringify({
           filename: file.name,
           type,
-          contentType: file.type || 'application/x-subrip'
+          contentType: file.type || 'application/octet-stream'
         })
       });
-  
+
       if (!presignedResponse.ok) {
         const data = await presignedResponse.json();
         throw new Error(data.error || `Failed to get upload URL for ${type}`);
       }
-  
-      const { presignedUrl, filename, organizedPath } = await presignedResponse.json();
-  
+
+      const { presignedUrl, organizedPath } = await presignedResponse.json();
+
       const uploadResponse = await fetch(presignedUrl, {
         method: 'PUT',
         body: file,
         headers: {
-          'Content-Type': file.type || 'application/x-subrip'
+          'Content-Type': file.type || 'application/octet-stream'
         }
       });
-  
+
       if (!uploadResponse.ok) {
-        throw new Error(`Failed to upload ${type}`);
+        const errText = await uploadResponse.text().catch(() => '');
+        throw new Error(errText || `Failed to upload ${type} (${uploadResponse.status})`);
       }
-  
+
       return organizedPath;
     } catch (error) {
       console.error(`Upload error for ${type}:`, error);
@@ -238,13 +239,13 @@ export const EditMovieForm: React.FC<EditMovieFormProps> = ({ isOpen, onClose, m
       const updates: Partial<MovieFormData> = { ...formData };
 
       if (files.video) {
-        updates.r2_video_path = await uploadToR2(files.video, 'video');
+        updates.r2_video_path = await uploadFile(files.video, 'video');
       }
       if (files.image) {
-        updates.r2_image_path = await uploadToR2(files.image, 'image');
+        updates.r2_image_path = await uploadFile(files.image, 'image');
       }
       if (files.subtitles) {
-        updates.r2_subtitles_path = await uploadToR2(files.subtitles, 'subtitles');
+        updates.r2_subtitles_path = await uploadFile(files.subtitles, 'subtitles');
       }
 
       const response = await fetch(`/api/movies/${movie.id}`, {

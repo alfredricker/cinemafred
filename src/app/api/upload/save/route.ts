@@ -31,9 +31,24 @@ export async function PUT(request: Request) {
     return new Response('Forbidden', { status: 403 });
   }
 
-  const body = await request.arrayBuffer();
-  await fs.mkdir(path.dirname(fullPath), { recursive: true });
-  await fs.writeFile(fullPath, Buffer.from(body));
+  let body: ArrayBuffer;
+  try {
+    body = await request.arrayBuffer();
+  } catch (err) {
+    console.error('Failed to read request body:', err);
+    return new Response('Failed to read request body', { status: 500 });
+  }
+
+  try {
+    await fs.mkdir(path.dirname(fullPath), { recursive: true });
+    await fs.writeFile(fullPath, Buffer.from(body));
+  } catch (err) {
+    console.error('Failed to write file:', filePath, err);
+    return new Response(
+      `Failed to write file: ${err instanceof Error ? err.message : String(err)}`,
+      { status: 500 }
+    );
+  }
 
   return new Response(null, { status: 200 });
 }
