@@ -61,7 +61,7 @@ export function TVPlayer({ movieId, title, movieYear = 0, streamUrl, poster, sub
   const onBackRef = useRef(onBack);
   useEffect(() => { onBackRef.current = onBack; });
 
-  const { options: subtitleOptions, loading: subtitlesLoading, activeId: activeSubtitleId, activeUrl: activeSubtitleUrl, selectSubtitle } = useSubtitles(title, movieYear, subtitlesUrl);
+  const { options: subtitleOptions, loading: subtitlesLoading, activeId: activeSubtitleId, activeUrl: activeSubtitleUrl, selectSubtitle } = useSubtitles(title, movieYear, movieId, subtitlesUrl);
 
   // Panel items: "Off" + all options
   const subtitleItems: Array<{ id: string | null; label: string; lang?: string }> = [

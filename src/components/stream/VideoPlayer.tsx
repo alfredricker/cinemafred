@@ -36,7 +36,7 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
   const maxRetries = 3;
 
   // Subtitle management
-  const { options: subtitleOptions, loading: subtitlesLoading, activeId: activeSubtitleId, activeUrl: activeSubtitleUrl, selectSubtitle } = useSubtitles(title, movieYear, subtitlesUrl);
+  const { options: subtitleOptions, loading: subtitlesLoading, activeId: activeSubtitleId, activeUrl: activeSubtitleUrl, selectSubtitle } = useSubtitles(title, movieYear, movieId, subtitlesUrl);
 
   // Activate/deactivate the text track when the active subtitle URL changes
   useEffect(() => {

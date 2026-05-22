@@ -42,9 +42,23 @@ model Movie {
   updated_at        DateTime  @updatedAt
   reviews           Review[]
   ratings           Rating[]
+  cached_subtitles  CachedSubtitle[]
 
   @@index([title])
   @@index([hls_ready])
+}
+
+model CachedSubtitle {
+  id         String   @id @default(uuid())
+  movie_id   String
+  movie      Movie    @relation(fields: [movie_id], references: [id], onDelete: Cascade)
+  os_file_id Int      @unique
+  path       String   // relative: "subtitles/cache/{fileId}.vtt"
+  language   String
+  label      String
+  created_at DateTime @default(now())
+
+  @@index([movie_id])
 }
 
 model Review {

@@ -15,26 +15,24 @@ const LANG_NAMES: Record<string, string> = {
   it: 'Italian', pt: 'Portuguese', nl: 'Dutch', ru: 'Russian',
   zh: 'Chinese', ja: 'Japanese', ko: 'Korean', ar: 'Arabic',
 };
-
-function langName(code: string) {
-  return LANG_NAMES[code] ?? code.toUpperCase();
-}
+const langName = (code: string) => LANG_NAMES[code] ?? code.toUpperCase();
 
 export const SubtitleSelector: React.FC<SubtitleSelectorProps> = ({
   options, activeId, loading, onSelect, onClose,
 }) => {
-  const local = options.filter(o => o.source === 'local');
-  const online = options.filter(o => o.source === 'opensubtitles');
+  const local   = options.filter(o => o.source === 'local');
+  const cached  = options.filter(o => o.source === 'cached');
+  const online  = options.filter(o => o.source === 'opensubtitles');
 
+  // Group online by language
   const byLang = online.reduce<Record<string, SubtitleOption[]>>((acc, o) => {
     (acc[o.language] ??= []).push(o);
     return acc;
   }, {});
 
-  function pick(id: string | null) {
-    onSelect(id);
-    onClose();
-  }
+  function pick(id: string | null) { onSelect(id); onClose(); }
+
+  const isEmpty = options.length === 0;
 
   return (
     <div className="absolute top-12 left-0 z-50 w-72 rounded-lg bg-black/90 backdrop-blur-sm border border-white/10 shadow-2xl overflow-hidden">
@@ -43,15 +41,26 @@ export const SubtitleSelector: React.FC<SubtitleSelectorProps> = ({
         {loading && <Loader2 className="w-3.5 h-3.5 text-white/50 animate-spin" />}
       </div>
 
-      <div className="max-h-72 overflow-y-auto py-1">
-        {/* Off */}
-        <OptionRow
-          active={!activeId}
-          label="Off"
-          onClick={() => pick(null)}
-        />
+      <div className="max-h-80 overflow-y-auto py-1">
+        <OptionRow active={!activeId} label="Off" onClick={() => pick(null)} />
 
-        {/* Local */}
+        {/* Saved (previously downloaded from OpenSubtitles) */}
+        {cached.length > 0 && (
+          <>
+            <SectionHeader label="Saved" />
+            {cached.map(o => (
+              <OptionRow
+                key={o.id}
+                active={activeId === o.id}
+                label={o.label}
+                sub={langName(o.language)}
+                onClick={() => pick(o.id)}
+              />
+            ))}
+          </>
+        )}
+
+        {/* Manually uploaded */}
         {local.length > 0 && (
           <>
             <SectionHeader label="Uploaded" />
@@ -66,7 +75,7 @@ export const SubtitleSelector: React.FC<SubtitleSelectorProps> = ({
           </>
         )}
 
-        {/* OpenSubtitles grouped by language */}
+        {/* OpenSubtitles results grouped by language */}
         {Object.entries(byLang).map(([lang, opts]) => (
           <div key={lang}>
             <SectionHeader label={langName(lang)} />
@@ -82,11 +91,10 @@ export const SubtitleSelector: React.FC<SubtitleSelectorProps> = ({
           </div>
         ))}
 
-        {!loading && options.length === 0 && (
+        {!loading && isEmpty && (
           <p className="px-3 py-3 text-sm text-white/40 text-center">No subtitles found</p>
         )}
-
-        {loading && options.length === 0 && (
+        {loading && isEmpty && (
           <p className="px-3 py-3 text-sm text-white/40 text-center">Searching…</p>
         )}
       </div>
@@ -96,20 +104,16 @@ export const SubtitleSelector: React.FC<SubtitleSelectorProps> = ({
 
 function SectionHeader({ label }: { label: string }) {
   return (
-    <div className="px-3 pt-2 pb-0.5 text-xs text-white/40 uppercase tracking-wider">
-      {label}
-    </div>
+    <div className="px-3 pt-2 pb-0.5 text-xs text-white/40 uppercase tracking-wider">{label}</div>
   );
 }
 
 function OptionRow({
-  active,
-  label,
-  badge,
-  onClick,
+  active, label, sub, badge, onClick,
 }: {
   active: boolean;
   label: string;
+  sub?: string;
   badge?: string;
   onClick: () => void;
 }) {
@@ -122,7 +126,8 @@ function OptionRow({
     >
       <Check className={`w-3.5 h-3.5 flex-shrink-0 ${active ? 'opacity-100' : 'opacity-0'}`} />
       <span className="truncate flex-1">{label}</span>
-      {badge && <span className="text-xs text-white/30 flex-shrink-0">{badge}</span>}
+      {sub && <span className="text-xs text-white/40 flex-shrink-0">{sub}</span>}
+      {badge && <span className="text-xs text-white/30 flex-shrink-0 ml-1">{badge}</span>}
     </button>
   );
 }
