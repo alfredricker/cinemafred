@@ -58,6 +58,10 @@ export function TVPlayer({ movieId, title, movieYear = 0, streamUrl, poster, sub
   const [subtitleFocusIdx, setSubtitleFocusIdx] = useState(0);
   const subtitleItemRefs = useRef<(HTMLButtonElement | null)[]>([]);
 
+  // Paused settings focus (remote navigation). Extend the union to add more settings rows.
+  type PausedFocus = 'none' | 'subtitles';
+  const [pausedFocus, setPausedFocus] = useState<PausedFocus>('none');
+
   const onBackRef = useRef(onBack);
   useEffect(() => { onBackRef.current = onBack; });
 
@@ -125,7 +129,7 @@ export function TVPlayer({ movieId, title, movieYear = 0, streamUrl, poster, sub
 
     const handlers: [string, EventListener][] = [
       ['pause', () => setIsPaused(true)],
-      ['play', () => setIsPaused(false)],
+      ['play', () => { setIsPaused(false); setPausedFocus('none'); }],
       ['volumechange', () => setVolume(v.volume)],
       ['timeupdate', () => {
         setCurrentTime(v.currentTime);
@@ -222,18 +226,34 @@ export function TVPlayer({ movieId, title, movieYear = 0, streamUrl, poster, sub
         case 'Enter':
         case ' ':
           e.preventDefault();
-          if (seekModeRef.current !== 'none') stopSeek();
-          else v.paused ? v.play() : v.pause();
+          if (seekModeRef.current !== 'none') { stopSeek(); break; }
+          if (v.paused && pausedFocus === 'subtitles') {
+            if (subtitleItems.length <= 1 && !subtitlesLoading) break;
+            const currentIdx = subtitleItems.findIndex(it => it.id === activeSubtitleId);
+            setSubtitleFocusIdx(currentIdx >= 0 ? currentIdx : 0);
+            setShowSubtitlePanel(true);
+            break;
+          }
+          if (v.paused) { setPausedFocus('none'); v.play(); }
+          else v.pause();
           break;
 
         case 'ArrowUp':
           e.preventDefault();
-          v.volume = Math.min(1, Math.round((v.volume + 0.1) * 10) / 10);
+          if (v.paused) {
+            setPausedFocus('none');
+          } else {
+            v.volume = Math.min(1, Math.round((v.volume + 0.1) * 10) / 10);
+          }
           break;
 
         case 'ArrowDown':
           e.preventDefault();
-          v.volume = Math.max(0, Math.round((v.volume - 0.1) * 10) / 10);
+          if (v.paused) {
+            if (subtitleOptions.length > 0 || subtitlesLoading) setPausedFocus('subtitles');
+          } else {
+            v.volume = Math.max(0, Math.round((v.volume - 0.1) * 10) / 10);
+          }
           break;
 
         case 'ArrowRight': {
@@ -286,7 +306,7 @@ export function TVPlayer({ movieId, title, movieYear = 0, streamUrl, poster, sub
 
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
-  }, [movieId, bumpOSD, stopSeek, showSubtitlePanel, subtitleItems, subtitleFocusIdx, activeSubtitleId, subtitlesLoading, selectSubtitle]);
+  }, [movieId, bumpOSD, stopSeek, showSubtitlePanel, subtitleItems, subtitleFocusIdx, activeSubtitleId, subtitlesLoading, selectSubtitle, pausedFocus, subtitleOptions.length]);
 
   const progress = duration > 0 ? (currentTime / duration) * 100 : 0;
 
@@ -374,7 +394,7 @@ export function TVPlayer({ movieId, title, movieYear = 0, streamUrl, poster, sub
       {/* OSD */}
       <div
         className={`absolute inset-0 flex flex-col justify-between z-10 pointer-events-none transition-opacity duration-500 ${
-          showOSD ? 'opacity-100' : 'opacity-0'
+          showOSD || pausedFocus !== 'none' ? 'opacity-100' : 'opacity-0'
         }`}
       >
         {/* Top bar */}
@@ -396,7 +416,9 @@ export function TVPlayer({ movieId, title, movieYear = 0, streamUrl, poster, sub
                   setSubtitleFocusIdx(currentIdx >= 0 ? currentIdx : 0);
                   setShowSubtitlePanel(true);
                 }}
-                className={`pointer-events-auto ml-auto p-3 rounded-full transition-colors ${
+                className={`pointer-events-auto ml-auto p-3 rounded-full transition-all ${
+                  pausedFocus === 'subtitles' ? 'ring-4 ring-white scale-110' : ''
+                } ${
                   activeSubtitleId ? 'bg-blue-600/70 hover:bg-blue-700/70' : 'bg-white/10 hover:bg-white/20'
                 }`}
                 title="Subtitles (S)"
