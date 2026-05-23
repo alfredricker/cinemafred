@@ -7,6 +7,12 @@ import { validateAdmin } from '@/lib/middleware';
 // Mark this route as dynamic
 export const dynamic = 'force-dynamic';
 
+// Sort key that ignores a leading "The " (and lowercases) so titles
+// like "The Matrix" sort under M, not T.
+function getSortableTitle(title: string): string {
+  return title.replace(/^the\s+/i, '').toLowerCase();
+}
+
 export async function POST(request: Request) {
   const prisma = getPrismaClient();
   try {
@@ -93,16 +99,12 @@ export async function GET(request: Request) {
       whereClause.year = year;
     }
 
-    // Determine sorting logic
+    // Determine sorting logic. Title sorts are done in JS so we can ignore
+    // a leading "The "; other sorts are pushed down to the database.
+    const isTitleSort = sort === 'title-asc' || sort === 'title-desc' || sort === 'title';
     let orderBy: Prisma.MovieOrderByWithRelationInput = {};
 
     switch (sort) {
-      case 'title-desc':
-        orderBy = { title: 'desc' };
-        break;
-      case 'title-asc':
-        orderBy = { title: 'asc' };
-        break;
       case 'rating-desc':
         orderBy = { averageRating: 'desc' };  // Use precomputed averageRating
         break;
@@ -123,27 +125,46 @@ export async function GET(request: Request) {
         break;
     }
 
-    // In Workers, sequential queries are more stable with adapter-based clients.
-    const movies = await prisma.movie.findMany({
-      where: whereClause,
-      orderBy,
-      skip,
-      take: limit,
-      select: {
-        id: true,
-        title: true,
-        year: true,
-        rating: true,
-        averageRating: true,
-        r2_image_path: true,
-        _count: {
-          select: {
-            ratings: true,
-            reviews: true
-          }
+    const select = {
+      id: true,
+      title: true,
+      year: true,
+      rating: true,
+      averageRating: true,
+      r2_image_path: true,
+      _count: {
+        select: {
+          ratings: true,
+          reviews: true
         }
       }
-    });
+    } satisfies Prisma.MovieSelect;
+
+    // In Workers, sequential queries are more stable with adapter-based clients.
+    let movies;
+    if (isTitleSort) {
+      // Fetch all matching rows, sort by article-stripped title, then paginate.
+      const all = await prisma.movie.findMany({
+        where: whereClause,
+        select,
+      });
+      all.sort((a, b) => {
+        const titleA = getSortableTitle(a.title);
+        const titleB = getSortableTitle(b.title);
+        return sort === 'title-desc'
+          ? titleB.localeCompare(titleA)
+          : titleA.localeCompare(titleB);
+      });
+      movies = all.slice(skip, skip + limit);
+    } else {
+      movies = await prisma.movie.findMany({
+        where: whereClause,
+        orderBy,
+        skip,
+        take: limit,
+        select,
+      });
+    }
     const total = await prisma.movie.count({ where: whereClause });
 
     return NextResponse.json({
