@@ -1,14 +1,14 @@
 'use client';
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { HLSManager } from '@/components/stream/HLSManager';
-import { ArrowLeft, Play, Pause, Volume2, VolumeX, Subtitles, Check } from 'lucide-react';
+import { ArrowLeft, Play, Pause, Subtitles, Check } from 'lucide-react';
 import { useSubtitles } from '@/hooks/useSubtitles';
-import type { SubtitleOption } from '@/hooks/useSubtitles';
 
 const FF_SPEEDS = [2, 4, 8, 16] as const;
 const RW_STEPS = [0.5, 1, 2, 4] as const;
 const RW_LABELS = ['2x', '4x', '8x', '16x'] as const;
-const OSD_HIDE_DELAY = 3500;
+
+type NavItem = 'back' | 'pause' | 'subtitles';
 
 interface TVPlayerProps {
   movieId: string;
@@ -43,10 +43,6 @@ export function TVPlayer({ movieId, title, movieYear = 0, streamUrl, poster, sub
   const [isPaused, setIsPaused] = useState(true);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
-  const [volume, setVolume] = useState(1);
-
-  const [showOSD, setShowOSD] = useState(true);
-  const osdTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const seekModeRef = useRef<'none' | 'ff' | 'rw'>('none');
   const seekSpeedRef = useRef(0);
@@ -58,14 +54,20 @@ export function TVPlayer({ movieId, title, movieYear = 0, streamUrl, poster, sub
   const [subtitleFocusIdx, setSubtitleFocusIdx] = useState(0);
   const subtitleItemRefs = useRef<(HTMLButtonElement | null)[]>([]);
 
-  // Paused settings focus (remote navigation). Extend the union to add more settings rows.
-  type PausedFocus = 'none' | 'subtitles';
-  const [pausedFocus, setPausedFocus] = useState<PausedFocus>('none');
+  // Player nav (remote): when true, the OSD is showing and one of the nav items is focused.
+  // When false, the video plays fullscreen with no controls visible.
+  const [navMode, setNavMode] = useState(false);
+  const [navFocus, setNavFocus] = useState<NavItem>('pause');
 
   const onBackRef = useRef(onBack);
   useEffect(() => { onBackRef.current = onBack; });
 
   const { options: subtitleOptions, loading: subtitlesLoading, activeId: activeSubtitleId, activeUrl: activeSubtitleUrl, selectSubtitle } = useSubtitles(title, movieYear, movieId, subtitlesUrl);
+
+  const subtitlesAvailable = subtitleOptions.length > 0 || subtitlesLoading;
+
+  // Order of items that participate in horizontal nav. Subtitles is included only when available.
+  const navItems: NavItem[] = subtitlesAvailable ? ['back', 'pause', 'subtitles'] : ['back', 'pause'];
 
   // Panel items: "Off" + all options
   const subtitleItems: Array<{ id: string | null; label: string; lang?: string }> = [
@@ -104,12 +106,6 @@ export function TVPlayer({ movieId, title, movieYear = 0, streamUrl, poster, sub
     return `${base}${base.includes('?') ? '&' : '?'}token=${encodeURIComponent(token)}`;
   }, [movieId, streamUrl]);
 
-  const bumpOSD = useCallback(() => {
-    setShowOSD(true);
-    if (osdTimerRef.current) clearTimeout(osdTimerRef.current);
-    osdTimerRef.current = setTimeout(() => setShowOSD(false), OSD_HIDE_DELAY);
-  }, []);
-
   const stopSeek = useCallback(() => {
     if (seekIntervalRef.current) { clearInterval(seekIntervalRef.current); seekIntervalRef.current = null; }
     const v = videoRef.current;
@@ -122,15 +118,30 @@ export function TVPlayer({ movieId, title, movieYear = 0, streamUrl, poster, sub
     setSeekLabel(null);
   }, []);
 
+  const exitToLibrary = useCallback(() => {
+    const v = videoRef.current;
+    stopSeek();
+    if (v) localStorage.setItem(`video-position-${movieId}`, String(v.currentTime));
+    onBackRef.current();
+  }, [movieId, stopSeek]);
+
+  const openSubtitlePanel = useCallback(() => {
+    if (subtitleItems.length <= 1 && !subtitlesLoading) return;
+    const currentIdx = subtitleItems.findIndex(it => it.id === activeSubtitleId);
+    setSubtitleFocusIdx(currentIdx >= 0 ? currentIdx : 0);
+    setShowSubtitlePanel(true);
+  }, [subtitleItems, subtitlesLoading, activeSubtitleId]);
+
   // Player init
   useEffect(() => {
     const v = videoRef.current;
     if (!v) return;
 
     const handlers: [string, EventListener][] = [
-      ['pause', () => setIsPaused(true)],
-      ['play', () => { setIsPaused(false); setPausedFocus('none'); }],
-      ['volumechange', () => setVolume(v.volume)],
+      // Pause auto-shows the player nav and focuses the play/pause button
+      ['pause', () => { setIsPaused(true); setNavMode(true); setNavFocus('pause'); }],
+      // Play hides the nav so the movie fills the screen
+      ['play', () => { setIsPaused(false); setNavMode(false); }],
       ['timeupdate', () => {
         setCurrentTime(v.currentTime);
         if (v.currentTime > 0) localStorage.setItem(`video-position-${movieId}`, String(v.currentTime));
@@ -158,24 +169,25 @@ export function TVPlayer({ movieId, title, movieYear = 0, streamUrl, poster, sub
     }
 
     v.play().catch(() => {});
-    bumpOSD();
 
     return () => {
       handlers.forEach(([ev, fn]) => v.removeEventListener(ev, fn));
       hlsManagerRef.current?.destroy();
       hlsManagerRef.current = null;
       if (seekIntervalRef.current) clearInterval(seekIntervalRef.current);
-      if (osdTimerRef.current) clearTimeout(osdTimerRef.current);
     };
-  }, [movieId, streamUrl, useHLS, getAuthUrl, bumpOSD]);
+  }, [movieId, streamUrl, useHLS, getAuthUrl]);
+
+  // If subtitles become unavailable while focused on them, snap back to 'pause'
+  useEffect(() => {
+    if (!subtitlesAvailable && navFocus === 'subtitles') setNavFocus('pause');
+  }, [subtitlesAvailable, navFocus]);
 
   // Keyboard handler
   useEffect(() => {
     const v = videoRef.current;
 
     const onKey = (e: KeyboardEvent) => {
-      bumpOSD();
-
       // --- Subtitle panel navigation ---
       if (showSubtitlePanel) {
         switch (e.key) {
@@ -199,61 +211,70 @@ export function TVPlayer({ movieId, title, movieYear = 0, streamUrl, poster, sub
             setShowSubtitlePanel(false);
             return;
         }
-        return; // swallow all other keys while panel is open
+        return;
       }
 
       if (!v) return;
 
-      switch (e.key) {
-        case 's':
-        case 'S': {
-          e.preventDefault();
-          if (subtitleItems.length <= 1 && !subtitlesLoading) return;
-          const currentIdx = subtitleItems.findIndex(it => it.id === activeSubtitleId);
-          setSubtitleFocusIdx(currentIdx >= 0 ? currentIdx : 0);
-          setShowSubtitlePanel(true);
-          break;
+      // --- Nav mode (player controls visible, horizontal focus across nav items) ---
+      if (navMode) {
+        switch (e.key) {
+          case 'ArrowLeft': {
+            e.preventDefault();
+            const idx = navItems.indexOf(navFocus);
+            if (idx > 0) setNavFocus(navItems[idx - 1]);
+            return;
+          }
+          case 'ArrowRight': {
+            e.preventDefault();
+            const idx = navItems.indexOf(navFocus);
+            if (idx >= 0 && idx < navItems.length - 1) setNavFocus(navItems[idx + 1]);
+            return;
+          }
+          case 'Enter':
+          case ' ':
+            e.preventDefault();
+            if (navFocus === 'back') {
+              exitToLibrary();
+            } else if (navFocus === 'pause') {
+              v.paused ? v.play() : v.pause();
+            } else if (navFocus === 'subtitles') {
+              openSubtitlePanel();
+            }
+            return;
+          case 'ArrowUp':
+          case 'Escape':
+          case 'BrowserBack':
+            e.preventDefault();
+            setNavMode(false);
+            return;
+          case 'ArrowDown':
+            e.preventDefault();
+            return;
         }
+        return;
+      }
+
+      // --- Watch mode (no controls visible) ---
+      switch (e.key) {
+        case 'ArrowDown':
+          e.preventDefault();
+          setNavFocus('pause');
+          setNavMode(true);
+          break;
 
         case 'Escape':
         case 'BrowserBack':
           e.preventDefault();
-          stopSeek();
-          localStorage.setItem(`video-position-${movieId}`, String(v.currentTime));
-          onBackRef.current();
+          exitToLibrary();
           break;
 
         case 'Enter':
         case ' ':
           e.preventDefault();
           if (seekModeRef.current !== 'none') { stopSeek(); break; }
-          if (v.paused && pausedFocus === 'subtitles') {
-            if (subtitleItems.length <= 1 && !subtitlesLoading) break;
-            const currentIdx = subtitleItems.findIndex(it => it.id === activeSubtitleId);
-            setSubtitleFocusIdx(currentIdx >= 0 ? currentIdx : 0);
-            setShowSubtitlePanel(true);
-            break;
-          }
-          if (v.paused) { setPausedFocus('none'); v.play(); }
-          else v.pause();
-          break;
-
-        case 'ArrowUp':
-          e.preventDefault();
-          if (v.paused) {
-            setPausedFocus('none');
-          } else {
-            v.volume = Math.min(1, Math.round((v.volume + 0.1) * 10) / 10);
-          }
-          break;
-
-        case 'ArrowDown':
-          e.preventDefault();
-          if (v.paused) {
-            if (subtitleOptions.length > 0 || subtitlesLoading) setPausedFocus('subtitles');
-          } else {
-            v.volume = Math.max(0, Math.round((v.volume - 0.1) * 10) / 10);
-          }
+          // Pause event handler will surface the nav. Play resumes silently.
+          v.paused ? v.play() : v.pause();
           break;
 
         case 'ArrowRight': {
@@ -301,14 +322,25 @@ export function TVPlayer({ movieId, title, movieYear = 0, streamUrl, poster, sub
           }, 250);
           break;
         }
+
+        case 's':
+        case 'S':
+          // Desktop shortcut — jump straight into the subtitle panel
+          e.preventDefault();
+          openSubtitlePanel();
+          break;
       }
     };
 
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
-  }, [movieId, bumpOSD, stopSeek, showSubtitlePanel, subtitleItems, subtitleFocusIdx, activeSubtitleId, subtitlesLoading, selectSubtitle, pausedFocus, subtitleOptions.length]);
+  }, [navMode, navFocus, navItems, showSubtitlePanel, subtitleItems, subtitleFocusIdx, selectSubtitle, exitToLibrary, openSubtitlePanel, stopSeek]);
 
   const progress = duration > 0 ? (currentTime / duration) * 100 : 0;
+  const osdVisible = navMode || seekLabel !== null;
+
+  const focusRing = (item: NavItem) =>
+    navMode && navFocus === item ? 'ring-4 ring-white scale-110' : '';
 
   return (
     <div className="fixed inset-0 bg-black">
@@ -393,69 +425,58 @@ export function TVPlayer({ movieId, title, movieYear = 0, streamUrl, poster, sub
 
       {/* OSD */}
       <div
-        className={`absolute inset-0 flex flex-col justify-between z-10 pointer-events-none transition-opacity duration-500 ${
-          showOSD || pausedFocus !== 'none' ? 'opacity-100' : 'opacity-0'
+        className={`absolute inset-0 flex flex-col justify-between z-10 pointer-events-none transition-opacity duration-300 ${
+          osdVisible ? 'opacity-100' : 'opacity-0'
         }`}
       >
-        {/* Top bar */}
+        {/* Top bar — horizontal nav: back, pause/play, subtitles */}
         <div className="bg-gradient-to-b from-black/80 to-transparent px-14 pt-10 pb-20">
           <div className="flex items-center gap-5">
             <button
-              onClick={onBack}
-              className="pointer-events-auto p-3 rounded-full bg-white/10 hover:bg-white/20 transition-colors"
+              onClick={exitToLibrary}
+              className={`pointer-events-auto p-3 rounded-full bg-white/10 hover:bg-white/20 transition-all ${focusRing('back')}`}
             >
               <ArrowLeft className="w-8 h-8 text-white" />
             </button>
-            <span className="text-white text-3xl font-semibold drop-shadow-lg">{title}</span>
+            <span className="text-white text-3xl font-semibold drop-shadow-lg truncate">{title}</span>
 
-            {/* Subtitle indicator */}
-            {(subtitleOptions.length > 0 || subtitlesLoading) && (
+            <div className="ml-auto flex items-center gap-3">
               <button
                 onClick={() => {
-                  const currentIdx = subtitleItems.findIndex(it => it.id === activeSubtitleId);
-                  setSubtitleFocusIdx(currentIdx >= 0 ? currentIdx : 0);
-                  setShowSubtitlePanel(true);
+                  const v = videoRef.current;
+                  if (v) v.paused ? v.play() : v.pause();
                 }}
-                className={`pointer-events-auto ml-auto p-3 rounded-full transition-all ${
-                  pausedFocus === 'subtitles' ? 'ring-4 ring-white scale-110' : ''
-                } ${
-                  activeSubtitleId ? 'bg-blue-600/70 hover:bg-blue-700/70' : 'bg-white/10 hover:bg-white/20'
-                }`}
-                title="Subtitles (S)"
+                className={`pointer-events-auto p-3 rounded-full bg-white/10 hover:bg-white/20 transition-all ${focusRing('pause')}`}
               >
-                <Subtitles className="w-7 h-7 text-white" />
+                {isPaused
+                  ? <Play className="w-7 h-7 text-white fill-white" />
+                  : <Pause className="w-7 h-7 text-white fill-white" />}
               </button>
-            )}
+
+              {subtitlesAvailable && (
+                <button
+                  onClick={openSubtitlePanel}
+                  className={`pointer-events-auto p-3 rounded-full transition-all ${focusRing('subtitles')} ${
+                    activeSubtitleId ? 'bg-blue-600/70 hover:bg-blue-700/70' : 'bg-white/10 hover:bg-white/20'
+                  }`}
+                  title="Subtitles (S)"
+                >
+                  <Subtitles className="w-7 h-7 text-white" />
+                </button>
+              )}
+            </div>
           </div>
         </div>
 
-        {/* Bottom bar */}
+        {/* Bottom bar — progress + time */}
         <div className="bg-gradient-to-t from-black/90 to-transparent px-14 pb-10 pt-20">
           <div className="relative h-1.5 bg-white/25 rounded-full mb-5">
             <div className="absolute left-0 top-0 h-full bg-white rounded-full" style={{ width: `${progress}%` }} />
           </div>
 
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              {isPaused
-                ? <Play className="w-8 h-8 text-white fill-white" />
-                : <Pause className="w-8 h-8 text-white fill-white" />
-              }
-              <span className="text-white text-2xl font-mono tabular-nums">
-                {fmt(currentTime)} / {fmt(duration)}
-              </span>
-            </div>
-
-            <div className="flex items-center gap-3">
-              {volume === 0
-                ? <VolumeX className="w-7 h-7 text-white" />
-                : <Volume2 className="w-7 h-7 text-white" />
-              }
-              <div className="w-28 h-1.5 bg-white/25 rounded-full">
-                <div className="h-full bg-white rounded-full transition-all" style={{ width: `${volume * 100}%` }} />
-              </div>
-            </div>
-          </div>
+          <span className="text-white text-2xl font-mono tabular-nums">
+            {fmt(currentTime)} / {fmt(duration)}
+          </span>
         </div>
       </div>
     </div>
