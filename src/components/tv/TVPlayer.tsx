@@ -4,10 +4,6 @@ import { HLSManager } from '@/components/stream/HLSManager';
 import { ArrowLeft, Play, Pause, Subtitles, Check } from 'lucide-react';
 import { useSubtitles } from '@/hooks/useSubtitles';
 
-const FF_SPEEDS = [2, 4, 8, 16] as const;
-const RW_STEPS = [0.5, 1, 2, 4] as const;
-const RW_LABELS = ['2x', '4x', '8x', '16x'] as const;
-
 type NavItem = 'back' | 'pause' | 'subtitles';
 
 interface TVPlayerProps {
@@ -44,18 +40,16 @@ export function TVPlayer({ movieId, title, movieYear = 0, streamUrl, poster, sub
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
 
-  const seekModeRef = useRef<'none' | 'ff' | 'rw'>('none');
-  const seekSpeedRef = useRef(0);
-  const seekIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const [seekLabel, setSeekLabel] = useState<string | null>(null);
+  // Seek overlay: shown when left/right is pressed in watch mode
+  const [seekDir, setSeekDir] = useState<'fwd' | 'rwd' | null>(null);
+  const seekHideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastRepeatSeekRef = useRef(0);
 
   // Subtitle panel
   const [showSubtitlePanel, setShowSubtitlePanel] = useState(false);
   const [subtitleFocusIdx, setSubtitleFocusIdx] = useState(0);
   const subtitleItemRefs = useRef<(HTMLButtonElement | null)[]>([]);
 
-  // Player nav (remote): when true, the OSD is showing and one of the nav items is focused.
-  // When false, the video plays fullscreen with no controls visible.
   const [navMode, setNavMode] = useState(false);
   const [navFocus, setNavFocus] = useState<NavItem>('pause');
 
@@ -65,11 +59,8 @@ export function TVPlayer({ movieId, title, movieYear = 0, streamUrl, poster, sub
   const { options: subtitleOptions, loading: subtitlesLoading, activeId: activeSubtitleId, activeUrl: activeSubtitleUrl, selectSubtitle } = useSubtitles(title, movieYear, movieId, subtitlesUrl);
 
   const subtitlesAvailable = subtitleOptions.length > 0 || subtitlesLoading;
-
-  // Order of items that participate in horizontal nav. Subtitles is included only when available.
   const navItems: NavItem[] = subtitlesAvailable ? ['back', 'pause', 'subtitles'] : ['back', 'pause'];
 
-  // Panel items: "Off" + all options
   const subtitleItems: Array<{ id: string | null; label: string; lang?: string }> = [
     { id: null, label: 'Off' },
     ...subtitleOptions.map(o => ({
@@ -106,24 +97,17 @@ export function TVPlayer({ movieId, title, movieYear = 0, streamUrl, poster, sub
     return `${base}${base.includes('?') ? '&' : '?'}token=${encodeURIComponent(token)}`;
   }, [movieId, streamUrl]);
 
-  const stopSeek = useCallback(() => {
-    if (seekIntervalRef.current) { clearInterval(seekIntervalRef.current); seekIntervalRef.current = null; }
-    const v = videoRef.current;
-    if (v) {
-      if (seekModeRef.current === 'ff') v.playbackRate = 1;
-      else if (seekModeRef.current === 'rw') v.play();
-    }
-    seekModeRef.current = 'none';
-    seekSpeedRef.current = 0;
-    setSeekLabel(null);
+  const clearSeekOverlay = useCallback(() => {
+    if (seekHideTimerRef.current) { clearTimeout(seekHideTimerRef.current); seekHideTimerRef.current = null; }
+    setSeekDir(null);
   }, []);
 
   const exitToLibrary = useCallback(() => {
     const v = videoRef.current;
-    stopSeek();
+    clearSeekOverlay();
     if (v) localStorage.setItem(`video-position-${movieId}`, String(v.currentTime));
     onBackRef.current();
-  }, [movieId, stopSeek]);
+  }, [movieId, clearSeekOverlay]);
 
   const openSubtitlePanel = useCallback(() => {
     if (subtitleItems.length <= 1 && !subtitlesLoading) return;
@@ -138,9 +122,7 @@ export function TVPlayer({ movieId, title, movieYear = 0, streamUrl, poster, sub
     if (!v) return;
 
     const handlers: [string, EventListener][] = [
-      // Pause auto-shows the player nav and focuses the play/pause button
       ['pause', () => { setIsPaused(true); setNavMode(true); setNavFocus('pause'); }],
-      // Play hides the nav so the movie fills the screen
       ['play', () => { setIsPaused(false); setNavMode(false); }],
       ['timeupdate', () => {
         setCurrentTime(v.currentTime);
@@ -174,7 +156,7 @@ export function TVPlayer({ movieId, title, movieYear = 0, streamUrl, poster, sub
       handlers.forEach(([ev, fn]) => v.removeEventListener(ev, fn));
       hlsManagerRef.current?.destroy();
       hlsManagerRef.current = null;
-      if (seekIntervalRef.current) clearInterval(seekIntervalRef.current);
+      if (seekHideTimerRef.current) clearTimeout(seekHideTimerRef.current);
     };
   }, [movieId, streamUrl, useHLS, getAuthUrl]);
 
@@ -216,7 +198,7 @@ export function TVPlayer({ movieId, title, movieYear = 0, streamUrl, poster, sub
 
       if (!v) return;
 
-      // --- Nav mode (player controls visible, horizontal focus across nav items) ---
+      // --- Nav mode (OSD visible, horizontal button focus) ---
       if (navMode) {
         switch (e.key) {
           case 'ArrowLeft': {
@@ -255,7 +237,7 @@ export function TVPlayer({ movieId, title, movieYear = 0, streamUrl, poster, sub
         return;
       }
 
-      // --- Watch mode (no controls visible) ---
+      // --- Watch mode ---
       switch (e.key) {
         case 'ArrowDown':
           e.preventDefault();
@@ -272,60 +254,36 @@ export function TVPlayer({ movieId, title, movieYear = 0, streamUrl, poster, sub
         case 'Enter':
         case ' ':
           e.preventDefault();
-          if (seekModeRef.current !== 'none') { stopSeek(); break; }
-          // Pause event handler will surface the nav. Play resumes silently.
           v.paused ? v.play() : v.pause();
           break;
 
         case 'ArrowRight': {
           e.preventDefault();
-          if (seekModeRef.current === 'rw') {
-            if (seekIntervalRef.current) { clearInterval(seekIntervalRef.current); seekIntervalRef.current = null; }
-            seekModeRef.current = 'ff';
-            seekSpeedRef.current = 0;
-          } else if (seekModeRef.current === 'ff') {
-            seekSpeedRef.current = Math.min(seekSpeedRef.current + 1, FF_SPEEDS.length - 1);
-          } else {
-            seekModeRef.current = 'ff';
-            seekSpeedRef.current = 0;
-          }
-          const ffSpeed = FF_SPEEDS[seekSpeedRef.current];
-          v.playbackRate = ffSpeed;
-          if (v.paused) v.play();
-          setSeekLabel(`⏩ ${ffSpeed}x`);
+          // Throttle hold-to-seek to one seek per 200ms
+          if (e.repeat && Date.now() - lastRepeatSeekRef.current < 200) break;
+          lastRepeatSeekRef.current = Date.now();
+          v.currentTime = v.duration > 0
+            ? Math.min(v.duration, v.currentTime + 10)
+            : v.currentTime + 10;
+          setSeekDir('fwd');
+          if (seekHideTimerRef.current) clearTimeout(seekHideTimerRef.current);
+          seekHideTimerRef.current = setTimeout(() => setSeekDir(null), 2000);
           break;
         }
 
         case 'ArrowLeft': {
           e.preventDefault();
-          if (seekModeRef.current === 'ff') {
-            v.playbackRate = 1;
-            v.pause();
-            seekModeRef.current = 'rw';
-            seekSpeedRef.current = 0;
-          } else if (seekModeRef.current === 'rw') {
-            seekSpeedRef.current = Math.min(seekSpeedRef.current + 1, RW_STEPS.length - 1);
-            if (seekIntervalRef.current) { clearInterval(seekIntervalRef.current); seekIntervalRef.current = null; }
-          } else {
-            v.pause();
-            seekModeRef.current = 'rw';
-            seekSpeedRef.current = 0;
-          }
-          const step = RW_STEPS[seekSpeedRef.current];
-          setSeekLabel(`⏪ ${RW_LABELS[seekSpeedRef.current]}`);
-          seekIntervalRef.current = setInterval(() => {
-            const vid = videoRef.current;
-            if (!vid) return;
-            const next = vid.currentTime - step;
-            if (next <= 0) { vid.currentTime = 0; stopSeek(); }
-            else vid.currentTime = next;
-          }, 250);
+          if (e.repeat && Date.now() - lastRepeatSeekRef.current < 200) break;
+          lastRepeatSeekRef.current = Date.now();
+          v.currentTime = Math.max(0, v.currentTime - 10);
+          setSeekDir('rwd');
+          if (seekHideTimerRef.current) clearTimeout(seekHideTimerRef.current);
+          seekHideTimerRef.current = setTimeout(() => setSeekDir(null), 2000);
           break;
         }
 
         case 's':
         case 'S':
-          // Desktop shortcut — jump straight into the subtitle panel
           e.preventDefault();
           openSubtitlePanel();
           break;
@@ -334,10 +292,9 @@ export function TVPlayer({ movieId, title, movieYear = 0, streamUrl, poster, sub
 
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
-  }, [navMode, navFocus, navItems, showSubtitlePanel, subtitleItems, subtitleFocusIdx, selectSubtitle, exitToLibrary, openSubtitlePanel, stopSeek]);
+  }, [navMode, navFocus, navItems, showSubtitlePanel, subtitleItems, subtitleFocusIdx, selectSubtitle, exitToLibrary, openSubtitlePanel]);
 
   const progress = duration > 0 ? (currentTime / duration) * 100 : 0;
-  const osdVisible = navMode || seekLabel !== null;
 
   const focusRing = (item: NavItem) =>
     navMode && navFocus === item ? 'ring-4 ring-white scale-110' : '';
@@ -361,15 +318,6 @@ export function TVPlayer({ movieId, title, movieYear = 0, streamUrl, poster, sub
           />
         )}
       </video>
-
-      {/* Seek badge */}
-      {seekLabel && (
-        <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-20">
-          <div className="bg-black/80 text-white text-6xl font-bold px-14 py-7 rounded-3xl backdrop-blur-sm">
-            {seekLabel}
-          </div>
-        </div>
-      )}
 
       {/* Subtitle panel */}
       {showSubtitlePanel && (
@@ -423,13 +371,32 @@ export function TVPlayer({ movieId, title, movieYear = 0, streamUrl, poster, sub
         </div>
       )}
 
-      {/* OSD */}
+      {/* Seek overlay — bottom bar shown when seeking in watch mode */}
+      {seekDir !== null && !navMode && (
+        <div className="absolute inset-x-0 bottom-0 z-10 pointer-events-none bg-gradient-to-t from-black/85 to-transparent px-14 pb-10 pt-24">
+          <div className="relative h-2 bg-white/25 rounded-full mb-5 overflow-hidden">
+            <div
+              className="absolute left-0 top-0 h-full bg-white rounded-full transition-[width] duration-100"
+              style={{ width: `${progress}%` }}
+            />
+          </div>
+          <div className="flex items-center gap-4">
+            <span className="text-white/70 text-3xl select-none">
+              {seekDir === 'fwd' ? '▶▶' : '◀◀'}
+            </span>
+            <span className="text-white text-3xl font-mono tabular-nums">{fmt(currentTime)}</span>
+            <span className="text-white/40 text-2xl font-mono tabular-nums">/ {fmt(duration)}</span>
+          </div>
+        </div>
+      )}
+
+      {/* Nav OSD — top and bottom bars shown when paused or ArrowDown pressed */}
       <div
         className={`absolute inset-0 flex flex-col justify-between z-10 pointer-events-none transition-opacity duration-300 ${
-          osdVisible ? 'opacity-100' : 'opacity-0'
+          navMode ? 'opacity-100' : 'opacity-0'
         }`}
       >
-        {/* Top bar — horizontal nav: back, pause/play, subtitles */}
+        {/* Top bar — back, title, play/pause, subtitles */}
         <div className="bg-gradient-to-b from-black/80 to-transparent px-14 pt-10 pb-20">
           <div className="flex items-center gap-5">
             <button
@@ -473,7 +440,6 @@ export function TVPlayer({ movieId, title, movieYear = 0, streamUrl, poster, sub
           <div className="relative h-1.5 bg-white/25 rounded-full mb-5">
             <div className="absolute left-0 top-0 h-full bg-white rounded-full" style={{ width: `${progress}%` }} />
           </div>
-
           <span className="text-white text-2xl font-mono tabular-nums">
             {fmt(currentTime)} / {fmt(duration)}
           </span>
