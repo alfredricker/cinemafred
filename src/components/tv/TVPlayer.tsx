@@ -51,7 +51,9 @@ export function TVPlayer({ movieId, title, movieYear = 0, streamUrl, poster, sub
   // Seek overlay: shown when left/right is pressed in watch mode
   const [seekDir, setSeekDir] = useState<'fwd' | 'rwd' | null>(null);
   const seekHideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const seekSessionStartRef = useRef(0); // when the current seek session began
+  const seekSessionStartRef = useRef(0);
+  const lastSeekFireRef = useRef(0);
+  const isSeekingRef = useRef(false); // prevents pause event from triggering navMode
 
   // Subtitle panel
   const [showSubtitlePanel, setShowSubtitlePanel] = useState(false);
@@ -107,6 +109,7 @@ export function TVPlayer({ movieId, title, movieYear = 0, streamUrl, poster, sub
 
   const clearSeekOverlay = useCallback((resume = false) => {
     if (seekHideTimerRef.current) { clearTimeout(seekHideTimerRef.current); seekHideTimerRef.current = null; }
+    isSeekingRef.current = false;
     setSeekDir(null);
     if (resume && videoRef.current?.paused) videoRef.current.play();
   }, []);
@@ -131,7 +134,7 @@ export function TVPlayer({ movieId, title, movieYear = 0, streamUrl, poster, sub
     if (!v) return;
 
     const handlers: [string, EventListener][] = [
-      ['pause', () => { setIsPaused(true); setNavMode(true); setNavFocus('pause'); }],
+      ['pause', () => { setIsPaused(true); if (!isSeekingRef.current) { setNavMode(true); setNavFocus('pause'); } }],
       ['play', () => { setIsPaused(false); setNavMode(false); }],
       ['timeupdate', () => {
         setCurrentTime(v.currentTime);
@@ -269,27 +272,41 @@ export function TVPlayer({ movieId, title, movieYear = 0, streamUrl, poster, sub
 
         case 'ArrowRight': {
           e.preventDefault();
+          const nowFwd = Date.now();
+          if (!e.repeat) {
+            seekSessionStartRef.current = nowFwd;
+            lastSeekFireRef.current = 0;
+          } else if (nowFwd - lastSeekFireRef.current < 200) {
+            break;
+          }
+          lastSeekFireRef.current = nowFwd;
+          isSeekingRef.current = true;
           if (!v.paused) v.pause();
-          if (!e.repeat) seekSessionStartRef.current = Date.now();
-          const stepFwd = seekStep(seekSessionStartRef.current);
           v.currentTime = v.duration > 0
-            ? Math.min(v.duration, v.currentTime + stepFwd)
-            : v.currentTime + stepFwd;
+            ? Math.min(v.duration, v.currentTime + seekStep(seekSessionStartRef.current))
+            : v.currentTime + seekStep(seekSessionStartRef.current);
           setSeekDir('fwd');
           if (seekHideTimerRef.current) clearTimeout(seekHideTimerRef.current);
-          seekHideTimerRef.current = setTimeout(() => { setSeekDir(null); v.play(); }, 2000);
+          seekHideTimerRef.current = setTimeout(() => { isSeekingRef.current = false; setSeekDir(null); videoRef.current?.play(); }, 2000);
           break;
         }
 
         case 'ArrowLeft': {
           e.preventDefault();
+          const nowRwd = Date.now();
+          if (!e.repeat) {
+            seekSessionStartRef.current = nowRwd;
+            lastSeekFireRef.current = 0;
+          } else if (nowRwd - lastSeekFireRef.current < 200) {
+            break;
+          }
+          lastSeekFireRef.current = nowRwd;
+          isSeekingRef.current = true;
           if (!v.paused) v.pause();
-          if (!e.repeat) seekSessionStartRef.current = Date.now();
-          const stepRwd = seekStep(seekSessionStartRef.current);
-          v.currentTime = Math.max(0, v.currentTime - stepRwd);
+          v.currentTime = Math.max(0, v.currentTime - seekStep(seekSessionStartRef.current));
           setSeekDir('rwd');
           if (seekHideTimerRef.current) clearTimeout(seekHideTimerRef.current);
-          seekHideTimerRef.current = setTimeout(() => { setSeekDir(null); v.play(); }, 2000);
+          seekHideTimerRef.current = setTimeout(() => { isSeekingRef.current = false; setSeekDir(null); videoRef.current?.play(); }, 2000);
           break;
         }
 
