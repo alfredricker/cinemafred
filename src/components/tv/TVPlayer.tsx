@@ -32,6 +32,14 @@ const LANG_NAMES: Record<string, string> = {
 };
 function langName(code: string) { return LANG_NAMES[code] ?? code.toUpperCase(); }
 
+// Step size grows the longer a seek session has been held: 10s → 30s → 60s
+function seekStep(sessionStart: number): number {
+  const held = Date.now() - sessionStart;
+  if (held > 3000) return 60;
+  if (held > 1000) return 30;
+  return 10;
+}
+
 export function TVPlayer({ movieId, title, movieYear = 0, streamUrl, poster, subtitlesUrl, useHLS = true, onBack }: TVPlayerProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const hlsManagerRef = useRef<HLSManager | null>(null);
@@ -43,7 +51,7 @@ export function TVPlayer({ movieId, title, movieYear = 0, streamUrl, poster, sub
   // Seek overlay: shown when left/right is pressed in watch mode
   const [seekDir, setSeekDir] = useState<'fwd' | 'rwd' | null>(null);
   const seekHideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const lastRepeatSeekRef = useRef(0);
+  const seekSessionStartRef = useRef(0); // when the current seek session began
 
   // Subtitle panel
   const [showSubtitlePanel, setShowSubtitlePanel] = useState(false);
@@ -97,9 +105,10 @@ export function TVPlayer({ movieId, title, movieYear = 0, streamUrl, poster, sub
     return `${base}${base.includes('?') ? '&' : '?'}token=${encodeURIComponent(token)}`;
   }, [movieId, streamUrl]);
 
-  const clearSeekOverlay = useCallback(() => {
+  const clearSeekOverlay = useCallback((resume = false) => {
     if (seekHideTimerRef.current) { clearTimeout(seekHideTimerRef.current); seekHideTimerRef.current = null; }
     setSeekDir(null);
+    if (resume && videoRef.current?.paused) videoRef.current.play();
   }, []);
 
   const exitToLibrary = useCallback(() => {
@@ -254,31 +263,33 @@ export function TVPlayer({ movieId, title, movieYear = 0, streamUrl, poster, sub
         case 'Enter':
         case ' ':
           e.preventDefault();
+          if (seekDir !== null) { clearSeekOverlay(true); break; }
           v.paused ? v.play() : v.pause();
           break;
 
         case 'ArrowRight': {
           e.preventDefault();
-          // Throttle hold-to-seek to one seek per 200ms
-          if (e.repeat && Date.now() - lastRepeatSeekRef.current < 200) break;
-          lastRepeatSeekRef.current = Date.now();
+          if (!v.paused) v.pause();
+          if (!e.repeat) seekSessionStartRef.current = Date.now();
+          const stepFwd = seekStep(seekSessionStartRef.current);
           v.currentTime = v.duration > 0
-            ? Math.min(v.duration, v.currentTime + 10)
-            : v.currentTime + 10;
+            ? Math.min(v.duration, v.currentTime + stepFwd)
+            : v.currentTime + stepFwd;
           setSeekDir('fwd');
           if (seekHideTimerRef.current) clearTimeout(seekHideTimerRef.current);
-          seekHideTimerRef.current = setTimeout(() => setSeekDir(null), 2000);
+          seekHideTimerRef.current = setTimeout(() => { setSeekDir(null); v.play(); }, 2000);
           break;
         }
 
         case 'ArrowLeft': {
           e.preventDefault();
-          if (e.repeat && Date.now() - lastRepeatSeekRef.current < 200) break;
-          lastRepeatSeekRef.current = Date.now();
-          v.currentTime = Math.max(0, v.currentTime - 10);
+          if (!v.paused) v.pause();
+          if (!e.repeat) seekSessionStartRef.current = Date.now();
+          const stepRwd = seekStep(seekSessionStartRef.current);
+          v.currentTime = Math.max(0, v.currentTime - stepRwd);
           setSeekDir('rwd');
           if (seekHideTimerRef.current) clearTimeout(seekHideTimerRef.current);
-          seekHideTimerRef.current = setTimeout(() => setSeekDir(null), 2000);
+          seekHideTimerRef.current = setTimeout(() => { setSeekDir(null); v.play(); }, 2000);
           break;
         }
 
