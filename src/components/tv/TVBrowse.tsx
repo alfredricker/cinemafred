@@ -113,9 +113,12 @@ export function TVBrowse() {
 
   // ── Scroll into view ────────────────────────────────────────────────────────
 
+  const firstScrollRef = useRef(true);
   useEffect(() => {
     if (focusArea === 'grid') {
-      cardRefs.current[gridFocus]?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      const behavior = firstScrollRef.current ? 'auto' : 'smooth';
+      firstScrollRef.current = false;
+      cardRefs.current[gridFocus]?.scrollIntoView({ block: 'center', behavior });
     }
   }, [gridFocus, focusArea]);
 
