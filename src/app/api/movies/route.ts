@@ -13,6 +13,19 @@ function getSortableTitle(title: string): string {
   return title.replace(/^the\s+/i, '').toLowerCase();
 }
 
+// Deterministic pseudo-random ordering key (FNV-1a hash). Sorting by
+// seededHash(seed + id) gives a stable shuffle for a given seed, so
+// paginated fetches (page 2, 3, ...) continue the same order instead of
+// re-randomizing every request.
+function seededHash(value: string): number {
+  let hash = 2166136261;
+  for (let i = 0; i < value.length; i++) {
+    hash ^= value.charCodeAt(i);
+    hash = Math.imul(hash, 16777619);
+  }
+  return hash >>> 0;
+}
+
 export async function POST(request: Request) {
   const prisma = getPrismaClient();
   try {
@@ -79,6 +92,7 @@ export async function GET(request: Request) {
     const search = url.searchParams.get('search') || undefined;
     const genre = url.searchParams.get('genre') || undefined;
     const sort = url.searchParams.get('sort') || 'title-asc';
+    const seed = url.searchParams.get('seed') || '';
     const year = url.searchParams.get('year') ? parseInt(url.searchParams.get('year')!) : undefined;
 
     // Calculate pagination
@@ -102,6 +116,7 @@ export async function GET(request: Request) {
     // Determine sorting logic. Title sorts are done in JS so we can ignore
     // a leading "The "; other sorts are pushed down to the database.
     const isTitleSort = sort === 'title-asc' || sort === 'title-desc' || sort === 'title';
+    const isRandomSort = sort === 'random';
     let orderBy: Prisma.MovieOrderByWithRelationInput = {};
 
     switch (sort) {
@@ -155,6 +170,15 @@ export async function GET(request: Request) {
           ? titleB.localeCompare(titleA)
           : titleA.localeCompare(titleB);
       });
+      movies = all.slice(skip, skip + limit);
+    } else if (isRandomSort) {
+      // Same fetch-all-then-slice shape as title sort: cheap at this
+      // library's scale, and lets us shuffle without a raw-SQL query.
+      const all = await prisma.movie.findMany({
+        where: whereClause,
+        select,
+      });
+      all.sort((a, b) => seededHash(seed + a.id) - seededHash(seed + b.id));
       movies = all.slice(skip, skip + limit);
     } else {
       movies = await prisma.movie.findMany({

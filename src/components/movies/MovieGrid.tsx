@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { MovieCard } from './MovieCard';
 import { Loader2 } from 'lucide-react';
 import { Movie } from '@/types/movie';
+import { generateRandomSeed } from '@/lib/randomSeed';
 
 interface MovieGridProps {
   selectedGenre: string | null;
@@ -34,6 +35,10 @@ export const MovieGrid: React.FC<MovieGridProps> = ({
   const loadMoreRef = useRef<HTMLDivElement>(null);
   const observerRef = useRef<IntersectionObserver | null>(null);
 
+  // Seed for "random" sort. Stable across pagination (same seed -> same
+  // shuffle order); only regenerated when a fresh random sort is selected.
+  const seedRef = useRef('');
+
   // Fetch movies for a specific page
   const fetchMovies = async (pageNum: number, append = true) => {
     try {
@@ -45,6 +50,10 @@ export const MovieGrid: React.FC<MovieGridProps> = ({
         limit: '42', // Divisible by 6 and 7 for clean grid layouts
         sort: sortOption
       });
+
+      if (sortOption === 'random') {
+        params.set('seed', seedRef.current);
+      }
 
       if (selectedGenre) {
         params.append('genre', selectedGenre);
@@ -72,6 +81,7 @@ export const MovieGrid: React.FC<MovieGridProps> = ({
 
   // Reset and fetch initial page when filters change
   useEffect(() => {
+    if (sortOption === 'random') seedRef.current = generateRandomSeed();
     setMovies([]);
     setPage(1);
     setHasMore(true);

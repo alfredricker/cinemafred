@@ -38,6 +38,7 @@ export const MovieGridHeader: React.FC<MovieGridHeaderProps> = ({
     { value: 'rating-asc', label: 'Rating: Low-High' },
     { value: 'year-desc', label: 'Year: New-Old' },
     { value: 'year-asc', label: 'Year: Old-New' },
+    { value: 'random', label: 'Random' },
   ];
 
   const handleGenreClick = (genre: string | null) => {

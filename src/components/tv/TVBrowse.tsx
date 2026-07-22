@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 import { Movie } from '@/types/movie';
 import Image from 'next/image';
 import { Star, Loader2, Film, ArrowUpDown, Search, X } from 'lucide-react';
+import { generateRandomSeed } from '@/lib/randomSeed';
 
 const GENRES = ['All', 'Drama', 'Sci-fi', 'Comedy', 'Horror', 'Documentary', 'Romance', 'Thriller', 'Action', 'Fantasy'];
 const SORT_OPTIONS = [
@@ -14,6 +15,7 @@ const SORT_OPTIONS = [
   { value: 'rating-asc',    label: 'Rating: Low–High' },
   { value: 'year-desc',     label: 'Year: New–Old' },
   { value: 'year-asc',      label: 'Year: Old–New' },
+  { value: 'random',        label: 'Random' },
 ] as const;
 
 const COLS = 5;
@@ -30,6 +32,7 @@ interface CachedBrowseState {
   sortOption: string;
   searchQuery: string;
   gridFocus: number;
+  randomSeed: string;
 }
 
 // Module-level cache so returning from a movie detail page restores exactly
@@ -63,6 +66,10 @@ export function TVBrowse() {
   // Skip the initial fetch-reset effect when we just restored cached movies.
   const skipNextResetRef = useRef(restored !== null);
 
+  // Seed for "random" sort. Stable across pagination (same seed -> same
+  // shuffle order); only regenerated when the user (re)selects random sort.
+  const seedRef = useRef(restored?.randomSeed ?? '');
+
   const [activeModal, setActiveModal] = useState<ModalType>(null);
   const [modalFocus, setModalFocus] = useState(0);
 
@@ -81,6 +88,7 @@ export function TVBrowse() {
       const p = new URLSearchParams({ page: String(pageNum), limit: String(PAGE_SIZE), sort });
       if (genre) p.set('genre', genre);
       if (search.trim()) p.set('search', search.trim());
+      if (sort === 'random') p.set('seed', seedRef.current);
       const res = await fetch(`/api/movies?${p}`);
       const data = await res.json();
       setMovies(prev => append ? [...prev, ...data.movies] : data.movies);
@@ -95,6 +103,7 @@ export function TVBrowse() {
       skipNextResetRef.current = false;
       return;
     }
+    if (sortOption === 'random') seedRef.current = generateRandomSeed();
     setMovies([]);
     setPage(1);
     setGridFocus(0);
@@ -134,6 +143,7 @@ export function TVBrowse() {
       sortOption: s.sortOption,
       searchQuery: s.searchQuery,
       gridFocus: s.gridFocus,
+      randomSeed: seedRef.current,
     };
     router.push(`/tv/movie/${movieId}`);
   }, [router]);
