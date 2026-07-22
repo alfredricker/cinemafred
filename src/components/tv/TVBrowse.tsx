@@ -22,21 +22,46 @@ const PAGE_SIZE = 40;
 type FocusArea = 'nav' | 'grid';
 type ModalType = 'genres' | 'sort' | 'search' | null;
 
+interface CachedBrowseState {
+  movies: Movie[];
+  page: number;
+  hasMore: boolean;
+  selectedGenre: string | null;
+  sortOption: string;
+  searchQuery: string;
+  gridFocus: number;
+}
+
+// Module-level cache so returning from a movie detail page restores exactly
+// where the user left off, without a full refetch/scroll-to-top.
+let cachedBrowseState: CachedBrowseState | null = null;
+
 export function TVBrowse() {
   const router = useRouter();
 
-  const [movies, setMovies] = useState<Movie[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
-  const [page, setPage] = useState(1);
-  const [hasMore, setHasMore] = useState(true);
+  // Pop the cache exactly once, on the first render of this mount.
+  const restoredRef = useRef<CachedBrowseState | null | undefined>(undefined);
+  if (restoredRef.current === undefined) {
+    restoredRef.current = cachedBrowseState;
+    cachedBrowseState = null;
+  }
+  const restored = restoredRef.current;
 
-  const [selectedGenre, setSelectedGenre] = useState<string | null>(null);
-  const [sortOption, setSortOption] = useState('title-asc');
-  const [searchQuery, setSearchQuery] = useState('');
+  const [movies, setMovies] = useState<Movie[]>(() => restored?.movies ?? []);
+  const [isLoading, setIsLoading] = useState(false);
+  const [page, setPage] = useState(() => restored?.page ?? 1);
+  const [hasMore, setHasMore] = useState(() => restored?.hasMore ?? true);
+
+  const [selectedGenre, setSelectedGenre] = useState<string | null>(() => restored?.selectedGenre ?? null);
+  const [sortOption, setSortOption] = useState(() => restored?.sortOption ?? 'title-asc');
+  const [searchQuery, setSearchQuery] = useState(() => restored?.searchQuery ?? '');
 
   const [focusArea, setFocusArea] = useState<FocusArea>('grid');
   const [navFocus, setNavFocus] = useState(0); // 0=Genres 1=Sort 2=Search
-  const [gridFocus, setGridFocus] = useState(0);
+  const [gridFocus, setGridFocus] = useState(() => restored?.gridFocus ?? 0);
+
+  // Skip the initial fetch-reset effect when we just restored cached movies.
+  const skipNextResetRef = useRef(restored !== null);
 
   const [activeModal, setActiveModal] = useState<ModalType>(null);
   const [modalFocus, setModalFocus] = useState(0);
@@ -66,6 +91,10 @@ export function TVBrowse() {
   }, []);
 
   useEffect(() => {
+    if (skipNextResetRef.current) {
+      skipNextResetRef.current = false;
+      return;
+    }
     setMovies([]);
     setPage(1);
     setGridFocus(0);
@@ -86,9 +115,25 @@ export function TVBrowse() {
 
   useEffect(() => {
     if (focusArea === 'grid') {
-      cardRefs.current[gridFocus]?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      cardRefs.current[gridFocus]?.scrollIntoView({ block: 'center', behavior: 'smooth' });
     }
   }, [gridFocus, focusArea]);
+
+  // Save current browse state and navigate to a movie's detail page, so
+  // hitting back restores the grid/scroll position instead of resetting.
+  const goToMovie = useCallback((movieId: string) => {
+    const s = S.current;
+    cachedBrowseState = {
+      movies: s.movies,
+      page: s.page,
+      hasMore: s.hasMore,
+      selectedGenre: s.selectedGenre,
+      sortOption: s.sortOption,
+      searchQuery: s.searchQuery,
+      gridFocus: s.gridFocus,
+    };
+    router.push(`/tv/movie/${movieId}`);
+  }, [router]);
 
   // Focus the search input when the search modal opens
   useEffect(() => {
@@ -196,14 +241,14 @@ export function TVBrowse() {
         break;
       case 'Enter':
         e.preventDefault();
-        if (s.movies[s.gridFocus]) router.push(`/tv/movie/${s.movies[s.gridFocus].id}`);
+        if (s.movies[s.gridFocus]) goToMovie(s.movies[s.gridFocus].id);
         break;
       case 'Escape':
         e.preventDefault();
         setFocusArea('nav');
         break;
     }
-  }, [router]);
+  }, [goToMovie]);
 
   useEffect(() => {
     document.addEventListener('keydown', handleKeyDown);
@@ -257,7 +302,7 @@ export function TVBrowse() {
               <div
                 key={movie.id}
                 ref={el => { cardRefs.current[i] = el; }}
-                onClick={() => router.push(`/tv/movie/${movie.id}`)}
+                onClick={() => goToMovie(movie.id)}
                 className={`cursor-pointer transition-all duration-150 ${isFocused ? 'scale-105' : 'scale-100 opacity-70'}`}
               >
                 <div className={`relative aspect-[27/40] rounded-xl overflow-hidden bg-gray-900 ${isFocused ? 'ring-4 ring-white shadow-2xl' : ''}`}>

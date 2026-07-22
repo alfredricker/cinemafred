@@ -97,7 +97,7 @@ export function TVMovieDetail({ movie, onBack, onPlay }: TVMovieDetailProps) {
         )}
 
         {movie.description && (
-          <p className="text-gray-300 text-lg leading-relaxed mb-10 max-w-2xl line-clamp-5">
+          <p className="text-gray-300 text-2xl leading-relaxed mb-10 max-w-3xl line-clamp-4">
             {movie.description}
           </p>
         )}
