@@ -44,9 +44,6 @@ export class HLSManager {
     if (Hls.isSupported()) {
       this.initializeHLS();
       return true;
-    } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
-      this.initializeNativeHLS();
-      return true;
     }
 
     return false;
@@ -59,6 +56,9 @@ export class HLSManager {
     const hlsConfig: Partial<HlsConfig> = {
       debug: false,
       enableWorker: true,
+      // Wait until the manifest is parsed so playback can be pinned to the
+      // highest-quality rendition instead of using adaptive bitrate (ABR).
+      autoStartLoad: false,
       backBufferLength: 90,
       maxBufferLength: 30,
       maxMaxBufferLength: 600,
@@ -75,14 +75,6 @@ export class HLSManager {
     this.hls = new Hls(hlsConfig);
     this.setupEventListeners();
     this.loadStream();
-  }
-
-  private initializeNativeHLS(): void {
-    const video = this.config.videoRef.current;
-    if (!video) return;
-    const hlsUrl = this.config.getAuthenticatedUrl(true);
-    console.log('Using native HLS support:', hlsUrl);
-    video.src = hlsUrl;
   }
 
   private setupEventListeners(): void {
@@ -140,7 +132,13 @@ export class HLSManager {
       bitrate: Math.round(level.bitrate / 1000),
     }));
     qualities.sort((a, b) => b.height - a.height);
-    this.config.onQualitiesUpdate(['auto', ...qualities.map(q => q.label)]);
+    const sourceLevel = data.levels.reduce((best, level, index, levels) =>
+      level.bitrate > levels[best].bitrate ? index : best, 0);
+    this.hls!.currentLevel = sourceLevel;
+    this.hls!.nextLevel = sourceLevel;
+    this.hls!.loadLevel = sourceLevel;
+    this.hls!.startLoad();
+    this.config.onQualitiesUpdate([qualities.find(q => q.index === sourceLevel)?.label ?? 'Source']);
     this.retryCount = 0;
   }
 
@@ -246,7 +244,9 @@ export class HLSManager {
   setQuality(quality: string): void {
     if (!this.hls) return;
     if (quality === 'auto') {
-      this.hls.currentLevel = -1;
+      const sourceLevel = this.hls.levels.reduce((best, level, index, levels) =>
+        level.bitrate > levels[best].bitrate ? index : best, 0);
+      this.hls.currentLevel = sourceLevel;
     } else {
       const qualityIndex = this.hls.levels.findIndex(level => {
         const label = level.height ? `${level.height}p (${Math.round(level.bitrate / 1000)}k)` : `${Math.round(level.bitrate / 1000)}k`;

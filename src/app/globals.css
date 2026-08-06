@@ -20,6 +20,26 @@ body {
   font-family: Arial, Helvetica, sans-serif;
 }
 
+/* TV browsers often expose pixels hidden by display overscan. Keep the video
+   (and its native subtitle renderer) inside a viewport-relative safe area. */
+.tv-player {
+  width: 100vw;
+  height: 100vh;
+  height: 100dvh;
+}
+
+.tv-player-video {
+  top: 2.5vmin;
+  left: 2.5vmin;
+  width: calc(100% - 5vmin);
+  height: calc(100% - 6.5vmin);
+}
+
+.tv-player video::cue {
+  font-size: clamp(18px, 3.2vmin, 42px);
+  line-height: 1.25;
+}
+
 /* Custom scrollbar styles */
 .custom-scrollbar::-webkit-scrollbar {
   width: 8px;

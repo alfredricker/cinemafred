@@ -8,7 +8,7 @@ const nextConfig = {
         hostname: 'main-node.rickermedia.com',
       },
     ],
-    minimumCacheTTL: 60,
+    minimumCacheTTL: 31536000,
     formats: ['image/webp'],
   },
   typescript: {

@@ -3,6 +3,7 @@ import { MovieCard } from './MovieCard';
 import { Loader2 } from 'lucide-react';
 import { Movie } from '@/types/movie';
 import { generateRandomSeed } from '@/lib/randomSeed';
+import { fetchCachedJson } from '@/lib/browserCache';
 
 interface MovieGridProps {
   selectedGenre: string | null;
@@ -63,10 +64,7 @@ export const MovieGrid: React.FC<MovieGridProps> = ({
         params.append('search', searchQuery.trim());
       }
 
-      const response = await fetch(`/api/movies?${params.toString()}`);
-      if (!response.ok) throw new Error('Failed to fetch movies');
-
-      const data: MovieResponse = await response.json();
+      const data = await fetchCachedJson<MovieResponse>(`/api/movies?${params.toString()}`);
       
       setMovies(prev => append ? [...prev, ...data.movies] : data.movies);
       setHasMore(pageNum < data.pagination.pages);

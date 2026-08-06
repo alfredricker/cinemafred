@@ -5,6 +5,7 @@ import { Movie } from '@/types/movie';
 import Image from 'next/image';
 import { Star, Loader2, Film, ArrowUpDown, Search, X } from 'lucide-react';
 import { generateRandomSeed } from '@/lib/randomSeed';
+import { fetchCachedJson } from '@/lib/browserCache';
 
 const GENRES = ['All', 'Drama', 'Sci-fi', 'Comedy', 'Horror', 'Documentary', 'Romance', 'Thriller', 'Action', 'Fantasy'];
 const SORT_OPTIONS = [
@@ -89,8 +90,7 @@ export function TVBrowse() {
       if (genre) p.set('genre', genre);
       if (search.trim()) p.set('search', search.trim());
       if (sort === 'random') p.set('seed', seedRef.current);
-      const res = await fetch(`/api/movies?${p}`);
-      const data = await res.json();
+      const data = await fetchCachedJson<{ movies: Movie[]; pagination: { pages: number } }>(`/api/movies?${p}`);
       setMovies(prev => append ? [...prev, ...data.movies] : data.movies);
       setHasMore(pageNum < data.pagination.pages);
     } finally {

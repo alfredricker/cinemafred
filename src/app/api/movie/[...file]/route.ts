@@ -40,7 +40,9 @@ export async function GET(req: Request, { params }: { params: Promise<{ file: st
     return new Response(body, {
       headers: {
         'Content-Type': contentType,
-        'Cache-Control': 'public, max-age=3600',
+        // Poster paths change when a poster is replaced, so these assets can
+        // safely live in the browser cache for a year.
+        'Cache-Control': 'public, max-age=31536000, immutable',
       },
     });
   }

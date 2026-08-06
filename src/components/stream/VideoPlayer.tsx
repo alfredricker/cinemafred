@@ -164,10 +164,10 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
   // HLS authenticated URL
   const getAuthenticatedStreamUrl = useCallback((isHLS: boolean = false) => {
     const token = localStorage.getItem('token');
-    if (!token) return streamUrl;
-    const base = isHLS ? `/api/hls/${movieId}` : streamUrl;
+    const base = isHLS ? `/api/hls/${movieId}` : `/api/stream/${movieId}`;
+    if (!token) return base;
     return `${base}${base.includes('?') ? '&' : '?'}token=${encodeURIComponent(token)}`;
-  }, [movieId, streamUrl]);
+  }, [movieId]);
 
   const handleHLSError = useCallback((error: string) => {
     setHlsState(prev => ({ ...prev, videoError: error }));

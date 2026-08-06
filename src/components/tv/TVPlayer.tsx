@@ -102,10 +102,10 @@ export function TVPlayer({ movieId, title, movieYear = 0, streamUrl, poster, sub
 
   const getAuthUrl = useCallback((isHLS = false) => {
     const token = localStorage.getItem('token');
-    const base = isHLS ? `/api/hls/${movieId}` : streamUrl;
+    const base = isHLS ? `/api/hls/${movieId}` : `/api/stream/${movieId}`;
     if (!token) return base;
     return `${base}${base.includes('?') ? '&' : '?'}token=${encodeURIComponent(token)}`;
-  }, [movieId, streamUrl]);
+  }, [movieId]);
 
   const clearSeekOverlay = useCallback((resume = false) => {
     if (seekHideTimerRef.current) { clearTimeout(seekHideTimerRef.current); seekHideTimerRef.current = null; }
@@ -328,10 +328,10 @@ export function TVPlayer({ movieId, title, movieYear = 0, streamUrl, poster, sub
     navMode && navFocus === item ? 'ring-4 ring-white scale-110' : '';
 
   return (
-    <div className="fixed inset-0 bg-black">
+    <div className="tv-player fixed inset-0 bg-black overflow-hidden">
       <video
         ref={videoRef}
-        className="absolute inset-0 w-full h-full object-contain"
+        className="tv-player-video absolute object-contain"
         poster={poster}
         preload="auto"
         crossOrigin="anonymous"
