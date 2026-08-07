@@ -41,7 +41,7 @@ export async function POST(request: Request) {
     const data = await request.json();
     
     // Validate required fields
-    const requiredFields = ['title', 'year', 'director', 'genre', 'description', 'r2_video_path', 'r2_image_path'];
+    const requiredFields = ['title', 'year', 'director', 'genre', 'description', 'r2_video_path'];
     const missingFields = requiredFields.filter(field => !data[field]);
     
     if (missingFields.length > 0) {
@@ -60,7 +60,7 @@ export async function POST(request: Request) {
         genre: data.genre,
         description: data.description,
         r2_video_path: data.r2_video_path,
-        r2_image_path: data.r2_image_path,
+        r2_image_path: data.r2_image_path || '',
         r2_subtitles_path: data.r2_subtitles_path || null,
         rating: 0, // Initial rating
         hls_ready: false, // Will be set to true when conversion completes
@@ -147,6 +147,7 @@ export async function GET(request: Request) {
       rating: true,
       averageRating: true,
       r2_image_path: true,
+      updated_at: true,
       _count: {
         select: {
           ratings: true,

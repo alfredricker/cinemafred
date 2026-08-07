@@ -5,6 +5,7 @@ import { useAuth } from '@/context/AuthContext';
 import { Loader2 } from 'lucide-react';
 import { Movie } from '@/types/movie';
 import { TVPlayer } from '@/components/tv/TVPlayer';
+import { getMoviePosterUrl } from '@/lib/moviePoster';
 
 export default function TVWatchPage() {
   const { id } = useParams<{ id: string }>();
@@ -44,7 +45,7 @@ export default function TVWatchPage() {
       title={movie.title}
       movieYear={movie.year}
       streamUrl={streamUrl}
-      poster={movie.r2_image_path ? `/api/movie/${movie.r2_image_path}` : undefined}
+      poster={getMoviePosterUrl(movie)}
       subtitlesUrl={movie.r2_subtitles_path ? `/api/movie/${movie.r2_subtitles_path}` : undefined}
       useHLS={useHLS}
       onBack={() => router.push(`/tv/movie/${id}`)}

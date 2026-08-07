@@ -40,7 +40,11 @@ export async function POST(request: Request) {
   let organizedPath: string;
   switch (type) {
     case 'video':     organizedPath = `movies/${filename}`;    break;
-    case 'image':     organizedPath = `images/${filename}`;    break;
+    case 'image': {
+      const base = filename.slice(0, -(extension.length + 1)).replace(/[^a-zA-Z0-9_-]/g, '_');
+      organizedPath = `images/${base}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}.${extension}`;
+      break;
+    }
     case 'subtitles': organizedPath = `subtitles/${filename}`; break;
     default:          organizedPath = filename;
   }

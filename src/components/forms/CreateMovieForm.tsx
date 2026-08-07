@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Loader2, Upload, AlertCircle } from 'lucide-react';
+import { invalidateMovieCache } from '@/lib/browserCache';
 
 interface CreateMovieFormProps {
   isOpen: boolean;
@@ -168,7 +169,7 @@ export const CreateMovieForm: React.FC<CreateMovieFormProps> = ({ isOpen, onClos
             }));
 
             // Fetch the downloaded poster
-            const posterRequest = await fetch(`/${posterData.path}`);
+            const posterRequest = await fetch(`/api/movie/${posterData.path}`);
             if (!posterRequest.ok) {
               throw new Error('Failed to fetch downloaded poster');
             }
@@ -307,14 +308,14 @@ export const CreateMovieForm: React.FC<CreateMovieFormProps> = ({ isOpen, onClos
     setError(null);
 
     try {
-      if (!files.video || !files.image) {
-        throw new Error('Video and image files are required');
+      if (!files.video) {
+        throw new Error('A video file is required');
       }
 
       // Upload files and get organized paths
       const [videoPath, imagePath, subtitlesPath] = await Promise.all([
         uploadFile(files.video, 'video'),
-        uploadFile(files.image, 'image'),
+        files.image ? uploadFile(files.image, 'image') : Promise.resolve(''),
         files.subtitles ? uploadFile(files.subtitles, 'subtitles') : Promise.resolve(null)
       ]);
 
@@ -339,7 +340,9 @@ export const CreateMovieForm: React.FC<CreateMovieFormProps> = ({ isOpen, onClos
       }
 
       console.log('Movie created successfully:', result.message);
+      invalidateMovieCache();
       handleClose();
+      window.location.reload();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create movie');
     } finally {
@@ -395,7 +398,7 @@ export const CreateMovieForm: React.FC<CreateMovieFormProps> = ({ isOpen, onClos
 
               <div className="space-y-2">
                 <label className="block text-sm font-medium text-gray-300">
-                  Poster Image
+                  Poster Image (Optional)
                 </label>
                 <div className="flex items-center justify-center w-full h-32 px-4 border-2 border-gray-700 border-dashed rounded-lg hover:bg-gray-800/50 transition-colors">
                   <input

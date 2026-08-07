@@ -36,3 +36,15 @@ export async function fetchCachedJson<T>(url: string, ttlMs = DEFAULT_TTL_MS): P
 
   return value;
 }
+
+/** Remove cached movie queries after an admin changes the library. */
+export function invalidateMovieCache(): void {
+  try {
+    for (let index = localStorage.length - 1; index >= 0; index--) {
+      const key = localStorage.key(index);
+      if (key?.startsWith(`${CACHE_PREFIX}/api/movies`)) localStorage.removeItem(key);
+    }
+  } catch {
+    // Storage may be unavailable; the subsequent reload will use HTTP normally.
+  }
+}

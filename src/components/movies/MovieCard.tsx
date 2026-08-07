@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import { Star, Pencil } from 'lucide-react';
 import { EditMovieForm } from '@/components/forms/EditMovieForm';
+import { getMoviePosterUrl } from '@/lib/moviePoster';
 
 interface MovieCardProps {
   movie: Movie;
@@ -46,9 +47,7 @@ export const MovieCard: React.FC<MovieCardProps> = ({ movie, priority = false, o
     }
   };
 
-  const imageUrl = movie.r2_image_path
-    ? `/api/movie/${movie.r2_image_path}`
-    : null;
+  const imageUrl = getMoviePosterUrl(movie);
 
   return (
     <>
@@ -67,7 +66,7 @@ export const MovieCard: React.FC<MovieCardProps> = ({ movie, priority = false, o
         )}
 
         <div className="relative aspect-[27/40] overflow-hidden rounded-lg bg-gray-900">
-          {imageUrl && !imageError ? (
+          {!imageError ? (
             <Image
               src={imageUrl}
               alt={movie.title}

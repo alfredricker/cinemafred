@@ -5,6 +5,7 @@ import Image from 'next/image';
 import { RatingStars } from './RatingStars';
 import { Reviews } from './Reviews';
 import { Movie } from '@/types/movie';
+import { getMoviePosterUrl } from '@/lib/moviePoster';
 import { useAuth } from '@/context/AuthContext';
 
 interface Review {
@@ -206,8 +207,6 @@ export const MovieDetailsModal: React.FC<MovieDetailsModalProps> = ({
     window.location.href = `/movie/${movieId}`;
   };
 
-  const getImageUrl = (path: string) => `/api/movie/${path}`;
-
   if (!isOpen) return null;
 
   return (
@@ -240,9 +239,9 @@ export const MovieDetailsModal: React.FC<MovieDetailsModalProps> = ({
             {/* Movie Poster */}
             <div className="flex-shrink-0 flex flex-col">
               <div className="relative aspect-[27/40] w-80 overflow-hidden rounded-lg bg-gray-800">
-                {movie.r2_image_path && !imageError ? (
+                {!imageError ? (
                   <Image
-                    src={getImageUrl(movie.r2_image_path)}
+                    src={getMoviePosterUrl(movie)}
                     alt={movie.title}
                     fill
                     sizes="320px"

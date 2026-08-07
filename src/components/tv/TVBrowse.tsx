@@ -6,6 +6,7 @@ import Image from 'next/image';
 import { Star, Loader2, Film, ArrowUpDown, Search, X } from 'lucide-react';
 import { generateRandomSeed } from '@/lib/randomSeed';
 import { fetchCachedJson } from '@/lib/browserCache';
+import { getMoviePosterUrl } from '@/lib/moviePoster';
 
 const GENRES = ['All', 'Drama', 'Sci-fi', 'Comedy', 'Horror', 'Documentary', 'Romance', 'Thriller', 'Action', 'Fantasy'];
 const SORT_OPTIONS = [
@@ -310,7 +311,7 @@ export function TVBrowse() {
         <div className="grid grid-cols-5 gap-6">
           {movies.map((movie, i) => {
             const isFocused = focusArea === 'grid' && gridFocus === i;
-            const imageUrl = movie.r2_image_path ? `/api/movie/${movie.r2_image_path}` : null;
+            const imageUrl = getMoviePosterUrl(movie);
             return (
               <div
                 key={movie.id}
@@ -319,10 +320,7 @@ export function TVBrowse() {
                 className={`cursor-pointer transition-all duration-150 ${isFocused ? 'scale-105' : 'scale-100 opacity-70'}`}
               >
                 <div className={`relative aspect-[27/40] rounded-xl overflow-hidden bg-gray-900 ${isFocused ? 'ring-4 ring-white shadow-2xl' : ''}`}>
-                  {imageUrl
-                    ? <Image src={imageUrl} alt={movie.title} fill sizes="20vw" className="object-cover" />
-                    : <div className="w-full h-full flex items-center justify-center text-gray-600 text-sm">No image</div>
-                  }
+                  <Image src={imageUrl} alt={movie.title} fill sizes="20vw" className="object-cover" />
                 </div>
                 <div className={`mt-3 transition-opacity ${isFocused ? 'opacity-100' : 'opacity-60'}`}>
                   <p className="font-semibold text-white text-sm truncate">{movie.title}</p>

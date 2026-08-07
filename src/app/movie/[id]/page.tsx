@@ -5,6 +5,7 @@ import { VideoPlayer } from '@/components/stream/VideoPlayer';
 import { useAuth } from '@/context/AuthContext';
 import { Loader2 } from 'lucide-react';
 import { Movie } from '@/types/movie';
+import { getMoviePosterUrl } from '@/lib/moviePoster';
 
 export default function MoviePage() {
   const params = useParams();
@@ -86,7 +87,7 @@ export default function MoviePage() {
   return (
     <VideoPlayer
       streamUrl={streamUrl}
-      poster={movie.r2_image_path ? `/api/movie/${movie.r2_image_path}` : undefined}
+      poster={getMoviePosterUrl(movie)}
       title={movie.title}
       movieId={movieId}
       movieYear={movie.year}

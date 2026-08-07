@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import Image from 'next/image';
 import { Movie } from '@/types/movie';
 import { Star, Clock, Play, ArrowLeft } from 'lucide-react';
+import { getMoviePosterUrl } from '@/lib/moviePoster';
 
 interface TVMovieDetailProps {
   movie: Movie;
@@ -52,18 +53,14 @@ export function TVMovieDetail({ movie, onBack, onPlay }: TVMovieDetailProps) {
     return () => document.removeEventListener('keydown', onKeyDown);
   }, [focusedBtn]);
 
-  const imageUrl = movie.r2_image_path ? `/api/movie/${movie.r2_image_path}` : null;
+  const imageUrl = getMoviePosterUrl(movie);
   const rating = movie.averageRating ?? movie.rating;
 
   return (
     <div className="min-h-screen bg-black flex overflow-hidden">
       {/* Poster */}
       <div className="w-[42vw] relative flex-shrink-0">
-        {imageUrl ? (
-          <Image src={imageUrl} alt={movie.title} fill className="object-cover" priority />
-        ) : (
-          <div className="w-full h-full bg-gray-900" />
-        )}
+        <Image src={imageUrl} alt={movie.title} fill className="object-cover" priority />
         <div className="absolute inset-0 bg-gradient-to-r from-transparent via-transparent to-black" />
         <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent opacity-40" />
       </div>

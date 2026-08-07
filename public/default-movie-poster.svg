@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 540 800" role="img" aria-labelledby="title description">
+  <title id="title">Default movie poster</title>
+  <desc id="description">A film strip and play symbol on a dark background</desc>
+  <defs>
+    <linearGradient id="background" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#1f2937"/>
+      <stop offset="1" stop-color="#030712"/>
+    </linearGradient>
+  </defs>
+  <rect width="540" height="800" fill="url(#background)"/>
+  <g fill="none" stroke="#64748b" stroke-width="18" opacity=".72">
+    <rect x="105" y="215" width="330" height="300" rx="28"/>
+    <path d="M105 285h330M105 445h330M175 215v70M270 215v70M365 215v70M175 445v70M270 445v70M365 445v70"/>
+  </g>
+  <path d="M235 325v112l96-56z" fill="#94a3b8"/>
+  <text x="270" y="625" text-anchor="middle" fill="#94a3b8" font-family="Arial, sans-serif" font-size="34" letter-spacing="5">CINEMAFRED</text>
+</svg>

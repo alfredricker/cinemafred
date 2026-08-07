@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { Loader2, Upload, AlertCircle, Trash2, ChevronRight, AlertTriangle } from 'lucide-react';
 import { Movie } from '@/types/movie';
 import { TMDBPosterSelector } from './TMDBPosterSelector';
+import { invalidateMovieCache } from '@/lib/browserCache';
 
 interface MovieFormData {
   title: string;
@@ -261,6 +262,7 @@ export const EditMovieForm: React.FC<EditMovieFormProps> = ({ isOpen, onClose, m
         throw new Error('Failed to update movie');
       }
 
+      invalidateMovieCache();
       onClose();
       window.location.reload();
     } catch (err) {
@@ -290,6 +292,7 @@ export const EditMovieForm: React.FC<EditMovieFormProps> = ({ isOpen, onClose, m
         throw new Error('Failed to delete movie');
       }
 
+      invalidateMovieCache();
       onClose();
       window.location.reload();
     } catch (err) {
