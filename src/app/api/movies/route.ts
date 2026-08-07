@@ -147,7 +147,6 @@ export async function GET(request: Request) {
       rating: true,
       averageRating: true,
       r2_image_path: true,
-      updated_at: true,
       _count: {
         select: {
           ratings: true,
