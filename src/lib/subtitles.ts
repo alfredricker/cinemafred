@@ -25,7 +25,7 @@ export function convertSRTtoVTT(srtContent: string): string {
   return vtt;
 }
 
-const VTT_TIMESTAMP = /(\d{2,}):(\d{2}):(\d{2})\.(\d{3})/g;
+const SUBTITLE_TIMESTAMP = /(\d{2,}):(\d{2}):(\d{2})([.,])(\d{3})/g;
 
 function timestampToMilliseconds(hours: string, minutes: string, seconds: string, milliseconds: string) {
   return Number(hours) * 3_600_000
@@ -34,23 +34,23 @@ function timestampToMilliseconds(hours: string, minutes: string, seconds: string
     + Number(milliseconds);
 }
 
-function millisecondsToTimestamp(value: number) {
+function millisecondsToTimestamp(value: number, separator: string) {
   const clamped = Math.max(0, value);
   const hours = Math.floor(clamped / 3_600_000);
   const minutes = Math.floor((clamped % 3_600_000) / 60_000);
   const seconds = Math.floor((clamped % 60_000) / 1_000);
   const milliseconds = clamped % 1_000;
 
-  return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}.${String(milliseconds).padStart(3, '0')}`;
+  return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}${separator}${String(milliseconds).padStart(3, '0')}`;
 }
 
-/** Shift every WebVTT cue timestamp, clamping cues that would move before zero. */
-export function shiftVTTTimestamps(vttContent: string, offsetMs: number): string {
+/** Shift every SRT or WebVTT cue timestamp, clamping cues that would move before zero. */
+export function shiftSubtitleTimestamps(content: string, offsetMs: number): string {
   if (!Number.isSafeInteger(offsetMs)) throw new Error('Offset must be an integer');
 
-  return vttContent.replace(
-    VTT_TIMESTAMP,
-    (_match, hours: string, minutes: string, seconds: string, milliseconds: string) =>
-      millisecondsToTimestamp(timestampToMilliseconds(hours, minutes, seconds, milliseconds) + offsetMs),
+  return content.replace(
+    SUBTITLE_TIMESTAMP,
+    (_match, hours: string, minutes: string, seconds: string, separator: string, milliseconds: string) =>
+      millisecondsToTimestamp(timestampToMilliseconds(hours, minutes, seconds, milliseconds) + offsetMs, separator),
   );
 }

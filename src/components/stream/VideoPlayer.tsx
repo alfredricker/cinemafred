@@ -358,7 +358,7 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
           subtitlesLoading={subtitlesLoading}
           onSubtitleChange={selectSubtitle}
           onSubtitleSearch={() => void searchOpenSubtitles()}
-          onSubtitleShift={activeSubtitleOption?.fileId ? shiftActiveSubtitle : undefined}
+          onSubtitleShift={activeSubtitleOption ? shiftActiveSubtitle : undefined}
           isHLSSupported={hlsState.isHLSSupported}
           availableQualities={hlsState.availableQualities}
           currentQuality={hlsState.currentQuality}

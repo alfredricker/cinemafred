@@ -112,7 +112,7 @@ export function useSubtitles(
   }, [activeOption, trackVersion]);
 
   const shiftActiveSubtitle = useCallback(async (offsetMs: number) => {
-    if (!activeOption?.fileId) throw new Error('Only saved OpenSubtitles subtitles can be shifted');
+    if (!activeOption) throw new Error('Select a subtitle before shifting it');
 
     // Ensure a newly selected search result has finished downloading and saving first.
     if (activeOption.source === 'opensubtitles') {
@@ -123,7 +123,12 @@ export function useSubtitles(
     const response = await fetch('/api/subtitles/shift', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ movieId, fileId: activeOption.fileId, offsetMs }),
+      body: JSON.stringify({
+        movieId,
+        fileId: activeOption.fileId,
+        source: activeOption.source === 'local' ? 'local' : 'cached',
+        offsetMs,
+      }),
     });
     const result = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(result.error ?? 'Failed to shift subtitle');
