@@ -53,8 +53,16 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
   const maxRetries = 3;
 
   // Subtitle management
-  const { options: subtitleOptions, loading: subtitlesLoading, activeId: activeSubtitleId, activeUrl: activeSubtitleUrl, selectSubtitle } =
-    useSubtitles(title, movieYear, movieId, subtitlesUrl);
+  const {
+    options: subtitleOptions,
+    loading: subtitlesLoading,
+    activeId: activeSubtitleId,
+    activeUrl: activeSubtitleUrl,
+    activeOption: activeSubtitleOption,
+    selectSubtitle,
+    searchOpenSubtitles,
+    shiftActiveSubtitle,
+  } = useSubtitles(title, movieYear, movieId, subtitlesUrl, false);
 
   // Activate/deactivate text track when active URL changes
   useEffect(() => {
@@ -349,6 +357,8 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
           activeSubtitleId={activeSubtitleId}
           subtitlesLoading={subtitlesLoading}
           onSubtitleChange={selectSubtitle}
+          onSubtitleSearch={() => void searchOpenSubtitles()}
+          onSubtitleShift={activeSubtitleOption?.fileId ? shiftActiveSubtitle : undefined}
           isHLSSupported={hlsState.isHLSSupported}
           availableQualities={hlsState.availableQualities}
           currentQuality={hlsState.currentQuality}

@@ -29,6 +29,8 @@ export interface VideoControlBarProps {
   activeSubtitleId: string | null;
   subtitlesLoading: boolean;
   onSubtitleChange: (id: string | null) => void;
+  onSubtitleSearch: () => void;
+  onSubtitleShift?: (offsetMs: number) => Promise<void>;
   isHLSSupported: boolean;
   availableQualities: string[];
   currentQuality: string;
@@ -43,7 +45,7 @@ export interface VideoControlBarProps {
 
 export const VideoControlBar: React.FC<VideoControlBarProps> = ({
   show, isPaused, currentTime, duration, volume, isFullscreen,
-  subtitleOptions, activeSubtitleId, subtitlesLoading, onSubtitleChange,
+  subtitleOptions, activeSubtitleId, subtitlesLoading, onSubtitleChange, onSubtitleSearch, onSubtitleShift,
   isHLSSupported, availableQualities, currentQuality,
   onBack, onTogglePlay, onSeek, onVolumeChange, onQualityChange,
   onToggleFullscreen, onMenuOpen,
@@ -100,7 +102,7 @@ export const VideoControlBar: React.FC<VideoControlBarProps> = ({
     setShowSubtitleMenu(false);
   }, []);
 
-  const hasSubtitles = subtitleOptions.length > 0 || subtitlesLoading;
+  const hasSubtitles = true;
   const hasQuality = isHLSSupported && availableQualities.length > 1;
 
   const VolumeIcon = volume === 0 ? VolumeX : volume < 0.5 ? Volume1 : Volume2;
@@ -200,6 +202,8 @@ export const VideoControlBar: React.FC<VideoControlBarProps> = ({
                   activeId={activeSubtitleId}
                   loading={subtitlesLoading}
                   onSelect={onSubtitleChange}
+                  onSearch={onSubtitleSearch}
+                  onShift={onSubtitleShift}
                   onClose={() => setShowSubtitleMenu(false)}
                 />
               )}
