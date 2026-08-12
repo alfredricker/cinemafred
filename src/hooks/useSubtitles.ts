@@ -135,11 +135,38 @@ export function useSubtitles(
     setTrackVersion(version => version + 1);
   }, [activeOption, movieId]);
 
+  const stretchActiveSubtitle = useCallback(async (stretchPercent: number) => {
+    if (!activeOption) throw new Error('Select a subtitle before stretching it');
+    if (activeOption.source === 'opensubtitles') {
+      const download = await fetch(activeOption.url);
+      if (!download.ok) throw new Error('Subtitle could not be saved before stretching');
+    }
+
+    const token = localStorage.getItem('token');
+    const response = await fetch('/api/subtitles/shift', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify({
+        movieId,
+        fileId: activeOption.fileId,
+        source: activeOption.source === 'local' ? 'local' : 'cached',
+        stretchPercent,
+      }),
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(result.error ?? 'Failed to stretch subtitle');
+    setTrackVersion(version => version + 1);
+  }, [activeOption, movieId]);
+
   return {
     options, loading, activeId, activeUrl,
     activeOption,
     selectSubtitle: setActiveId,
     searchOpenSubtitles,
     shiftActiveSubtitle,
+    stretchActiveSubtitle,
   };
 }

@@ -54,3 +54,18 @@ export function shiftSubtitleTimestamps(content: string, offsetMs: number): stri
       millisecondsToTimestamp(timestampToMilliseconds(hours, minutes, seconds, milliseconds) + offsetMs, separator),
   );
 }
+
+/** Scale every SRT or WebVTT timestamp from zero by the supplied percentage. */
+export function stretchSubtitleTimestamps(content: string, percent: number): string {
+  if (!Number.isFinite(percent) || percent <= -100) throw new Error('Invalid stretch percentage');
+  const factor = 1 + percent / 100;
+
+  return content.replace(
+    SUBTITLE_TIMESTAMP,
+    (_match, hours: string, minutes: string, seconds: string, separator: string, milliseconds: string) =>
+      millisecondsToTimestamp(
+        Math.round(timestampToMilliseconds(hours, minutes, seconds, milliseconds) * factor),
+        separator,
+      ),
+  );
+}

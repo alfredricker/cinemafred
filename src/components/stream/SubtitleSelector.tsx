@@ -9,6 +9,8 @@ interface SubtitleSelectorProps {
   onSelect: (id: string | null) => void;
   onSearch?: () => void;
   onShift?: (offsetMs: number) => Promise<void>;
+  onStretch?: (percent: number) => Promise<void>;
+  isAdmin?: boolean;
   onClose: () => void;
   className?: string;
 }
@@ -21,13 +23,16 @@ const LANG_NAMES: Record<string, string> = {
 const langName = (code: string) => LANG_NAMES[code] ?? code.toUpperCase();
 
 export const SubtitleSelector: React.FC<SubtitleSelectorProps> = ({
-  options, activeId, loading, onSelect, onSearch, onShift, onClose, className,
+  options, activeId, loading, onSelect, onSearch, onShift, onStretch, isAdmin = false, onClose, className,
 }) => {
   const [showShiftEditor, setShowShiftEditor] = React.useState(false);
   const [shiftValue, setShiftValue] = React.useState('500');
   const [shiftDirection, setShiftDirection] = React.useState<'earlier' | 'later'>('earlier');
   const [shiftError, setShiftError] = React.useState<string | null>(null);
   const [shifting, setShifting] = React.useState(false);
+  const [stretchValue, setStretchValue] = React.useState('0');
+  const [stretchError, setStretchError] = React.useState<string | null>(null);
+  const [stretching, setStretching] = React.useState(false);
   const local   = options.filter(o => o.source === 'local');
   const cached  = options.filter(o => o.source === 'cached');
   const online  = options.filter(o => o.source === 'opensubtitles');
@@ -58,6 +63,24 @@ export const SubtitleSelector: React.FC<SubtitleSelectorProps> = ({
       setShiftError(error instanceof Error ? error.message : 'Shift failed');
     } finally {
       setShifting(false);
+    }
+  }
+
+  async function applyStretch() {
+    const percent = Number(stretchValue);
+    if (!Number.isFinite(percent) || percent === 0 || percent <= -100 || Math.abs(percent) > 1000) {
+      setStretchError('Enter a non-zero percentage greater than -100 and within 1000');
+      return;
+    }
+    setStretching(true);
+    setStretchError(null);
+    try {
+      await onStretch?.(percent);
+      setShowShiftEditor(false);
+    } catch (error) {
+      setStretchError(error instanceof Error ? error.message : 'Stretch failed');
+    } finally {
+      setStretching(false);
     }
   }
 
@@ -130,6 +153,34 @@ export const SubtitleSelector: React.FC<SubtitleSelectorProps> = ({
                   </button>
                 </div>
                 {shiftError && <p className="mt-1.5 text-xs text-red-300">{shiftError}</p>}
+
+                {isAdmin && onStretch && (
+                  <div className="mt-3 pt-3 border-t border-white/10">
+                    <label className="block text-xs text-white/50 mb-1.5">
+                      Stretch timeline (%) <span className="text-blue-300">Admin</span>
+                    </label>
+                    <p className="text-[11px] text-white/35 mb-1.5">Positive makes subtitles run longer; negative makes them run shorter.</p>
+                    <div className="flex gap-2">
+                      <input
+                        type="number"
+                        step="0.01"
+                        value={stretchValue}
+                        onChange={event => setStretchValue(event.target.value)}
+                        onKeyDown={event => { if (event.key === 'Enter') void applyStretch(); }}
+                        className="min-w-0 flex-1 rounded bg-black/50 border border-white/20 px-2 py-1.5 text-sm text-white outline-none focus:border-blue-400"
+                        placeholder="e.g. 4.27"
+                      />
+                      <button
+                        onClick={() => void applyStretch()}
+                        disabled={stretching}
+                        className="rounded bg-blue-600 hover:bg-blue-500 disabled:opacity-50 px-2.5 py-1.5 text-xs text-white"
+                      >
+                        {stretching ? 'Saving…' : 'Stretch'}
+                      </button>
+                    </div>
+                    {stretchError && <p className="mt-1.5 text-xs text-red-300">{stretchError}</p>}
+                  </div>
+                )}
               </div>
             )}
           </>

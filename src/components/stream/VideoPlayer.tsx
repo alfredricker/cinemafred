@@ -62,6 +62,7 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
     selectSubtitle,
     searchOpenSubtitles,
     shiftActiveSubtitle,
+    stretchActiveSubtitle,
   } = useSubtitles(title, movieYear, movieId, subtitlesUrl, false);
 
   // Activate/deactivate text track when active URL changes
@@ -359,6 +360,8 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
           onSubtitleChange={selectSubtitle}
           onSubtitleSearch={() => void searchOpenSubtitles()}
           onSubtitleShift={activeSubtitleOption ? shiftActiveSubtitle : undefined}
+          onSubtitleStretch={activeSubtitleOption && isAdmin ? stretchActiveSubtitle : undefined}
+          isAdmin={isAdmin}
           isHLSSupported={hlsState.isHLSSupported}
           availableQualities={hlsState.availableQualities}
           currentQuality={hlsState.currentQuality}
