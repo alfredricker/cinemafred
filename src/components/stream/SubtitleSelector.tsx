@@ -24,7 +24,8 @@ export const SubtitleSelector: React.FC<SubtitleSelectorProps> = ({
   options, activeId, loading, onSelect, onSearch, onShift, onClose, className,
 }) => {
   const [showShiftEditor, setShowShiftEditor] = React.useState(false);
-  const [shiftValue, setShiftValue] = React.useState('0');
+  const [shiftValue, setShiftValue] = React.useState('500');
+  const [shiftDirection, setShiftDirection] = React.useState<'earlier' | 'later'>('earlier');
   const [shiftError, setShiftError] = React.useState<string | null>(null);
   const [shifting, setShifting] = React.useState(false);
   const local   = options.filter(o => o.source === 'local');
@@ -42,11 +43,12 @@ export const SubtitleSelector: React.FC<SubtitleSelectorProps> = ({
   const isEmpty = options.length === 0;
 
   async function applyShift() {
-    const offset = Number(shiftValue);
-    if (!Number.isSafeInteger(offset)) {
-      setShiftError('Enter a whole number of milliseconds');
+    const milliseconds = Number(shiftValue);
+    if (!Number.isSafeInteger(milliseconds) || milliseconds <= 0) {
+      setShiftError('Enter a positive whole number of milliseconds');
       return;
     }
+    const offset = shiftDirection === 'earlier' ? -milliseconds : milliseconds;
     setShifting(true);
     setShiftError(null);
     try {
@@ -91,11 +93,29 @@ export const SubtitleSelector: React.FC<SubtitleSelectorProps> = ({
             </button>
             {showShiftEditor && (
               <div className="mx-3 mb-2 rounded-md border border-white/10 bg-white/5 p-2.5">
-                <label className="block text-xs text-white/50 mb-1.5">Milliseconds (+ later, − earlier)</label>
+                <div className="grid grid-cols-2 gap-1 rounded bg-black/40 p-1 mb-2">
+                  {(['earlier', 'later'] as const).map(direction => (
+                    <button
+                      key={direction}
+                      type="button"
+                      onClick={() => setShiftDirection(direction)}
+                      className={`rounded px-2 py-1.5 text-xs capitalize transition-colors ${
+                        shiftDirection === direction
+                          ? 'bg-blue-600 text-white'
+                          : 'text-white/50 hover:bg-white/10 hover:text-white/80'
+                      }`}
+                    >
+                      {direction}
+                    </button>
+                  ))}
+                </div>
+                <label className="block text-xs text-white/50 mb-1.5">Milliseconds</label>
                 <div className="flex gap-2">
                   <input
                     type="number"
                     step="1"
+                    min="1"
+                    inputMode="numeric"
                     value={shiftValue}
                     onChange={event => setShiftValue(event.target.value)}
                     onKeyDown={event => { if (event.key === 'Enter') void applyShift(); }}
