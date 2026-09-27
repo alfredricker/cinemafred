@@ -4,7 +4,7 @@ import { NextResponse } from 'next/server';
 import { hash } from 'bcryptjs';
 import prisma from '@/lib/db';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
+import { getJwtSecret } from '@/lib/jwt-secret';
 
 function generateTemporaryPassword() {
   const charset = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*';

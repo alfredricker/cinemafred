@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server';
 import jwt from 'jsonwebtoken';
 import prisma from '@/lib/db';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
+import { getJwtSecret } from '@/lib/jwt-secret';
 
 export async function POST(req: Request) {
   try {
@@ -14,7 +14,7 @@ export async function POST(req: Request) {
     }
 
     const token = authHeader.substring(7);
-    const decoded = jwt.verify(token, JWT_SECRET) as { id: string };
+    const decoded = jwt.verify(token, getJwtSecret()) as { id: string };
 
     // Get new username from request body
     const { username } = await req.json();

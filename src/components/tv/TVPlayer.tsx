@@ -101,10 +101,8 @@ export function TVPlayer({ movieId, title, movieYear = 0, streamUrl, poster, sub
   }, [subtitleFocusIdx]);
 
   const getAuthUrl = useCallback((isHLS = false) => {
-    const token = localStorage.getItem('token');
     const base = isHLS ? `/api/hls/${movieId}` : `/api/stream/${movieId}`;
-    if (!token) return base;
-    return `${base}${base.includes('?') ? '&' : '?'}token=${encodeURIComponent(token)}`;
+    return base;
   }, [movieId]);
 
   const clearSeekOverlay = useCallback((resume = false) => {

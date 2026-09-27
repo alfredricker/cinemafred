@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { getPrismaClient, releasePrismaClient } from '@/lib/db';
 import jwt from 'jsonwebtoken';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
+import { getJwtSecret } from '@/lib/jwt-secret';
 
 // Mark as dynamic route
 export const dynamic = 'force-dynamic';
@@ -21,7 +21,7 @@ export async function POST(
     }
 
     const token = authHeader.substring(7);
-    const decoded = jwt.verify(token, JWT_SECRET) as { id: string };
+    const decoded = jwt.verify(token, getJwtSecret()) as { id: string };
     const { reviewText, rating } = await request.json();
 
     // Check if user is admin
@@ -120,7 +120,7 @@ export async function GET(
     }
 
     const token = authHeader.substring(7);
-    const decoded = jwt.verify(token, JWT_SECRET) as { id: string };
+    const decoded = jwt.verify(token, getJwtSecret()) as { id: string };
 
     // Check if user is admin
     const user = await prisma.user.findUnique({

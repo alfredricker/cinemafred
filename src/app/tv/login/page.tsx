@@ -14,7 +14,7 @@ export default function TVLoginPage() {
   const formRef = useRef<HTMLFormElement>(null);
 
   useEffect(() => {
-    if (user && !user.mustResetPassword) router.replace('/tv/browse');
+    if (user && !user.isGuest && !user.mustResetPassword) router.replace('/tv/browse');
   }, [user, router]);
 
   const handleSubmit = async (e: React.FormEvent) => {

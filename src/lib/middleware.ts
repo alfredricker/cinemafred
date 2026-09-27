@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server';
 import jwt from 'jsonwebtoken';
 import { headers } from 'next/headers';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
+import { getJwtSecret } from '@/lib/jwt-secret';
 
 interface ValidationRule {
   required?: boolean;
@@ -25,7 +25,7 @@ export async function validateAdmin(request: Request) {
 
   const token = authHeader.substring(7);
   try {
-    const decoded = jwt.verify(token, JWT_SECRET) as { isAdmin: boolean };
+    const decoded = jwt.verify(token, getJwtSecret()) as { isAdmin: boolean };
     if (!decoded.isAdmin) {
       return { error: 'Forbidden', status: 403 };
     }

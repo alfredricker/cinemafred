@@ -10,7 +10,7 @@ const allowedExtensions: Record<FileType, string[]> = {
   subtitles: ['srt', 'vtt'],
 };
 
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
+import { getJwtSecret } from '@/lib/jwt-secret';
 
 export async function POST(request: Request) {
   const validation = await validateAdmin(request);
@@ -50,7 +50,7 @@ export async function POST(request: Request) {
   }
 
   // Sign a short-lived token so the save endpoint can verify this upload was authorized
-  const uploadToken = jwt.sign({ path: organizedPath }, JWT_SECRET, { expiresIn: '2h' });
+  const uploadToken = jwt.sign({ path: organizedPath }, getJwtSecret(), { expiresIn: '2h' });
   const presignedUrl = `/api/upload/save?path=${encodeURIComponent(organizedPath)}&token=${uploadToken}`;
 
   return NextResponse.json({ presignedUrl, filename, organizedPath });

@@ -2,7 +2,7 @@ import fs from 'fs/promises';
 import path from 'path';
 import jwt from 'jsonwebtoken';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
+import { getJwtSecret } from '@/lib/jwt-secret';
 const MEDIA_ROOT = process.env.MEDIA_ROOT || '/data/cinemafred';
 
 export async function PUT(request: Request) {
@@ -16,7 +16,7 @@ export async function PUT(request: Request) {
 
   let verified: { path: string };
   try {
-    verified = jwt.verify(token, JWT_SECRET) as { path: string };
+    verified = jwt.verify(token, getJwtSecret()) as { path: string };
   } catch {
     return new Response('Unauthorized', { status: 401 });
   }

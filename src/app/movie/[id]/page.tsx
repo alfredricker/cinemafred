@@ -20,7 +20,7 @@ export default function MoviePage() {
   useEffect(() => {
     if (authLoading) return;
     
-    if (!user) {
+    if (!user || user.isGuest) {
       router.push('/login');
       return;
     }
@@ -53,7 +53,7 @@ export default function MoviePage() {
     router.push('/');
   };
 
-  if (authLoading || isLoading) {
+  if (authLoading || isLoading || !user || user.isGuest) {
     return (
       <div className="fixed inset-0 bg-black flex items-center justify-center">
         <Loader2 className="w-8 h-8 animate-spin text-white" />

@@ -1,52 +1,37 @@
 import { NextResponse } from 'next/server';
 import { mediaUrl } from '@/lib/media';
 import { convertSRTtoVTT } from '@/lib/subtitles';
+import { requirePlayback, privateHeaders } from '@/lib/playback-session';
+
+export const dynamic = 'force-dynamic';
 
 export async function GET(req: Request, { params }: { params: Promise<{ file: string[] }> }) {
   const { file } = await params;
   const filePath = file.join('/');
-
-  if (!filePath) {
-    return NextResponse.json({ error: 'Invalid file path.' }, { status: 400 });
+  let protectedUrl: string;
+  try { protectedUrl = mediaUrl(filePath); } catch {
+    return NextResponse.json({ error: 'Invalid file path' }, { status: 400 });
   }
-
-  // SRT files need server-side conversion to VTT — fetch from Nginx and convert
-  if (filePath.endsWith('.srt')) {
-    try {
-      const response = await fetch(mediaUrl(filePath));
-      if (!response.ok) {
-        return NextResponse.json({ error: 'File not found.' }, { status: 404 });
-      }
-      const srtContent = await response.text();
-      return new Response(convertSRTtoVTT(srtContent), {
-        headers: { 'Content-Type': 'text/vtt' },
+  // Only poster images are public. An image suffix on a private path is not enough.
+  const isPoster = file[0] === 'images' && /\.(jpe?g|png|webp|gif|avif)$/i.test(filePath);
+  if (!isPoster) {
+    const denied = await requirePlayback(req);
+    if (denied) return denied;
+  }
+  if (isPoster || filePath.endsWith('.srt')) {
+    // This origin must remain loopback-only and must never be tunnelled publicly.
+    const upstream = await fetch(`http://127.0.0.1:8080/${file.map(encodeURIComponent).join('/')}`, { redirect: 'error', cache: 'no-store' });
+    if (!upstream.ok) return NextResponse.json({ error: 'File not found' }, { status: 404 });
+    if (!isPoster) {
+      return new Response(convertSRTtoVTT(await upstream.text()), {
+        headers: { ...privateHeaders, 'Content-Type': 'text/vtt' },
       });
-    } catch {
-      return NextResponse.json({ error: 'File not found.' }, { status: 404 });
     }
+    return new Response(upstream.body, { headers: {
+      'Content-Type': upstream.headers.get('content-type') ?? 'image/jpeg',
+      'Cache-Control': 'public, max-age=31536000, immutable',
+      'X-Content-Type-Options': 'nosniff',
+    } });
   }
-
-  // Images: proxy from local nginx so the Next.js image optimizer doesn't have
-  // to round-trip through Cloudflare to fetch the source.
-  const imageExts = ['jpg', 'jpeg', 'png', 'webp', 'gif', 'avif'];
-  const ext = filePath.split('.').pop()?.toLowerCase() ?? '';
-  if (imageExts.includes(ext)) {
-    const upstream = await fetch(`http://127.0.0.1:8080/${filePath}`);
-    if (!upstream.ok) {
-      return NextResponse.json({ error: 'File not found.' }, { status: 404 });
-    }
-    const body = await upstream.arrayBuffer();
-    const contentType = upstream.headers.get('content-type') ?? 'image/jpeg';
-    return new Response(body, {
-      headers: {
-        'Content-Type': contentType,
-        // Poster paths change when a poster is replaced, so these assets can
-        // safely live in the browser cache for a year.
-        'Cache-Control': 'public, max-age=31536000, immutable',
-      },
-    });
-  }
-
-  // All other files (HLS, mp4, subtitles) redirect to Nginx
-  return NextResponse.redirect(mediaUrl(filePath));
+  return new NextResponse(null, { status: 307, headers: { ...privateHeaders, Location: protectedUrl } });
 }

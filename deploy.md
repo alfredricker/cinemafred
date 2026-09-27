@@ -1,3 +1,6 @@
+For the current Next.js/NixOS playback rollout, see [playback protection](docs/playback-protection.md).
+The older vinext/Worker commands below do not apply the Nginx protection.
+
 npm run build:vinext
 npx vinext deploy
 

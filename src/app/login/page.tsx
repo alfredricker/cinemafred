@@ -16,7 +16,7 @@ export default function LoginPage() {
   const router = useRouter();
 
   useEffect(() => {
-    if (user && !user.mustResetPassword) {
+    if (user && !user.isGuest && !user.mustResetPassword) {
       router.push('/');
     }
   }, [user, router]);
@@ -52,9 +52,17 @@ export default function LoginPage() {
     }
   };
 
-  const handleGuestLogin = () => {
-    loginAsGuest();
-    router.push('/');
+  const handleGuestLogin = async () => {
+    setError('');
+    setIsLoading(true);
+    try {
+      await loginAsGuest();
+      router.push('/');
+    } catch {
+      setError('Could not start guest mode. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handlePasswordReset = async (newPassword: string) => {
@@ -80,7 +88,7 @@ export default function LoginPage() {
             <Film className="h-16 w-16 text-blue-500" />
           </div>
           <h2 className="mt-8 text-3xl font-verdana text-white">CinemaFred</h2>
-          <p className="mt-4 text-sm text-gray-400">Authorized access only</p>
+          <p className="mt-4 text-sm text-gray-400">Sign in to watch, or explore the catalog as a guest</p>
         </div>
         
         <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
@@ -123,18 +131,17 @@ export default function LoginPage() {
           >
             {isLoading ? 'Verifying...' : 'Sign in'}
           </button>
-          {/*
           <div className="flex items-center justify-center">
             <button
               type="button"
               onClick={handleGuestLogin}
+              disabled={isLoading}
               className="text-sm text-blue-400 hover:text-blue-300 flex items-center gap-2"
             >
               <UserCircle className="h-4 w-4" />
               Continue as Guest
             </button>
           </div>
-          */}
         </form>
       </div>
 

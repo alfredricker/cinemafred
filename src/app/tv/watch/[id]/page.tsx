@@ -15,18 +15,18 @@ export default function TVWatchPage() {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    if (!authLoading && !user) router.replace('/tv/login');
+    if (!authLoading && (!user || user.isGuest)) router.replace('/tv/login');
   }, [user, authLoading, router]);
 
   useEffect(() => {
-    if (!user || authLoading) return;
+    if (!user || user.isGuest || authLoading) return;
     fetch(`/api/movies/${id}`)
       .then(r => r.json())
       .then(setMovie)
       .finally(() => setIsLoading(false));
   }, [id, user, authLoading]);
 
-  if (authLoading || isLoading) {
+  if (authLoading || isLoading || !user || user.isGuest) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-black">
         <Loader2 className="w-12 h-12 animate-spin text-white" />

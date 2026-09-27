@@ -1,10 +1,11 @@
+import { setSessionCookie, privateHeaders } from '@/lib/playback-session';
 //src/app/api/auth/login/route.ts
 import { NextResponse } from 'next/server';
 import { compare } from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import prisma from '@/lib/db';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
+import { getJwtSecret } from '@/lib/jwt-secret';
 
 export async function POST(req: Request) {
   try {
@@ -36,11 +37,14 @@ export async function POST(req: Request) {
         isActive: user.isActive,
         mustResetPassword: user.mustResetPassword
       },
-      JWT_SECRET,
+      getJwtSecret(),
       { expiresIn: '90d' }
     );
 
-    return NextResponse.json({ token, user });
+    const { password_hash: _passwordHash, ...publicUser } = user;
+    const response = NextResponse.json({ token, user: publicUser }, { headers: privateHeaders });
+    setSessionCookie(response, user.id);
+    return response;
   } catch (error) {
     console.error('Login error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

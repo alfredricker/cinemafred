@@ -1,9 +1,12 @@
+import { requirePlayback, privateHeaders } from '@/lib/playback-session';
 import { NextRequest, NextResponse } from 'next/server';
 import { getPrismaClient } from '@/lib/db';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET(req: NextRequest) {
+  const denied = await requirePlayback(req);
+  if (denied) return denied;
   const movieId = req.nextUrl.searchParams.get('movieId');
   if (!movieId) return NextResponse.json({ error: 'movieId required' }, { status: 400 });
 
@@ -14,5 +17,5 @@ export async function GET(req: NextRequest) {
     select: { os_file_id: true, path: true, language: true, label: true, created_at: true },
   });
 
-  return NextResponse.json(rows);
+  return NextResponse.json(rows, { headers: privateHeaders });
 }

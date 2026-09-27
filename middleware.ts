@@ -3,9 +3,13 @@ import type { NextRequest } from 'next/server';
 
 // List of protected API routes that should not be accessible from the public subdomain or guest users
 const PROTECTED_ROUTES = [
-  '/api/auth',
+  '/api/auth/login',
   '/api/movies/[id]/rate',
   '/api/stream',
+  '/api/hls',
+  '/media',
+  '/api/subtitles',
+  '/api/upload',
   '/api/users',
   '/api/reviews'
 ];
@@ -17,11 +21,11 @@ export function middleware(request: NextRequest) {
   // Check if the request is coming from the public subdomain
   const isPublicSubdomain = hostname.startsWith('public.');
   
-  // Check if the user is a guest
-  const isGuest = request.cookies.get('isGuest')?.value === 'true';
+  // Guest flags are UI preferences, never authorization. Private handlers and
+  // Nginx verify the actual playback session independently.
   
   // If it's the public subdomain or a guest user trying to access a protected route
-  if (isPublicSubdomain || isGuest) {
+  if (isPublicSubdomain) {
     for (const route of PROTECTED_ROUTES) {
       if (url.pathname.startsWith(route)) {
         return NextResponse.json(

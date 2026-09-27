@@ -1,47 +1,19 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/db';
 import { mediaUrl } from '@/lib/media';
-import jwt from 'jsonwebtoken';
+import { requirePlayback, privateHeaders } from '@/lib/playback-session';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
+export const dynamic = 'force-dynamic';
 
-function validateStreamToken(request: Request): boolean {
-  try {
-    const authHeader = request.headers.get('Authorization');
-    let token: string | null = null;
-
-    if (authHeader?.startsWith('Bearer ')) {
-      token = authHeader.substring(7);
-    } else {
-      const url = new URL(request.url);
-      token = url.searchParams.get('token');
-    }
-
-    if (!token) return false;
-    jwt.verify(token, JWT_SECRET, { complete: true });
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-export async function GET(
-  request: Request,
-  { params }: { params: Promise<{ movieId: string }> }
-) {
+export async function GET(request: Request, { params }: { params: Promise<{ movieId: string }> }) {
+  const denied = await requirePlayback(request);
+  if (denied) return denied;
   const { movieId } = await params;
-  if (!validateStreamToken(request)) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-
   const movie = await prisma.movie.findUnique({
-    where: { id: movieId },
-    select: { r2_video_path: true }
+    where: { id: movieId }, select: { r2_video_path: true, hls_ready: true },
   });
-
   if (!movie?.r2_video_path) {
-    return NextResponse.json({ error: 'Movie not found' }, { status: 404 });
+    return NextResponse.json({ error: 'Media not found' }, { status: 404, headers: privateHeaders });
   }
-
-  return NextResponse.redirect(mediaUrl(movie.r2_video_path));
+  return new NextResponse(null, { status: 307, headers: { ...privateHeaders, Location: mediaUrl(movie.r2_video_path) } });
 }

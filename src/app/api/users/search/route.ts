@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/db';
 import jwt from 'jsonwebtoken';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
+import { getJwtSecret } from '@/lib/jwt-secret';
 
 export const dynamic = 'force-dynamic';
 
@@ -15,7 +15,7 @@ export async function GET(request: Request) {
     }
 
     const token = authHeader.substring(7);
-    jwt.verify(token, JWT_SECRET);
+    jwt.verify(token, getJwtSecret());
 
     const { searchParams } = new URL(request.url);
     const query = searchParams.get('q') || '';

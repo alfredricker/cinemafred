@@ -200,7 +200,7 @@ export const MovieDetailsModal: React.FC<MovieDetailsModalProps> = ({
 
   const handleWatchClick = () => {
     if (user?.isGuest) {
-      // Could redirect to login or show login modal
+      window.location.href = '/login';
       return;
     }
     // Navigate to dedicated movie page
@@ -397,7 +397,7 @@ export const MovieDetailsModal: React.FC<MovieDetailsModalProps> = ({
                   className="flex items-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors"
                 >
                   <Play className="w-5 h-5" />
-                  Watch Now
+                  {user?.isGuest ? 'Sign in to watch' : 'Watch Now'}
                 </button>
               </div>
             </div>

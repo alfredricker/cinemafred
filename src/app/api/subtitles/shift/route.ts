@@ -1,3 +1,4 @@
+import { requirePlayback } from '@/lib/playback-session';
 import fs from 'fs/promises';
 import path from 'path';
 import { NextResponse } from 'next/server';
@@ -12,6 +13,8 @@ const MAX_STRETCH_PERCENT = 1000;
 export const dynamic = 'force-dynamic';
 
 export async function POST(req: Request) {
+  const denied = await requirePlayback(req);
+  if (denied) return denied;
   try {
     const body = await req.json();
     const fileId = body.fileId == null ? null : Number(body.fileId);

@@ -5,7 +5,7 @@ import { UserResponse, AuthResponse } from '@/types/user';
 
 interface AuthContextType {
   login: (username: string, password: string) => Promise<boolean>;
-  loginAsGuest: () => void;
+  loginAsGuest: () => Promise<void>;
   logout: () => Promise<void>;
   updatePassword: (newPassword: string) => Promise<void>;
   user: UserResponse | null;
@@ -19,6 +19,11 @@ const API_ROUTES = {
   updatePassword: '/api/auth/update-password'
 };
 
+const guestUser: UserResponse = {
+  id: 'guest', email: 'guest@cinemafred.com', username: 'Guest',
+  isAdmin: false, isActive: true, mustResetPassword: false, isGuest: true,
+};
+
 const AuthContext = createContext<AuthContextType>(null!);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
@@ -30,22 +35,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     let isMounted = true;
 
     const validateToken = async () => {
-      const token = localStorage.getItem('token');
-      
       try {
-        if (!token) {
-          throw new Error('No token found');
+        // A guest preference never creates credentials. Clear any session first,
+        // including one left by another tab, before restoring guest browsing.
+        if (localStorage.getItem('isGuest') === 'true') {
+          const cleared = await fetch(API_ROUTES.logout, { method: 'POST' });
+          if (!cleared.ok) throw new Error('Could not clear playback session');
+          localStorage.removeItem('token');
+          if (isMounted) setUser(guestUser);
+          return;
         }
-
-        const response = await fetch(API_ROUTES.validate, {
-          method: 'POST',
-          headers: { 
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}` 
-          },
-          body: JSON.stringify({ token })
-        });
-        
+        const response = await fetch(API_ROUTES.validate, { method: 'POST' });
         if (!response.ok) {
           throw new Error('Invalid token');
         }
@@ -92,6 +92,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
 
       localStorage.setItem('token', data.token);
+      localStorage.removeItem('isGuest');
       
       setUser({
         id: data.user.id,
@@ -112,18 +113,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const loginAsGuest = () => {
-    const guestUser: UserResponse = {
-      id: 'guest',
-      email: 'guest@cinemafred.com',
-      username: 'Guest',
-      isAdmin: false,
-      isActive: true,
-      mustResetPassword: false,
-      isGuest: true
-    };
-    setUser(guestUser);
+  const loginAsGuest = async () => {
+    const response = await fetch(API_ROUTES.logout, { method: 'POST' });
+    if (!response.ok) throw new Error('Could not start guest mode. Please try again.');
+    localStorage.removeItem('token');
     localStorage.setItem('isGuest', 'true');
+    setUser(guestUser);
   };
 
   const updatePassword = async (newPassword: string): Promise<void> => {
@@ -159,19 +154,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setIsLoading(true);
     
     try {
-      const token = localStorage.getItem('token');
-      if (token) {
-        await fetch(API_ROUTES.logout, {
-          method: 'POST',
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
-      }
-    } catch (error) {
-      console.error('Logout error:', error);
-    } finally {
+      const response = await fetch(API_ROUTES.logout, { method: 'POST' });
+      if (!response.ok) throw new Error('Sign out failed. Please try again.');
       localStorage.removeItem('token');
       localStorage.removeItem('isGuest');
       setUser(null);
+    } finally {
       setIsLoading(false);
     }
   };

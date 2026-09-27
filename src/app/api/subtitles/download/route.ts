@@ -1,3 +1,4 @@
+import { requirePlayback } from '@/lib/playback-session';
 import fs from 'fs/promises';
 import path from 'path';
 import { NextRequest, NextResponse } from 'next/server';
@@ -10,6 +11,8 @@ const MEDIA_ROOT = process.env.MEDIA_ROOT || '/data/cinemafred';
 export const dynamic = 'force-dynamic';
 
 export async function GET(req: NextRequest) {
+  const denied = await requirePlayback(req);
+  if (denied) return denied;
   const { searchParams } = req.nextUrl;
   const fileId = parseInt(searchParams.get('fileId') ?? '');
   if (!fileId) return NextResponse.json({ error: 'fileId required' }, { status: 400 });
@@ -22,7 +25,7 @@ export async function GET(req: NextRequest) {
     try {
       const fullPath = path.resolve(MEDIA_ROOT, cached.path);
       const vtt = await fs.readFile(fullPath, 'utf-8');
-      return new Response(vtt, { headers: { 'Content-Type': 'text/vtt' } });
+      return new Response(vtt, { headers: { 'Content-Type': 'text/vtt', 'Cache-Control': 'private, no-store' } });
     } catch {
       // File missing from disk — fall through to re-download
       await prisma.cachedSubtitle.delete({ where: { os_file_id: fileId } }).catch(() => {});
@@ -70,7 +73,7 @@ export async function GET(req: NextRequest) {
   return new Response(vtt, {
     headers: {
       'Content-Type': 'text/vtt',
-      'Cache-Control': 'public, max-age=3600',
+      'Cache-Control': 'private, no-store',
     },
   });
 }
