@@ -2,22 +2,42 @@
 @tailwind components;
 @tailwind utilities;
 
+/* The whole UI is dark, so keep the page background dark regardless of the OS
+   theme; otherwise mobile overscroll bounces reveal a white page behind it. */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  --background: #0a0a0a;
+  --foreground: #ededed;
+  color-scheme: dark;
 }
 
 body {
   color: var(--foreground);
   background: var(--background);
   font-family: Arial, Helvetica, sans-serif;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* iOS Safari zooms the page when focusing a field with text under 16px. */
+@media (pointer: coarse) {
+  input.text-xs,
+  input.text-sm,
+  select.text-xs,
+  select.text-sm,
+  textarea.text-xs,
+  textarea.text-sm {
+    font-size: 16px;
+  }
+}
+
+/* Horizontally scrollable rows (e.g. genre chips) that shouldn't show a bar. */
+@layer utilities {
+  .no-scrollbar {
+    scrollbar-width: none;
+  }
+
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
 }
 
 /* TV browsers often expose pixels hidden by display overscan. Keep the video

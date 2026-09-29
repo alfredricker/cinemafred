@@ -209,23 +209,43 @@ export const MovieDetailsModal: React.FC<MovieDetailsModalProps> = ({
 
   if (!isOpen) return null;
 
+  const renderPoster = (sizes: string) => (
+    !imageError ? (
+      <Image
+        src={getMoviePosterUrl(movie!)}
+        alt={movie!.title}
+        fill
+        sizes={sizes}
+        quality={85}
+        className="object-cover"
+        onError={() => setImageError(true)}
+      />
+    ) : (
+      <div className="w-full h-full bg-gray-700 flex items-center justify-center">
+        <span className="text-gray-400 text-sm">No Image</span>
+      </div>
+    )
+  );
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
-      <div className="relative w-[70vw] max-w-6xl h-[56vh] bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 rounded-2xl shadow-2xl border border-gray-700 overflow-hidden">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm sm:p-4">
+      {/* Full screen on phones, a centered card on tablets, side-by-side layout on desktop */}
+      <div className="relative flex flex-col w-full h-full sm:h-auto sm:max-h-[90vh] sm:max-w-2xl lg:w-[70vw] lg:max-w-6xl lg:h-[56vh] lg:min-h-[33rem] lg:max-h-full bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 sm:rounded-2xl shadow-2xl sm:border border-gray-700 overflow-hidden">
         {/* Close button */}
         <button
           onClick={onClose}
+          aria-label="Close"
           className="absolute top-4 right-4 z-10 p-2 bg-black/50 hover:bg-black/70 rounded-full transition-colors"
         >
           <X className="w-5 h-5 text-white" />
         </button>
 
         {isLoading ? (
-          <div className="flex items-center justify-center h-full">
+          <div className="flex flex-1 items-center justify-center min-h-[16rem]">
             <div className="text-white">Loading...</div>
           </div>
         ) : error ? (
-          <div className="flex flex-col items-center justify-center h-full">
+          <div className="flex flex-1 flex-col items-center justify-center min-h-[16rem] px-4 text-center">
             <div className="text-red-400 mb-4">{error}</div>
             <button
               onClick={fetchMovieDetails}
@@ -235,62 +255,52 @@ export const MovieDetailsModal: React.FC<MovieDetailsModalProps> = ({
             </button>
           </div>
         ) : movie ? (
-          <div className="flex h-full overflow-hidden p-6 gap-6">
+          <div className="flex flex-1 min-h-0 overflow-hidden p-4 sm:p-6 gap-6">
             {/* Movie Poster */}
-            <div className="flex-shrink-0 flex flex-col">
+            <div className="hidden lg:flex flex-shrink-0 flex-col">
               <div className="relative aspect-[27/40] w-80 overflow-hidden rounded-lg bg-gray-800">
-                {!imageError ? (
-                  <Image
-                    src={getMoviePosterUrl(movie)}
-                    alt={movie.title}
-                    fill
-                    sizes="320px"
-                    quality={85}
-                    className="object-cover"
-                    onError={() => setImageError(true)}
-                  />
-                ) : (
-                  <div className="w-full h-full bg-gray-700 flex items-center justify-center">
-                    <span className="text-gray-400 text-sm">No Image</span>
-                  </div>
-                )}
+                {renderPoster('320px')}
               </div>
             </div>
 
             {/* Movie Details & Reviews */}
-            <div className="flex-1 flex flex-col overflow-hidden justify-between min-h-0">
-              <div className="flex-1 overflow-y-auto min-h-0 pr-2 custom-scrollbar">
-                {/* Title and Year */}
-                <h2 className="text-3xl font-bold text-white mb-2">{movie.title}</h2>
-                <div className="flex items-center gap-4 text-gray-300 mb-4">
-                  {movie.year && (
-                    <div className="flex items-center gap-1">
-                      <Calendar className="w-4 h-4" />
-                      <span>{movie.year}</span>
+            <div className="flex-1 flex flex-col overflow-hidden justify-between min-h-0 min-w-0">
+              <div className="flex-1 overflow-y-auto overscroll-contain min-h-0 lg:pr-2 custom-scrollbar">
+                <div className="flex gap-4 mb-4">
+                  {/* Compact poster next to the title on smaller screens */}
+                  <div className="lg:hidden relative aspect-[27/40] w-24 sm:w-32 flex-shrink-0 overflow-hidden rounded-lg bg-gray-800">
+                    {renderPoster('128px')}
+                  </div>
+
+                  <div className="min-w-0">
+                    {/* Title and Year */}
+                    <h2 className="text-2xl sm:text-3xl font-bold text-white mb-2 pr-10">{movie.title}</h2>
+                    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-gray-300">
+                      {movie.year && (
+                        <div className="flex items-center gap-1">
+                          <Calendar className="w-4 h-4" />
+                          <span>{movie.year}</span>
+                        </div>
+                      )}
+                      {movie.duration && (
+                        <div className="flex items-center gap-1">
+                          <Clock className="w-4 h-4" />
+                          <span>{formatDuration(movie.duration)}</span>
+                        </div>
+                      )}
+                      <div className="flex items-center gap-1">
+                        <Star className="w-4 h-4 fill-yellow-400 text-yellow-400" />
+                        <span>{movie.averageRating ? movie.averageRating.toFixed(1) : 'N/A'}</span>
+                        <span className="text-gray-400">({movie._count.ratings} ratings)</span>
+                      </div>
                     </div>
-                  )}
-                  {movie.duration && (
-                    <div className="flex items-center gap-1">
-                      <Clock className="w-4 h-4" />
-                      <span>{formatDuration(movie.duration)}</span>
-                    </div>
-                  )}
-                  <div className="flex items-center gap-1">
-                    <Star className="w-4 h-4 fill-yellow-400 text-yellow-400" />
-                    <span>{movie.averageRating ? movie.averageRating.toFixed(1) : 'N/A'}</span>
-                    <span className="text-gray-400">({movie._count.ratings} ratings)</span>
                   </div>
                 </div>
 
                 {/* Description */}
                 {movie.description && (
                   <div className="mb-4">
-                    <p className="text-gray-300 text-sm leading-relaxed overflow-hidden" 
-                       style={{
-                         display: '-webkit-box',
-                         WebkitLineClamp: 3,
-                         WebkitBoxOrient: 'vertical'
-                       }}>
+                    <p className="text-gray-300 text-sm leading-relaxed lg:line-clamp-3">
                       {movie.description}
                     </p>
                   </div>
@@ -312,15 +322,17 @@ export const MovieDetailsModal: React.FC<MovieDetailsModalProps> = ({
                   </div>
                 )}
 
-                {/* Sliding Container for Rating/Review and Reviews List */}
-                <div className="overflow-hidden max-h-[280px]">
+                {/* Sliding Container for Rating/Review and Reviews List.
+                    Below lg the modal body scrolls instead, so the hidden panel is
+                    collapsed to keep it from padding out the visible one. */}
+                <div className="overflow-hidden lg:max-h-[280px]">
                   <div 
                     className="transition-transform duration-500 ease-in-out"
                     style={{ transform: showReviews ? 'translateX(-100%)' : 'translateX(0)' }}
                   >
                     <div className="flex w-[200%]">
                       {/* Rating & Review Submission Panel */}
-                      <div className="w-1/2 pr-4 overflow-y-auto custom-scrollbar">
+                      <div className={`w-1/2 lg:pr-4 overflow-y-auto custom-scrollbar ${showReviews ? 'max-lg:h-0' : ''}`}>
                         {/* Rating Component */}
                         <div className="mb-4">
                           <RatingStars
@@ -344,7 +356,7 @@ export const MovieDetailsModal: React.FC<MovieDetailsModalProps> = ({
                               {reviewError && (
                                 <p className="text-red-400 text-xs mt-1">{reviewError}</p>
                               )}
-                              <div className="flex gap-2 mt-2">
+                              <div className="flex flex-wrap gap-2 mt-2">
                                 <button
                                   onClick={handleSubmitReview}
                                   disabled={isSubmittingReview || !reviewText.trim()}
@@ -374,7 +386,7 @@ export const MovieDetailsModal: React.FC<MovieDetailsModalProps> = ({
                       </div>
 
                       {/* Reviews List Panel */}
-                      <div className="w-1/2 pl-4 overflow-y-auto custom-scrollbar">
+                      <div className={`w-1/2 lg:pl-4 overflow-y-auto custom-scrollbar ${showReviews ? '' : 'max-lg:h-0'}`}>
                         <div className="mb-3 flex align-left">
                           <button
                             onClick={() => setShowReviews(false)}
@@ -394,7 +406,7 @@ export const MovieDetailsModal: React.FC<MovieDetailsModalProps> = ({
               <div className="flex-shrink-0 pt-3 border-t border-gray-600">
                 <button
                   onClick={handleWatchClick}
-                  className="flex items-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors"
+                  className="flex items-center justify-center gap-2 w-full lg:w-auto px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors"
                 >
                   <Play className="w-5 h-5" />
                   {user?.isGuest ? 'Sign in to watch' : 'Watch Now'}

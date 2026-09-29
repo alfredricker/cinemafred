@@ -77,22 +77,23 @@ export const VideoControlBar: React.FC<VideoControlBarProps> = ({
     if (frac !== null && duration > 0) onSeek(frac * duration);
   }, [getFraction, duration, onSeek]);
 
-  const handleSeekMouseDown = useCallback((e: React.MouseEvent) => {
+  // Pointer events cover mouse and touch; capturing the pointer keeps the drag
+  // going when it leaves the bar.
+  const handleSeekPointerDown = useCallback((e: React.PointerEvent) => {
     e.preventDefault();
+    e.currentTarget.setPointerCapture(e.pointerId);
     isSeekingRef.current = true;
     applySeek(e.clientX);
   }, [applySeek]);
 
-  useEffect(() => {
-    const onMove = (e: MouseEvent) => { if (isSeekingRef.current) applySeek(e.clientX); };
-    const onUp = () => { isSeekingRef.current = false; };
-    document.addEventListener('mousemove', onMove);
-    document.addEventListener('mouseup', onUp);
-    return () => {
-      document.removeEventListener('mousemove', onMove);
-      document.removeEventListener('mouseup', onUp);
-    };
-  }, [applySeek]);
+  const handleSeekPointerMove = useCallback((e: React.PointerEvent) => {
+    setHoverProgress(getFraction(e.clientX));
+    if (isSeekingRef.current) applySeek(e.clientX);
+  }, [getFraction, applySeek]);
+
+  const handleSeekPointerUp = useCallback(() => {
+    isSeekingRef.current = false;
+  }, []);
 
   const toggleSubtitle = useCallback(() => {
     setShowSubtitleMenu(v => !v);
@@ -116,14 +117,21 @@ export const VideoControlBar: React.FC<VideoControlBarProps> = ({
         show ? 'opacity-100' : 'opacity-0 pointer-events-none'
       }`}
     >
-      <div className="bg-gradient-to-t from-black/90 via-black/50 to-transparent px-4 pt-16 pb-4">
+      <div className="bg-gradient-to-t from-black/90 via-black/50 to-transparent px-2 sm:px-4 pt-10 sm:pt-16 pb-2 sm:pb-4">
 
-        {/* Seekbar */}
-        <div className="relative mb-3 h-5 flex items-center">
+        {/* Seekbar - the hit area is taller than the visible bar so it's easy to grab on touch */}
+        <div
+          className="group/seek relative -mt-1.5 mb-1.5 h-8 flex items-center cursor-pointer touch-none"
+          onPointerDown={handleSeekPointerDown}
+          onPointerMove={handleSeekPointerMove}
+          onPointerUp={handleSeekPointerUp}
+          onPointerCancel={handleSeekPointerUp}
+          onPointerLeave={() => setHoverProgress(null)}
+        >
           {/* Hover time tooltip */}
           {hoverTime !== null && (
             <div
-              className="absolute -top-7 -translate-x-1/2 bg-black/80 text-white text-xs px-2 py-0.5 rounded pointer-events-none whitespace-nowrap"
+              className="absolute -top-5 -translate-x-1/2 bg-black/80 text-white text-xs px-2 py-0.5 rounded pointer-events-none whitespace-nowrap"
               style={{ left: `${(hoverTime / duration) * 100}%` }}
             >
               {fmtTime(hoverTime)}
@@ -132,10 +140,7 @@ export const VideoControlBar: React.FC<VideoControlBarProps> = ({
 
           <div
             ref={seekBarRef}
-            className="relative w-full h-1 hover:h-1.5 transition-[height] duration-100 bg-white/30 rounded-full cursor-pointer"
-            onMouseDown={handleSeekMouseDown}
-            onMouseMove={e => setHoverProgress(getFraction(e.clientX))}
-            onMouseLeave={() => setHoverProgress(null)}
+            className="relative w-full h-1 group-hover/seek:h-1.5 transition-[height] duration-100 bg-white/30 rounded-full"
           >
             {/* Filled */}
             <div
@@ -144,14 +149,14 @@ export const VideoControlBar: React.FC<VideoControlBarProps> = ({
             />
             {/* Thumb */}
             <div
-              className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-3 h-3 bg-white rounded-full opacity-0 hover:opacity-100 pointer-events-none"
+              className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-3 h-3 bg-white rounded-full opacity-0 group-hover/seek:opacity-100 [@media(hover:none)]:opacity-100 pointer-events-none"
               style={{ left: `${progress}%` }}
             />
           </div>
         </div>
 
-        {/* Controls row */}
-        <div className="flex items-center gap-0.5">
+        {/* Controls row - menus anchor to this row on phones so they stay on screen */}
+        <div className="relative flex items-center gap-0.5">
           {/* Back */}
           <Btn onClick={onBack} title="Back">
             <ArrowLeft className="w-[18px] h-[18px]" />
@@ -165,8 +170,8 @@ export const VideoControlBar: React.FC<VideoControlBarProps> = ({
             }
           </Btn>
 
-          {/* Volume */}
-          <div className="flex items-center group/vol">
+          {/* Volume - phones use their hardware buttons */}
+          <div className="hidden sm:flex items-center group/vol">
             <Btn onClick={() => onVolumeChange(volume > 0 ? 0 : 1)} title="Mute (M)">
               <VolumeIcon className="w-[18px] h-[18px]" />
             </Btn>
@@ -185,7 +190,7 @@ export const VideoControlBar: React.FC<VideoControlBarProps> = ({
           </div>
 
           {/* Time */}
-          <span className="text-white/80 text-sm tabular-nums ml-1.5">
+          <span className="text-white/80 text-xs sm:text-sm tabular-nums whitespace-nowrap ml-1.5">
             {fmtTime(currentTime)} <span className="text-white/40">/</span> {fmtTime(duration)}
           </span>
 
@@ -193,7 +198,7 @@ export const VideoControlBar: React.FC<VideoControlBarProps> = ({
 
           {/* Subtitle selector */}
           {hasSubtitles && (
-            <div className="relative">
+            <div className="sm:relative">
               <Btn onClick={toggleSubtitle} title="Subtitles" active={!!activeSubtitleId}>
                 <Subtitles className="w-[18px] h-[18px]" />
               </Btn>
@@ -216,7 +221,7 @@ export const VideoControlBar: React.FC<VideoControlBarProps> = ({
 
           {/* Quality selector */}
           {hasQuality && (
-            <div className="relative">
+            <div className="sm:relative">
               <Btn onClick={toggleQuality} title="Quality">
                 <Settings className="w-[18px] h-[18px]" />
               </Btn>

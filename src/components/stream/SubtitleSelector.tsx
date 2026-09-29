@@ -91,7 +91,7 @@ export const SubtitleSelector: React.FC<SubtitleSelectorProps> = ({
         {loading && <Loader2 className="w-3.5 h-3.5 text-white/50 animate-spin" />}
       </div>
 
-      <div className="max-h-80 overflow-y-auto py-1">
+      <div className="max-h-[min(20rem,50dvh)] overflow-y-auto overscroll-contain py-1">
         <OptionRow active={!activeId} label="Off" onClick={() => pick(null)} />
 
         {onSearch && (

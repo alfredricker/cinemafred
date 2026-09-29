@@ -50,11 +50,11 @@ export const MovieGridHeader: React.FC<MovieGridHeaderProps> = ({
   };
 
   return (
-    <div className="py-2 px-16">
+    <div className="py-2 px-4 sm:px-6 lg:px-16">
       <div className="max-w-[128rem] mx-auto">
-        <div className="flex items-center justify-between">
-          {/* Genre Filters */}
-          <div className="flex items-center gap-2 overflow-x-auto flex-grow">
+        <div className="flex flex-col lg:flex-row lg:items-center gap-3 lg:gap-6">
+          {/* Genre Filters - bleed to the screen edges when scrolling on small screens */}
+          <div className="order-2 lg:order-1 flex items-center gap-2 overflow-x-auto max-lg:no-scrollbar flex-grow min-w-0 -mx-4 px-4 sm:-mx-6 sm:px-6 lg:mx-0 lg:px-0">
             <button
               onClick={() => handleGenreClick(null)}
               className={`px-4 py-1.5 rounded-md transition-colors whitespace-nowrap ${
@@ -80,12 +80,28 @@ export const MovieGridHeader: React.FC<MovieGridHeaderProps> = ({
             ))}
           </div>
 
-          {/* Sort Dropdown */}
-          <div className="ml-6">
+          <div className="order-1 lg:order-2 flex items-center gap-2 lg:gap-6 flex-shrink-0">
+            {/* Search Field */}
+            {onSearchChange && (
+              <div className="relative flex-1 min-w-0 lg:flex-none lg:order-2">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                <input
+                  type="text"
+                  enterKeyHint="search"
+                  placeholder="Search movies..."
+                  value={searchQuery}
+                  onChange={(e) => onSearchChange(e.target.value)}
+                  className="w-full lg:w-64 pl-9 pr-4 py-1.5 bg-gray-800/30 border border-gray-700/50 rounded-md text-white placeholder-gray-400 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-transparent transition-all"
+                />
+              </div>
+            )}
+
+            {/* Sort Dropdown */}
             <select
               value={selectedSort}
               onChange={handleSortChange}
-              className="bg-gray-800/50 border border-gray-700 rounded-md px-4 py-1.5 text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent hover:bg-gray-800/80 transition-colors min-w-[200px]"
+              aria-label="Sort movies"
+              className={`${onSearchChange ? 'w-40 sm:w-48' : 'w-full sm:w-auto'} lg:w-auto lg:min-w-[200px] lg:order-1 bg-gray-800/50 border border-gray-700 rounded-md px-3 lg:px-4 py-1.5 text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent hover:bg-gray-800/80 transition-colors`}
             >
               {sortOptions.map((option) => (
                 <option key={option.value} value={option.value}>
@@ -94,22 +110,6 @@ export const MovieGridHeader: React.FC<MovieGridHeaderProps> = ({
               ))}
             </select>
           </div>
-
-          {/* Search Field */}
-          {onSearchChange && (
-            <div className="ml-6">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-                <input
-                  type="text"
-                  placeholder="Search movies..."
-                  value={searchQuery}
-                  onChange={(e) => onSearchChange(e.target.value)}
-                  className="w-64 pl-9 pr-4 py-1.5 bg-gray-800/30 border border-gray-700/50 rounded-md text-white placeholder-gray-400 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-transparent transition-all"
-                />
-              </div>
-            </div>
-          )}
         </div>
       </div>
     </div>

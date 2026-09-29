@@ -106,8 +106,8 @@ function HomeContent() {
         searchQuery={searchQuery}
         onSearchChange={handleSearchChange}
       />
-      <main className="px-16">
-        <div className="max-w-[128rem] mx-auto pt-8 pb-16">
+      <main className="px-4 sm:px-6 lg:px-16">
+        <div className="max-w-[128rem] mx-auto pt-4 sm:pt-8 pb-16">
           <MovieGrid 
             selectedGenre={selectedGenre}
             sortOption={sortOption}

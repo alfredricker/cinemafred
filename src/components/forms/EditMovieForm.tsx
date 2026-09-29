@@ -309,7 +309,7 @@ export const EditMovieForm: React.FC<EditMovieFormProps> = ({ isOpen, onClose, m
       <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50" onClick={onClose} />
       <div className="fixed inset-0 flex items-center justify-center p-4 z-50">
         <div className="bg-gray-900 rounded-lg w-full max-w-2xl max-h-[90vh] flex flex-col" onClick={e => e.stopPropagation()}>
-          <div className="flex justify-between items-center p-6 pb-4 flex-shrink-0">
+          <div className="flex justify-between items-center gap-4 p-4 sm:p-6 pb-4 flex-shrink-0">
             <h2 className="text-xl font-bold text-white">Edit Movie</h2>
             <button
               onClick={handleDelete}
@@ -321,7 +321,7 @@ export const EditMovieForm: React.FC<EditMovieFormProps> = ({ isOpen, onClose, m
             </button>
           </div>
 
-          <div className="flex-1 overflow-y-auto px-6 pb-6 webkit-scrollbar">
+          <div className="flex-1 overflow-y-auto overscroll-contain px-4 sm:px-6 pb-4 sm:pb-6 webkit-scrollbar">
             <form onSubmit={handleSubmit} className="space-y-6">
             {/* File Upload Section */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

@@ -163,11 +163,25 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
   }, []);
 
   const handleToggleFullscreen = useCallback(() => {
-    if (!document.fullscreenElement) {
-      containerRef.current?.requestFullscreen().catch(() => {});
-    } else {
+    // Orientation locking is only available on some mobile browsers, and only in fullscreen
+    const orientation = screen.orientation as ScreenOrientation & {
+      lock?: (orientation: string) => Promise<void>;
+    };
+    if (document.fullscreenElement) {
+      orientation?.unlock?.();
       document.exitFullscreen().catch(() => {});
+      return;
     }
+    const container = containerRef.current;
+    if (container?.requestFullscreen) {
+      container.requestFullscreen()
+        .then(() => orientation?.lock?.('landscape'))
+        .catch(() => {});
+      return;
+    }
+    // iPhone Safari can't fullscreen arbitrary elements, only the <video> itself
+    const video = videoRef.current as (HTMLVideoElement & { webkitEnterFullscreen?: () => void }) | null;
+    video?.webkitEnterFullscreen?.();
   }, []);
 
   // HLS authenticated URL
@@ -307,8 +321,9 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
   return (
     <div
       ref={containerRef}
-      className="fixed inset-0 bg-black flex flex-col"
-      onMouseMove={handleMouseMove}
+      className="fixed inset-0 bg-black flex flex-col touch-manipulation"
+      onPointerMove={handleMouseMove}
+      onPointerDown={handleMouseMove}
       style={{ cursor: showControls ? 'default' : 'none' }}
     >
       {isAdmin && hlsState.isHLSSupported && hlsManagerRef.current?.instance && (
@@ -327,6 +342,7 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
           className="absolute inset-0 w-full h-full"
           poster={poster}
           preload="auto"
+          playsInline
           crossOrigin="anonymous"
           onDoubleClick={handleToggleFullscreen}
           style={{ backgroundColor: 'transparent', objectFit: 'contain', objectPosition: 'center' }}

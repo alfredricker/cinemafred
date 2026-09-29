@@ -356,7 +356,7 @@ export const CreateMovieForm: React.FC<CreateMovieFormProps> = ({ isOpen, onClos
     <>
       <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50" onClick={handleClose} />
       <div className="fixed inset-0 flex items-center justify-center p-4 z-50">
-        <div className="bg-gray-900 rounded-lg p-6 w-full max-w-2xl" onClick={e => e.stopPropagation()}>
+        <div className="bg-gray-900 rounded-lg p-4 sm:p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto overscroll-contain" onClick={e => e.stopPropagation()}>
           <h2 className="text-xl font-bold text-white mb-6">Add New Movie</h2>
 
           <form onSubmit={handleSubmit} className="space-y-6">

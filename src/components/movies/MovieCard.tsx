@@ -58,7 +58,7 @@ export const MovieCard: React.FC<MovieCardProps> = ({ movie, priority = false, o
               e.stopPropagation();
               fetchFullMovieDetails();
             }}
-            className="edit-button absolute top-2 right-2 p-2 bg-black/50 rounded-full  opacity-0 group-hover:opacity-100 hover:bg-black/70 transition-all backdrop-blur-sm z-10"
+            className="edit-button absolute top-2 right-2 p-2 bg-black/50 rounded-full opacity-0 group-hover:opacity-100 [@media(hover:none)]:opacity-100 hover:bg-black/70 transition-all backdrop-blur-sm z-10"
             title="Edit movie"
           >
             <Pencil className="w-4 h-4 text-white" />
@@ -71,7 +71,7 @@ export const MovieCard: React.FC<MovieCardProps> = ({ movie, priority = false, o
               src={imageUrl}
               alt={movie.title}
               fill
-              sizes="(max-width: 640px) 50vw, (max-width: 1024px) 25vw, 16vw"
+              sizes="(max-width: 640px) 50vw, (max-width: 768px) 33vw, (max-width: 1024px) 25vw, 16vw"
               quality={70}
               className="object-cover transition-transform group-hover:scale-105"
               onError={() => {
@@ -90,7 +90,7 @@ export const MovieCard: React.FC<MovieCardProps> = ({ movie, priority = false, o
           <h3 className="text-gray-100 font-medium line-clamp-1">{movie.title}</h3>
           {movie.year && <p className="text-sm text-gray-400">{movie.year}</p>}
 
-          <div className="flex items-center mt-1">
+          <div className="flex items-center mt-1 min-w-0">
             <Star className="w-4 h-4 text-yellow-400 fill-yellow-400 mr-1" />
             <span className="text-yellow-400 font-medium">
               {movie.averageRating 
@@ -99,7 +99,7 @@ export const MovieCard: React.FC<MovieCardProps> = ({ movie, priority = false, o
             </span>
             <span className="text-gray-500 text-sm ml-1">/10</span>
             {movie._count && (
-              <span className="text-gray-500 text-xs ml-2">
+              <span className="text-gray-500 text-xs ml-2 truncate">
                 ({movie._count.ratings} {movie._count.ratings === 1 ? 'rating' : 'ratings'})
               </span>
             )}

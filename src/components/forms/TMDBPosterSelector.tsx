@@ -39,7 +39,7 @@ export const TMDBPosterSelector: React.FC<TMDBPosterSelectorProps> = ({
           onClick={e => e.stopPropagation()}
         >
           {/* Header */}
-          <div className="flex justify-between items-center p-6 border-b border-gray-800">
+          <div className="flex justify-between items-center gap-4 p-4 sm:p-6 border-b border-gray-800">
             <h3 className="text-xl font-semibold text-white">Select a Poster from TMDB</h3>
             <button
               onClick={onClose}
@@ -51,7 +51,7 @@ export const TMDBPosterSelector: React.FC<TMDBPosterSelectorProps> = ({
           </div>
 
           {/* Content */}
-          <div className="flex-1 overflow-y-auto p-6 webkit-scrollbar">
+          <div className="flex-1 overflow-y-auto overscroll-contain p-4 sm:p-6 webkit-scrollbar">
             {posters.length === 0 ? (
               <div className="flex items-center justify-center h-full text-gray-400">
                 <p>No posters available</p>
@@ -121,7 +121,7 @@ export const TMDBPosterSelector: React.FC<TMDBPosterSelectorProps> = ({
           </div>
 
           {/* Footer */}
-          <div className="p-6 border-t border-gray-800">
+          <div className="p-4 sm:p-6 border-t border-gray-800">
             <button
               type="button"
               onClick={onClose}

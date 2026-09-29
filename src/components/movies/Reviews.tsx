@@ -108,14 +108,14 @@ export const Reviews: React.FC<ReviewsProps> = ({ ratings, reviews }) => {
   }
 
   return (
-    <div className="space-y-4 max-h-[200px] overflow-y-auto pr-2 custom-scrollbar">
+    <div className="space-y-4 lg:max-h-[200px] lg:overflow-y-auto lg:pr-2 custom-scrollbar">
       {combinedData.map((item) => (
         <div 
           key={item.id} 
           className="bg-gray-800/50 rounded-lg p-4 border border-gray-700/50"
         >
-          <div className="flex items-start justify-between mb-2">
-            <div className="flex items-center gap-3">
+          <div className="flex items-start justify-between gap-2 mb-2">
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 min-w-0">
               <span className="font-semibold text-white text-sm">
                 {item.username}
               </span>
@@ -126,7 +126,7 @@ export const Reviews: React.FC<ReviewsProps> = ({ ratings, reviews }) => {
                 </span>
               </div>
             </div>
-            <span className="text-gray-400 text-xs">
+            <span className="text-gray-400 text-xs whitespace-nowrap">
               {formatDate(item.created_at)}
             </span>
           </div>

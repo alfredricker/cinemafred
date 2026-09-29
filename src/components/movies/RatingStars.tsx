@@ -182,7 +182,7 @@ export const RatingStars: React.FC<RatingStarsProps> = ({
   const marginSize = size === 'inline' ? 'ml-1' : 'ml-2';
 
   return (
-    <div className={`flex items-center ${size === 'inline' ? 'gap-0' : 'gap-2'} relative`}>
+    <div className={`flex items-center ${size === 'inline' ? 'gap-0' : 'flex-wrap gap-2'} relative`}>
       <div
         className={`flex ${gapSize}`}
         onMouseLeave={() => canEdit && setHoverRating(null)}

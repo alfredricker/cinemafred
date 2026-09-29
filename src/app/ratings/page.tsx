@@ -316,9 +316,9 @@ function RatingsContent() {
     <div className="min-h-screen bg-gradient-to-br from-gray-900 via-black to-gray-900">
       <Header />
       
-      <main className="px-8 py-8 max-w-[120rem] mx-auto">
-        <div className="mb-6 flex items-center justify-between">
-          <h1 className="text-3xl font-bold text-white">Ratings</h1>
+      <main className="px-4 sm:px-8 py-4 sm:py-8 max-w-[120rem] mx-auto">
+        <div className="mb-4 sm:mb-6 flex items-center justify-between gap-4">
+          <h1 className="text-2xl sm:text-3xl font-bold text-white">Ratings</h1>
           
           <div className="relative">
             <button
@@ -330,7 +330,7 @@ function RatingsContent() {
             </button>
 
             {showUserSearch && (
-              <div className="absolute right-0 mt-2 w-80 bg-gray-800 border border-gray-700 rounded-lg shadow-xl z-10">
+              <div className="absolute right-0 mt-2 w-72 sm:w-80 bg-gray-800 border border-gray-700 rounded-lg shadow-xl z-20">
                 <div className="p-3 border-b border-gray-700">
                   <div className="relative">
                     <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
@@ -392,7 +392,7 @@ function RatingsContent() {
                 <thead className="bg-gray-900 border-b border-gray-700">
                   <tr>
                     <th 
-                      className="px-6 py-4 text-left text-sm font-semibold text-white cursor-pointer hover:bg-gray-800 transition-colors"
+                      className="sticky left-0 z-10 bg-gray-900 px-3 py-3 sm:px-6 sm:py-4 text-left text-sm font-semibold text-white cursor-pointer hover:bg-gray-800 transition-colors"
                       onClick={() => handleSort('title')}
                     >
                       <div className="flex items-center gap-2">
@@ -406,7 +406,7 @@ function RatingsContent() {
                     {displayUsers.map((u) => (
                       <th 
                         key={u.id}
-                        className="px-6 py-4 text-left text-sm font-semibold text-white cursor-pointer hover:bg-gray-800 transition-colors group"
+                        className="px-3 py-3 sm:px-6 sm:py-4 text-left text-sm font-semibold text-white cursor-pointer hover:bg-gray-800 transition-colors group"
                         onClick={() => handleSort(u.id)}
                       >
                         <div className="flex items-center justify-between gap-2">
@@ -425,7 +425,7 @@ function RatingsContent() {
                                 e.stopPropagation();
                                 removeUser(u.id);
                               }}
-                              className="opacity-0 group-hover:opacity-100 p-1 hover:bg-gray-700 rounded transition-all"
+                              className="opacity-0 group-hover:opacity-100 [@media(hover:none)]:opacity-100 p-1 hover:bg-gray-700 rounded transition-all"
                               title="Remove user"
                             >
                               <X className="w-3 h-3" />
@@ -436,7 +436,7 @@ function RatingsContent() {
                     ))}
                     
                     <th 
-                      className="px-6 py-4 text-left text-sm font-semibold text-white cursor-pointer hover:bg-gray-800 transition-colors"
+                      className="px-3 py-3 sm:px-6 sm:py-4 text-left text-sm font-semibold text-white cursor-pointer hover:bg-gray-800 transition-colors"
                       onClick={() => handleSort('average')}
                     >
                       <div className="flex items-center gap-2">
@@ -456,7 +456,7 @@ function RatingsContent() {
                         index % 2 === 0 ? 'bg-gray-800/50' : 'bg-gray-800/30'
                       }`}
                     >
-                      <td className="px-6 py-4">
+                      <td className="sticky left-0 z-10 bg-gray-800 px-3 py-3 sm:px-6 sm:py-4 min-w-[9rem] max-w-[12rem] sm:max-w-none">
                         <div>
                           <div className="text-white font-medium">{movie.title}</div>
                           <div className="text-gray-400 text-sm">{movie.year}</div>
@@ -464,7 +464,7 @@ function RatingsContent() {
                       </td>
                       
                       {displayUsers.map((u) => (
-                        <td key={u.id} className="px-6 py-4">
+                        <td key={u.id} className="px-3 py-3 sm:px-6 sm:py-4">
                           <RatingStars
                             movieId={movie.id}
                             initialRating={getRatingForUser(movie, u.id) || 0}
@@ -475,7 +475,7 @@ function RatingsContent() {
                         </td>
                       ))}
                       
-                      <td className="px-6 py-4">
+                      <td className="px-3 py-3 sm:px-6 sm:py-4">
                         <div className="flex items-center gap-2">
                           <div className="flex gap-0.5">
                             {Array.from({ length: 10 }).map((_, i) => {
